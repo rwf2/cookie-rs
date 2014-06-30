@@ -8,6 +8,10 @@ use std::collections::TreeMap;
 use std::fmt;
 use std::from_str::FromStr;
 
+pub use jar::CookieJar;
+
+mod jar;
+
 #[deriving(PartialEq, Clone)]
 pub struct Cookie {
     pub name: String,
