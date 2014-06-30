@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use time;
 
 use Cookie;
 
@@ -40,6 +41,20 @@ impl CookieJar {
         } else {
             self.new_map.find(&name).or_else(|| self.orig_map.find(&name))
         }
+    }
+
+    pub fn delta(&self) -> Vec<String> {
+        let mut ret = Vec::new();
+        for cookie in self.removed_cookies.iter() {
+            let mut c = Cookie::new(cookie.clone(), String::new());
+            c.max_age = Some(0);
+            c.expires = Some(time::now());
+            ret.push(c.to_str());
+        }
+        for (_, cookie) in self.new_map.iter() {
+            ret.push(cookie.to_str());
+        }
+        return ret;
     }
 }
 
