@@ -48,7 +48,9 @@ impl CookieJar {
         for cookie in self.removed_cookies.iter() {
             let mut c = Cookie::new(cookie.clone(), String::new());
             c.max_age = Some(0);
-            c.expires = Some(time::now());
+            let mut now = time::now();
+            now.tm_year -= 1;
+            c.expires = Some(now);
             ret.push(c.to_str());
         }
         for (_, cookie) in self.new_map.iter() {
