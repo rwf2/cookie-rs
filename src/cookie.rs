@@ -49,8 +49,8 @@ impl Cookie {
         let mut pairs = s.trim().split(';');
         let keyval = try_option!(pairs.next());
         let (name, value) = try!(split(keyval));
-        c.name = name.to_string();
-        c.value = value.to_string();
+        c.name = url::decode_component(name);
+        c.value = url::decode_component(value);
 
         for attr in pairs {
             match attr.trim() {
@@ -149,5 +149,11 @@ mod tests {
         assert_eq!(expected.to_str().as_slice(),
                    "foo=bar; HttpOnly; Secure; Path=/foo; Domain=foo.com; \
                     Max-Age=4; wut=lol");
+    }
+
+    #[test]
+    fn odd_characters() {
+        let expected = Cookie::new("foo".to_string(), "b/r".to_string());
+        assert_eq!(Cookie::parse("foo=b%2Fr").unwrap(), expected);
     }
 }
