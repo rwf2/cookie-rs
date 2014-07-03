@@ -121,6 +121,7 @@ impl<'a> CookieJar<'a> {
                     Some(sig) => sig,
                     _ => return None,
                 };
+                if signature.len() == cookie.value.len() { return None }
                 let text = cookie.value.as_slice().slice_to(cookie.value.len() -
                                                             signature.len() - 2);
                 if signature.from_hex().ok() != Some(dosign(root, text)) {
@@ -184,7 +185,11 @@ mod test {
         let mut cookie = c.find("test").unwrap();
         cookie.value.push_char('l');
         c.add(cookie);
+        assert!(c.signed().find("test").is_none());
 
+        let mut cookie = c.find("test").unwrap();
+        cookie.value = "foobar".to_string();
+        c.add(cookie);
         assert!(c.signed().find("test").is_none());
     }
 }
