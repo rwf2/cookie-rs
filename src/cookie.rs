@@ -3,6 +3,8 @@
 
 extern crate url;
 extern crate time;
+extern crate openssl;
+extern crate serialize;
 
 use std::collections::TreeMap;
 use std::fmt;
