@@ -33,7 +33,7 @@ impl Cookie {
             expires: None,
             max_age: None,
             domain: None,
-            path: None,
+            path: Some("/".to_string()),
             secure: false,
             httponly: false,
             custom: TreeMap::new(),
