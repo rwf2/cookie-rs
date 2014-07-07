@@ -51,8 +51,8 @@ impl Cookie {
         let mut pairs = s.trim().split(';');
         let keyval = try_option!(pairs.next());
         let (name, value) = try!(split(keyval));
-        c.name = url::decode_component(name);
-        c.value = url::decode_component(value);
+        c.name = try!(url::decode_component(name).map_err(|_| ()));
+        c.value = try!(url::decode_component(value).map_err(|_| ()));
 
         for attr in pairs {
             match attr.trim() {
