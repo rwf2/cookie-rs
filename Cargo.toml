@@ -4,10 +4,6 @@ name = "cookie"
 authors = ["Alex Crichton <alex@alexcrichton.com>"]
 version = "0.0.1"
 
-[[lib]]
-
-name = "cookie"
-
 [dependencies.openssl]
 
 git = "https://github.com/sfackler/rust-openssl"
