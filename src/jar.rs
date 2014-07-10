@@ -149,10 +149,10 @@ impl<'a> CookieJar<'a> {
             let mut now = time::now();
             now.tm_year -= 1;
             c.expires = Some(now);
-            ret.push(c.to_str());
+            ret.push(c.to_string());
         }
         for (_, cookie) in root.new_map.borrow().iter() {
-            ret.push(cookie.to_str());
+            ret.push(cookie.to_string());
         }
         return ret;
     }

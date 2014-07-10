@@ -148,7 +148,7 @@ mod tests {
                                   Max-Age=4; Path=/foo; \
                                   Domain=foo.com; wut=lol").unwrap(), expected);
 
-        assert_eq!(expected.to_str().as_slice(),
+        assert_eq!(expected.to_string().as_slice(),
                    "foo=bar; HttpOnly; Secure; Path=/foo; Domain=foo.com; \
                     Max-Age=4; wut=lol");
     }
