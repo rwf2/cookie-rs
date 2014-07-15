@@ -72,10 +72,8 @@ struct Root {
 impl<'a> CookieJar<'a> {
     /// Creates a new empty cookie jar with the given signing key.
     ///
-    /// The given key is used to sign cookies in the signed cookie jar. The
-    /// lifetime parameter on the return value is arbitrary as this is the root
-    /// cookie jar.
-    pub fn new(key: &[u8]) -> CookieJar<'a> {
+    /// The given key is used to sign cookies in the signed cookie jar.
+    pub fn new(key: &[u8]) -> CookieJar<'static> {
         CookieJar {
             flavor: Root(Root {
                 orig_map: HashMap::new(),
