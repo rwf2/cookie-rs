@@ -79,7 +79,7 @@ impl<'a> CookieJar<'a> {
                 orig_map: HashMap::new(),
                 new_map: RefCell::new(HashMap::new()),
                 removed_cookies: RefCell::new(HashSet::new()),
-                key: key.to_owned(),
+                key: key.to_vec(),
             })
         }
     }
