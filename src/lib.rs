@@ -78,7 +78,7 @@ impl Cookie {
         return Ok(c);
 
         fn split<'a>(s: &'a str) -> Result<(&'a str, &'a str), ()> {
-            let mut parts = s.trim().splitn('=', 1);
+            let mut parts = s.trim().splitn(1, '=');
             Ok((try_option!(parts.next()), try_option!(parts.next())))
         }
     }
