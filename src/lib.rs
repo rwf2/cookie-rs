@@ -51,8 +51,10 @@ impl Cookie {
         let mut pairs = s.trim().split(';');
         let keyval = try_option!(pairs.next());
         let (name, value) = try!(split(keyval));
-        c.name = try!(url::decode_component(name).map_err(|_| ()));
-        c.value = try!(url::decode_component(value).map_err(|_| ()));
+        let name = url::percent_decode(name.as_bytes());
+        let value = url::percent_decode(value.as_bytes());
+        c.name = try!(String::from_utf8(name).map_err(|_| ()));
+        c.value = try!(String::from_utf8(value).map_err(|_| ()));
 
         for attr in pairs {
             match attr.trim() {
@@ -87,7 +89,8 @@ impl Cookie {
 impl fmt::Show for Cookie {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         try!(write!(f, "{}={}", self.name,
-                    url::encode_component(self.value.as_slice())));
+                    url::percent_encode(self.value.as_slice().as_bytes(),
+                                        url::DEFAULT_ENCODE_SET)));
         if self.httponly { try!(write!(f, "; HttpOnly")); }
         if self.secure { try!(write!(f, "; Secure")); }
         match self.path {
@@ -108,7 +111,9 @@ impl fmt::Show for Cookie {
         }
 
         for (k, v) in self.custom.iter() {
-            try!(write!(f, "; {}={}", k, url::encode_component(v.as_slice())));
+            try!(write!(f, "; {}={}", k,
+                        url::percent_encode(v.as_slice().as_bytes(),
+                                            url::DEFAULT_ENCODE_SET)));
         }
         Ok(())
     }
