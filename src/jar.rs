@@ -49,8 +49,8 @@ pub struct CookieJar<'a> {
 }
 
 enum Flavor<'a> {
-    Child(Child<'a>),
-    Root(Root),
+    FlavorChild(Child<'a>),
+    FlavorRoot(Root),
 }
 
 struct Child<'a> {
@@ -75,7 +75,7 @@ impl<'a> CookieJar<'a> {
     /// The given key is used to sign cookies in the signed cookie jar.
     pub fn new(key: &[u8]) -> CookieJar<'static> {
         CookieJar {
-            flavor: Root(Root {
+            flavor: FlavorRoot(Root {
                 orig_map: HashMap::new(),
                 new_map: RefCell::new(HashMap::new()),
                 removed_cookies: RefCell::new(HashSet::new()),
@@ -88,8 +88,8 @@ impl<'a> CookieJar<'a> {
         let mut cur = self;
         loop {
             match cur.flavor {
-                Child(ref child) => cur = child.parent,
-                Root(ref me) => return me,
+                FlavorChild(ref child) => cur = child.parent,
+                FlavorRoot(ref me) => return me,
             }
         }
     }
@@ -101,8 +101,8 @@ impl<'a> CookieJar<'a> {
     /// cookie jar from an incoming request.
     pub fn add_original(&mut self, cookie: Cookie) {
         match self.flavor {
-            Child(..) => fail!("can't add an original cookie to a child jar!"),
-            Root(ref mut root) => {
+            FlavorChild(..) => fail!("can't add an original cookie to a child jar!"),
+            FlavorRoot(ref mut root) => {
                 let name = cookie.name.clone();
                 root.orig_map.insert(name, cookie);
             }
@@ -118,11 +118,11 @@ impl<'a> CookieJar<'a> {
         let root = self.root();
         loop {
             match cur.flavor {
-                Child(ref child) => {
+                FlavorChild(ref child) => {
                     cookie = (child.write)(root, cookie);
                     cur = child.parent;
                 }
-                Root(..) => break,
+                FlavorRoot(..) => break,
             }
         }
         let name = cookie.name.clone();
@@ -155,11 +155,11 @@ impl<'a> CookieJar<'a> {
         loop {
             match (&cur.flavor, ret) {
                 (_, None) => return None,
-                (&Child(Child { read, parent, .. }), Some(cookie)) => {
+                (&FlavorChild(Child { read, parent, .. }), Some(cookie)) => {
                     ret = read(root, cookie);
                     cur = parent;
                 }
-                (&Root(..), Some(cookie)) => return Some(cookie),
+                (&FlavorRoot(..), Some(cookie)) => return Some(cookie),
             }
         }
     }
@@ -170,7 +170,7 @@ impl<'a> CookieJar<'a> {
     /// all cookies written will be signed automatically.
     pub fn signed<'a>(&'a self) -> CookieJar<'a> {
         return CookieJar {
-            flavor: Child(Child {
+            flavor: FlavorChild(Child {
                 parent: self,
                 read: design,
                 write: sign,
@@ -221,7 +221,7 @@ impl<'a> CookieJar<'a> {
     /// years into the future to ensure they stick around for a long time.
     pub fn permanent<'a>(&'a self) -> CookieJar<'a> {
         return CookieJar {
-            flavor: Child(Child {
+            flavor: FlavorChild(Child {
                 parent: self,
                 read: read,
                 write: write,
