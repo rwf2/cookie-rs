@@ -1,14 +1,20 @@
-install:
-- curl https://static.rust-lang.org/rustup.sh | sudo sh -
+language: rust
 script:
-- cargo build --verbose
-- cargo test --verbose
-- cargo doc
-after_success: ! '[ $TRAVIS_BRANCH = master ] && [ $TRAVIS_PULL_REQUEST = false ]
-  && echo ''<meta http-equiv=refresh content=0;url=cookie/index.html>'' > target/doc/index.html
-  && sudo pip install ghp-import && ghp-import -n target/doc && git push -fq https://${TOKEN}@github.com/${TRAVIS_REPO_SLUG}.git
-  gh-pages '
+  - cargo build --verbose
+  - cargo test --verbose
+  - rustdoc --test README.md -L target
+  - cargo doc
+after_success: |
+  [ $TRAVIS_BRANCH = master ] &&
+  [ $TRAVIS_PULL_REQUEST = false ] &&
+  echo '<meta http-equiv=refresh content=0;url=cookie/index.html>' > target/doc/index.html &&
+  sudo pip install ghp-import &&
+  ghp-import -n target/doc &&
+  git push -f https://${TOKEN}@github.com/${TRAVIS_REPO_SLUG}.git gh-pages &&
+  rm target/doc/index.html &&
+  mv target/doc . &&
+  (curl http://www.rust-ci.org/artifacts/put?t=$RUSTCI_TOKEN | sh)
 env:
   global:
-  - LD_LIBRARY_PATH: /usr/local/lib
-  - secure: b4Nchf4A2m2vPpr1FRKY5DSGF/YQGl+V3/wAMimBaOFsDefvhoqlsYkRQ2Pt6ixmoCS5/xJNtH9nFSS385beVmBSZw4wDipdlzHuJet6FSp19XoFpaU/XwsRrSoPe1pb6LBcyQ+yxlCXUkXTPVwsQ1NOJ2JowMTVxuwsIrkOUH8=
+    - secure: b4Nchf4A2m2vPpr1FRKY5DSGF/YQGl+V3/wAMimBaOFsDefvhoqlsYkRQ2Pt6ixmoCS5/xJNtH9nFSS385beVmBSZw4wDipdlzHuJet6FSp19XoFpaU/XwsRrSoPe1pb6LBcyQ+yxlCXUkXTPVwsQ1NOJ2JowMTVxuwsIrkOUH8=
+    - secure: B19dz6PoZyhuYC7hqiZ85hu9gzopyDr6Vn7QfIYhzhKwATgklllUEh5R6XtFgOLVd+L8N84Txn+EmTZbujXZ9QaHdthsDr4LOg1aZOds5dn9aUQYn2XUhNXTVhc0c6B6VT5Exc2hyeIeErcNXYVtUvBUK/3w48G9S87dBcOvTx8=
