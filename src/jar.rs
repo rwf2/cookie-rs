@@ -15,7 +15,7 @@ use std::cell::RefCell;
 use time;
 use serialize::hex::{ToHex, FromHex};
 
-use openssl::crypto::{hmac, hash};
+use openssl::crypto::{hmac, hash, memcmp};
 
 use Cookie;
 
@@ -199,7 +199,11 @@ impl<'a> CookieJar<'a> {
                 if signature.len() == cookie.value.len() { return None }
                 let text = cookie.value.as_slice().slice_to(cookie.value.len() -
                                                             signature.len() - 2);
-                if signature.from_hex().ok() != Some(dosign(root, text)) {
+                let actual = match signature.from_hex() {
+                    Ok(sig) => sig, Err(..) => return None,
+                };
+                let expected = dosign(root, text);
+                if !memcmp::eq(expected.as_slice(), actual.as_slice()) {
                     return None
                 }
                 text.len()
@@ -287,7 +291,7 @@ mod test {
         assert!(c.signed().find("test").unwrap().value.as_slice() == "test");
 
         let mut cookie = c.find("test").unwrap();
-        cookie.value.push_char('l');
+        cookie.value.push('l');
         c.add(cookie);
         assert!(c.signed().find("test").is_none());
 
