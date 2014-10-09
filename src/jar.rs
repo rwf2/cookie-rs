@@ -215,7 +215,7 @@ impl<'a> CookieJar<'a> {
         fn dosign(root: &Root, val: &str) -> Vec<u8> {
             let mut hmac = hmac::HMAC(hash::SHA1, root.key.as_slice());
             hmac.update(val.as_bytes());
-            hmac.final()
+            hmac.finalize()
         }
     }
 
