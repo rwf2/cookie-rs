@@ -101,7 +101,7 @@ impl<'a> CookieJar<'a> {
     /// cookie jar from an incoming request.
     pub fn add_original(&mut self, cookie: Cookie) {
         match self.flavor {
-            FlavorChild(..) => fail!("can't add an original cookie to a child jar!"),
+            FlavorChild(..) => panic!("can't add an original cookie to a child jar!"),
             FlavorRoot(ref mut root) => {
                 let name = cookie.name.clone();
                 root.orig_map.insert(name, cookie);
