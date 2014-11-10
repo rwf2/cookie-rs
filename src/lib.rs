@@ -27,6 +27,7 @@ pub struct Cookie {
     pub custom: TreeMap<String, String>,
 }
 
+
 impl Cookie {
     pub fn new(name: String, value: String) -> Cookie {
         Cookie {
@@ -84,13 +85,25 @@ impl Cookie {
             Ok((try_option!(parts.next()), try_option!(parts.next())))
         }
     }
+
+    pub fn pair(&self) -> AttrVal {
+        AttrVal(self.name.as_slice(), self.value.as_slice())
+    }
+}
+
+pub struct AttrVal<'a>(pub &'a str, pub &'a str);
+
+impl<'a> fmt::Show for AttrVal<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let AttrVal(ref attr, ref val) = *self;
+        write!(f, "{}={}", attr, url::percent_encode(val.as_bytes(),
+                                                     url::DEFAULT_ENCODE_SET))
+    }
 }
 
 impl fmt::Show for Cookie {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        try!(write!(f, "{}={}", self.name,
-                    url::percent_encode(self.value.as_slice().as_bytes(),
-                                        url::DEFAULT_ENCODE_SET)));
+        try!(AttrVal(self.name.as_slice(), self.value.as_slice()).fmt(f));
         if self.httponly { try!(write!(f, "; HttpOnly")); }
         if self.secure { try!(write!(f, "; Secure")); }
         match self.path {
@@ -111,9 +124,7 @@ impl fmt::Show for Cookie {
         }
 
         for (k, v) in self.custom.iter() {
-            try!(write!(f, "; {}={}", k,
-                        url::percent_encode(v.as_slice().as_bytes(),
-                                            url::DEFAULT_ENCODE_SET)));
+            try!(write!(f, "; {}", AttrVal(k.as_slice(), v.as_slice())));
         }
         Ok(())
     }
@@ -162,5 +173,11 @@ mod tests {
     fn odd_characters() {
         let expected = Cookie::new("foo".to_string(), "b/r".to_string());
         assert_eq!(Cookie::parse("foo=b%2Fr").unwrap(), expected);
+    }
+
+    #[test]
+    fn pair() {
+        let cookie = Cookie::new("foo".to_string(), "bar".to_string());
+        assert_eq!(cookie.pair().to_string(), "foo=bar".to_string());
     }
 }
