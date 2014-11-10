@@ -248,7 +248,7 @@ impl<'a> CookieJar<'a> {
 
     /// Calculates the changes that have occurred to this cookie jar over time,
     /// returning a vector of `Set-Cookie` headers.
-    pub fn delta(&self) -> Vec<String> {
+    pub fn delta(&self) -> Vec<Cookie> {
         let mut ret = Vec::new();
         let root = self.root();
         for cookie in root.removed_cookies.borrow().iter() {
@@ -257,10 +257,10 @@ impl<'a> CookieJar<'a> {
             let mut now = time::now();
             now.tm_year -= 1;
             c.expires = Some(now);
-            ret.push(c.to_string());
+            ret.push(c);
         }
         for (_, cookie) in root.new_map.borrow().iter() {
-            ret.push(cookie.to_string());
+            ret.push(cookie.clone());
         }
         return ret;
     }
