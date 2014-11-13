@@ -13,9 +13,6 @@
 use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
 use time;
-use serialize::hex::{ToHex, FromHex};
-
-use openssl::crypto::{hmac, hash, memcmp};
 
 use Cookie;
 
@@ -28,7 +25,7 @@ use Cookie;
 /// # fn main() {
 /// use cookie::{Cookie, CookieJar};
 ///
-/// let c = CookieJar::new(b"signing-key");
+/// let c = CookieJar::new(b"f8f9eaf1ecdedff5e5b749c58115441e");
 ///
 /// // Add a cookie to this jar
 /// c.add(Cookie::new("key".to_string(), "value".to_string()));
@@ -39,8 +36,15 @@ use Cookie;
 /// // Add a signed cookie to the jar
 /// c.signed().add(Cookie::new("key".to_string(), "value".to_string()));
 ///
+/// // Add a signed and encrypted cookie to the jar
+/// c.encrypted().add(Cookie::new("key".to_string(), "value".to_string()));
+///
 /// // Add a permanently signed cookie to the jar
 /// c.permanent().signed()
+///  .add(Cookie::new("key".to_string(), "value".to_string()));
+///
+/// // Add a permanently signed and encrypted cookie to the jar
+/// c.permanent().encrypted()
 ///  .add(Cookie::new("key".to_string(), "value".to_string()));
 /// # }
 /// ```
@@ -74,12 +78,21 @@ impl<'a> CookieJar<'a> {
     ///
     /// The given key is used to sign cookies in the signed cookie jar.
     pub fn new(key: &[u8]) -> CookieJar<'static> {
+
+        let normalized_key = if key.len() >= secure::MIN_KEY_LEN {
+            key.to_vec()
+        } else {
+            // Using a SHA-256 hash to normalize key as Rails suggests.
+            // See https://github.com/rails/rails/blob/master/activesupport/lib/active_support/message_encryptor.rb
+            secure::prepare_key(key)
+        };
+
         CookieJar {
             flavor: FlavorRoot(Root {
                 orig_map: HashMap::new(),
                 new_map: RefCell::new(HashMap::new()),
                 removed_cookies: RefCell::new(HashSet::new()),
-                key: key.to_vec(),
+                key: normalized_key,
             })
         }
     }
@@ -172,51 +185,24 @@ impl<'a> CookieJar<'a> {
         return CookieJar {
             flavor: FlavorChild(Child {
                 parent: self,
-                read: design,
-                write: sign,
+                read: secure::design,
+                write: secure::sign,
             })
         };
+    }
 
-        // If a SHA1 HMAC is good enough for rails, it's probably good enough
-        // for us as well:
-        //
-        // https://github.com/rails/rails/blob/master/activesupport/lib
-        //                   /active_support/message_verifier.rb#L70
-        fn sign(root: &Root, mut cookie: Cookie) -> Cookie {
-            let signature = dosign(root, cookie.value.as_slice());
-            cookie.value.push_str("--");
-            cookie.value.push_str(signature.as_slice().to_hex().as_slice());
-            cookie
-        }
-
-        fn design(root: &Root, mut cookie: Cookie) -> Option<Cookie> {
-            let len = {
-                let mut parts = cookie.value.as_slice().split_str("--");
-                let signature = match parts.last() {
-                    Some(sig) => sig,
-                    _ => return None,
-                };
-                if signature.len() == cookie.value.len() { return None }
-                let text = cookie.value.as_slice().slice_to(cookie.value.len() -
-                                                            signature.len() - 2);
-                let actual = match signature.from_hex() {
-                    Ok(sig) => sig, Err(..) => return None,
-                };
-                let expected = dosign(root, text);
-                if !memcmp::eq(expected.as_slice(), actual.as_slice()) {
-                    return None
-                }
-                text.len()
-            };
-            cookie.value.truncate(len);
-            Some(cookie)
-        }
-
-        fn dosign(root: &Root, val: &str) -> Vec<u8> {
-            let mut hmac = hmac::HMAC(hash::SHA1, root.key.as_slice());
-            hmac.update(val.as_bytes());
-            hmac.finalize()
-        }
+    /// Creates a child encrypted cookie jar.
+    ///
+    /// All cookies read from the child jar must be encrypted and signed by a valid key and
+    /// all cookies written will be encrypted and signed automatically.
+    pub fn encrypted<'a>(&'a self) -> CookieJar<'a> {
+        return CookieJar {
+            flavor: FlavorChild(Child {
+                parent: self,
+                read: secure::design_and_decrypt,
+                write: secure::encrypt_and_sign,
+            })
+        };
     }
 
     /// Creates a child jar for permanent cookie storage.
@@ -266,13 +252,140 @@ impl<'a> CookieJar<'a> {
     }
 }
 
+mod secure {
+    use jar::{Root};
+    use {Cookie};
+    use openssl::crypto::{hmac, hash, memcmp, symm};
+    use serialize::hex::{ToHex, FromHex};
+    
+    pub const MIN_KEY_LEN: uint = 32;
+
+    // If a SHA1 HMAC is good enough for rails, it's probably good enough
+    // for us as well:
+    //
+    // https://github.com/rails/rails/blob/master/activesupport/lib
+    //                   /active_support/message_verifier.rb#L70
+    pub fn sign(root: &Root, mut cookie: Cookie) -> Cookie {
+        let signature = dosign(root, cookie.value.as_slice());
+        cookie.value.push_str("--");
+        cookie.value.push_str(signature.as_slice().to_hex().as_slice());
+        cookie
+    }
+
+    fn split_value(val: &str) -> Option<(&str, Vec<u8>)> {
+        let mut parts = val.split_str("--");
+        let ext = match parts.last() {
+            Some(ext) => ext,
+            _ => return None,
+        };
+        let val_len = val.len();
+        if ext.len() == val_len { return None }
+        let text = val.slice_to(val_len - ext.len() - 2);
+        let ext = match ext.from_hex() {
+            Ok(sig) => sig, Err(..) => return None,
+        };
+
+        Some((text, ext))
+    }
+
+    pub fn design(root: &Root, mut cookie: Cookie) -> Option<Cookie> {
+        let len = {
+            let (text, signature) = match split_value(cookie.value.as_slice()) {
+                Some(pair) => pair, None => return None
+            };
+            let expected = dosign(root, text);
+            if !memcmp::eq(expected.as_slice(), signature.as_slice()) {
+                return None
+            }
+            text.len()
+        };
+        cookie.value.truncate(len);
+        Some(cookie)
+    }
+
+    fn dosign(root: &Root, val: &str) -> Vec<u8> {
+        let mut hmac = hmac::HMAC(hash::SHA1, root.key.as_slice());
+        hmac.update(val.as_bytes());
+        hmac.finalize()
+    }
+
+    // Implementation details were taken from Rails. See
+    // https://github.com/rails/rails/blob/master/activesupport/lib/active_support/message_encryptor.rb#L57
+    pub fn encrypt_and_sign(root: &Root, mut cookie: Cookie) -> Cookie {
+        let encrypted_data = encrypt_data(root, cookie.value.as_slice());
+        cookie.value = encrypted_data;
+        sign(root, cookie)
+    }
+
+    fn encrypt_data(root: &Root, val: &str) -> String {
+        let iv = random_iv();
+        let iv_str = iv.as_slice().to_hex();
+
+        let mut encrypted_data = symm::encrypt(
+            symm::AES_256_CBC,
+            root.key.as_slice().slice_to(MIN_KEY_LEN),
+            iv,
+            val.as_bytes()
+        ).as_slice().to_hex();
+
+        encrypted_data.push_str("--");
+        encrypted_data.push_str(iv_str.as_slice());
+        encrypted_data
+    }
+
+    pub fn design_and_decrypt(root: &Root, cookie: Cookie) -> Option<Cookie> {
+        let mut cookie = match design(root, cookie) {
+            Some(cookie) => cookie,
+            None => return None
+        };
+
+        let decrypted_data = decrypt_data(root, cookie.value.as_slice()).and_then(|data| String::from_utf8(data).ok());
+        match decrypted_data {
+            Some(val) => { cookie.value = val; Some(cookie) },
+            None => return None
+        }
+    }
+
+    fn decrypt_data(root: &Root, val: &str) -> Option<Vec<u8>> {
+        let (val, iv) = match split_value(val) {
+            Some(pair) => pair, None => return None
+        };
+
+        let actual = match val.as_slice().from_hex() {
+            Ok(actual) => actual, Err(_) => return None
+        };
+
+        Some(symm::decrypt(
+            symm::AES_256_CBC,
+            root.key.as_slice().slice_to(MIN_KEY_LEN),
+            iv,
+            actual.as_slice()
+        ))
+    }
+
+    fn random_iv() -> Vec<u8> {
+        ::openssl::crypto::rand::rand_bytes(16)
+    }
+
+    pub fn prepare_key(key: &[u8]) -> Vec<u8> {
+        hash::hash(hash::SHA256, key)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use {Cookie, CookieJar};
 
+    const KEY: &'static [u8] = b"f8f9eaf1ecdedff5e5b749c58115441e";
+
+    #[test]
+    fn short_key() {
+        CookieJar::new(b"foo");
+    }
+
     #[test]
     fn simple() {
-        let c = CookieJar::new(b"foo");
+        let c = CookieJar::new(KEY);
 
         c.add(Cookie::new("test".to_string(), "".to_string()));
         c.add(Cookie::new("test2".to_string(), "".to_string()));
@@ -282,28 +395,39 @@ mod test {
         assert!(c.find("test2").is_some());
     }
 
+    macro_rules! secure_behaviour(
+        ($c:ident, $secure:ident) => ({
+            $c.$secure().add(Cookie::new("test".to_string(), "test".to_string()));
+            assert!($c.find("test").unwrap().value.as_slice() != "test");
+            assert!($c.$secure().find("test").unwrap().value.as_slice() == "test");
+
+            let mut cookie = $c.find("test").unwrap();
+            cookie.value.push('l');
+            $c.add(cookie);
+            assert!($c.$secure().find("test").is_none());
+
+            let mut cookie = $c.find("test").unwrap();
+            cookie.value = "foobar".to_string();
+            $c.add(cookie);
+            assert!($c.$secure().find("test").is_none());
+        })
+    )
+
     #[test]
     fn signed() {
-        let c = CookieJar::new(b"foo");
+        let c = CookieJar::new(KEY);
+        secure_behaviour!(c, signed)
+    }
 
-        c.signed().add(Cookie::new("test".to_string(), "test".to_string()));
-        assert!(c.find("test").unwrap().value.as_slice() != "test");
-        assert!(c.signed().find("test").unwrap().value.as_slice() == "test");
-
-        let mut cookie = c.find("test").unwrap();
-        cookie.value.push('l');
-        c.add(cookie);
-        assert!(c.signed().find("test").is_none());
-
-        let mut cookie = c.find("test").unwrap();
-        cookie.value = "foobar".to_string();
-        c.add(cookie);
-        assert!(c.signed().find("test").is_none());
+    #[test]
+    fn encrypted() {
+        let c = CookieJar::new(KEY);
+        secure_behaviour!(c, encrypted)
     }
 
     #[test]
     fn permanent() {
-        let c = CookieJar::new(b"foo");
+        let c = CookieJar::new(KEY);
 
         c.permanent().add(Cookie::new("test".to_string(), "test".to_string()));
 
@@ -316,7 +440,7 @@ mod test {
 
     #[test]
     fn chained() {
-        let c = CookieJar::new(b"foo");
+        let c = CookieJar::new(KEY);
 
         c.permanent().signed()
          .add(Cookie::new("test".to_string(), "test".to_string()));
