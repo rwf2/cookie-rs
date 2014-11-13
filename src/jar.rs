@@ -148,8 +148,8 @@ impl<'a> CookieJar<'a> {
         if root.removed_cookies.borrow().contains(&name) {
             return None
         }
-        let mut ret = root.new_map.borrow().find(&name)
-                          .or_else(|| root.orig_map.find(&name))
+        let mut ret = root.new_map.borrow().get(&name)
+                          .or_else(|| root.orig_map.get(&name))
                           .map(|c| c.clone());
         let mut cur = self;
         loop {
