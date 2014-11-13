@@ -309,6 +309,8 @@ mod secure {
         hmac.finalize()
     }
 
+    // Implementation details were taken from Rails. See
+    // https://github.com/rails/rails/blob/master/activesupport/lib/active_support/message_encryptor.rb#L57
     pub fn encrypt_and_sign(root: &Root, mut cookie: Cookie) -> Cookie {
         let encrypted_data = encrypt_data(root, cookie.value.as_slice());
         cookie.value = encrypted_data;
