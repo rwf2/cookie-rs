@@ -79,15 +79,20 @@ impl<'a> CookieJar<'a> {
     /// The given key is used to sign cookies in the signed cookie jar.
     pub fn new(key: &[u8]) -> CookieJar<'static> {
 
-        assert!(key.len() >= secure::MIN_KEY_LEN, 
-            "Your key must be at least {} characters long, but it has only {}", secure::MIN_KEY_LEN, key.len());
+        let normalized_key = if key.len() >= secure::MIN_KEY_LEN {
+            key.to_vec()
+        } else {
+            // Using a SHA-256 hash to normalize key as Rails suggests.
+            // See https://github.com/rails/rails/blob/master/activesupport/lib/active_support/message_encryptor.rb
+            secure::prepare_key(key)
+        };
 
         CookieJar {
             flavor: FlavorRoot(Root {
                 orig_map: HashMap::new(),
                 new_map: RefCell::new(HashMap::new()),
                 removed_cookies: RefCell::new(HashSet::new()),
-                key: key.to_vec(),
+                key: normalized_key,
             })
         }
     }
@@ -359,6 +364,10 @@ mod secure {
     fn random_iv() -> Vec<u8> {
         ::openssl::crypto::rand::rand_bytes(16)
     }
+
+    pub fn prepare_key(key: &[u8]) -> Vec<u8> {
+        hash::hash(hash::SHA256, key)
+    }
 }
 
 #[cfg(test)]
@@ -368,7 +377,6 @@ mod test {
     const KEY: &'static [u8] = b"f8f9eaf1ecdedff5e5b749c58115441e";
 
     #[test]
-    #[should_fail]
     fn short_key() {
         CookieJar::new(b"foo");
     }
