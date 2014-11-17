@@ -8,7 +8,7 @@ extern crate serialize;
 
 use std::collections::TreeMap;
 use std::fmt;
-use std::from_str::FromStr;
+use std::str::FromStr;
 
 pub use jar::CookieJar;
 
