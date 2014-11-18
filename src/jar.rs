@@ -16,8 +16,6 @@ use time;
 
 use Cookie;
 
-use self::Flavor::{FlavorChild, FlavorRoot};
-
 /// A jar of cookies for managing a session
 ///
 /// # Example
@@ -55,8 +53,8 @@ pub struct CookieJar<'a> {
 }
 
 enum Flavor<'a> {
-    FlavorChild(Child<'a>),
-    FlavorRoot(Root),
+    Child(Child<'a>),
+    Root(Root),
 }
 
 struct Child<'a> {
@@ -90,7 +88,7 @@ impl<'a> CookieJar<'a> {
         };
 
         CookieJar {
-            flavor: FlavorRoot(Root {
+            flavor: Flavor::Root(Root {
                 orig_map: HashMap::new(),
                 new_map: RefCell::new(HashMap::new()),
                 removed_cookies: RefCell::new(HashSet::new()),
@@ -103,8 +101,8 @@ impl<'a> CookieJar<'a> {
         let mut cur = self;
         loop {
             match cur.flavor {
-                FlavorChild(ref child) => cur = child.parent,
-                FlavorRoot(ref me) => return me,
+                Flavor::Child(ref child) => cur = child.parent,
+                Flavor::Root(ref me) => return me,
             }
         }
     }
@@ -116,8 +114,8 @@ impl<'a> CookieJar<'a> {
     /// cookie jar from an incoming request.
     pub fn add_original(&mut self, cookie: Cookie) {
         match self.flavor {
-            FlavorChild(..) => panic!("can't add an original cookie to a child jar!"),
-            FlavorRoot(ref mut root) => {
+            Flavor::Child(..) => panic!("can't add an original cookie to a child jar!"),
+            Flavor::Root(ref mut root) => {
                 let name = cookie.name.clone();
                 root.orig_map.insert(name, cookie);
             }
@@ -133,11 +131,11 @@ impl<'a> CookieJar<'a> {
         let root = self.root();
         loop {
             match cur.flavor {
-                FlavorChild(ref child) => {
+                Flavor::Child(ref child) => {
                     cookie = (child.write)(root, cookie);
                     cur = child.parent;
                 }
-                FlavorRoot(..) => break,
+                Flavor::Root(..) => break,
             }
         }
         let name = cookie.name.clone();
@@ -170,11 +168,11 @@ impl<'a> CookieJar<'a> {
         loop {
             match (&cur.flavor, ret) {
                 (_, None) => return None,
-                (&FlavorChild(Child { read, parent, .. }), Some(cookie)) => {
+                (&Flavor::Child(Child { read, parent, .. }), Some(cookie)) => {
                     ret = read(root, cookie);
                     cur = parent;
                 }
-                (&FlavorRoot(..), Some(cookie)) => return Some(cookie),
+                (&Flavor::Root(..), Some(cookie)) => return Some(cookie),
             }
         }
     }
@@ -185,7 +183,7 @@ impl<'a> CookieJar<'a> {
     /// all cookies written will be signed automatically.
     pub fn signed<'a>(&'a self) -> CookieJar<'a> {
         return CookieJar {
-            flavor: FlavorChild(Child {
+            flavor: Flavor::Child(Child {
                 parent: self,
                 read: secure::design,
                 write: secure::sign,
@@ -199,7 +197,7 @@ impl<'a> CookieJar<'a> {
     /// all cookies written will be encrypted and signed automatically.
     pub fn encrypted<'a>(&'a self) -> CookieJar<'a> {
         return CookieJar {
-            flavor: FlavorChild(Child {
+            flavor: Flavor::Child(Child {
                 parent: self,
                 read: secure::design_and_decrypt,
                 write: secure::encrypt_and_sign,
@@ -213,7 +211,7 @@ impl<'a> CookieJar<'a> {
     /// years into the future to ensure they stick around for a long time.
     pub fn permanent<'a>(&'a self) -> CookieJar<'a> {
         return CookieJar {
-            flavor: FlavorChild(Child {
+            flavor: Flavor::Child(Child {
                 parent: self,
                 read: read,
                 write: write,
@@ -259,7 +257,7 @@ mod secure {
     use {Cookie};
     use openssl::crypto::{hmac, hash, memcmp, symm};
     use serialize::hex::{ToHex, FromHex};
-    
+
     pub const MIN_KEY_LEN: uint = 32;
 
     // If a SHA1 HMAC is good enough for rails, it's probably good enough
