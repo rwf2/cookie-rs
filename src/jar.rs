@@ -16,6 +16,8 @@ use time;
 
 use Cookie;
 
+use self::Flavor::{FlavorChild, FlavorRoot};
+
 /// A jar of cookies for managing a session
 ///
 /// # Example
