@@ -3,12 +3,16 @@
 name = "cookie"
 authors = ["Alex Crichton <alex@alexcrichton.com>"]
 version = "0.0.1"
+license = "MIT/Apache-2.0"
+repository = "https://github.com/alexcrichton/cookie-rs"
+documentation = "http://alexcrichton.com/cookie-rs"
+description = """
+Crate for parsing HTTP cookie headers and managing a cookie jar. Supports
+encrypted, signed, and permanent cookie chars composed together in amanner
+similar to Rails' cookie jar.
+"""
 
-[dependencies.openssl]
-git = "https://github.com/sfackler/rust-openssl"
-
-[dependencies.url]
-git = "https://github.com/servo/rust-url"
-
-[dependencies.time]
-git = "https://github.com/rust-lang/time"
+[dependencies]
+openssl = "*"
+url = "*"
+time = "*"
