@@ -14,6 +14,9 @@ similar to Rails' cookie jar.
 
 [dependencies.openssl]
 git = "https://github.com/sfackler/rust-openssl"
-[dependencies]
-url = "*"
-time = "*"
+
+[dependencies.url]
+git = "https://github.com/servo/rust-url"
+
+[dependencies.time]
+git = "https://github.com/rust-lang/time"
