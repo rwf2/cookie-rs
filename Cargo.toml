@@ -12,7 +12,8 @@ encrypted, signed, and permanent cookie chars composed together in amanner
 similar to Rails' cookie jar.
 """
 
+[dependencies.openssl]
+git = "https://github.com/sfackler/rust-openssl"
 [dependencies]
-openssl = "*"
 url = "*"
 time = "*"
