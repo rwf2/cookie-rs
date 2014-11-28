@@ -304,7 +304,7 @@ mod secure {
     }
 
     fn dosign(root: &Root, val: &str) -> Vec<u8> {
-        let mut hmac = hmac::HMAC(hash::SHA1, root.key.as_slice());
+        let mut hmac = hmac::HMAC(hash::HashType::SHA1, root.key.as_slice());
         hmac.update(val.as_bytes());
         hmac.finalize()
     }
@@ -322,7 +322,7 @@ mod secure {
         let iv_str = iv.as_slice().to_hex();
 
         let mut encrypted_data = symm::encrypt(
-            symm::AES_256_CBC,
+            symm::Type::AES_256_CBC,
             root.key.as_slice().slice_to(MIN_KEY_LEN),
             iv,
             val.as_bytes()
@@ -356,7 +356,7 @@ mod secure {
         };
 
         Some(symm::decrypt(
-            symm::AES_256_CBC,
+            symm::Type::AES_256_CBC,
             root.key.as_slice().slice_to(MIN_KEY_LEN),
             iv,
             actual.as_slice()
@@ -368,7 +368,7 @@ mod secure {
     }
 
     pub fn prepare_key(key: &[u8]) -> Vec<u8> {
-        hash::hash(hash::SHA256, key)
+        hash::hash(hash::HashType::SHA256, key)
     }
 }
 
