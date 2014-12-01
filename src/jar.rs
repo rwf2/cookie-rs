@@ -11,7 +11,8 @@
 //! cookies, etc. This functionality can also be chaned together.
 
 use std::collections::{HashMap, HashSet};
-use std::cell::{RefCell};
+use std::collections::hash_map::Entries;
+
 use time;
 
 use Cookie;
@@ -25,7 +26,7 @@ use Cookie;
 /// # fn main() {
 /// use cookie::{Cookie, CookieJar};
 ///
-/// let c = CookieJar::new(b"f8f9eaf1ecdedff5e5b749c58115441e");
+/// let mut c = CookieJar::new(b"f8f9eaf1ecdedff5e5b749c58115441e");
 ///
 /// // Add a cookie to this jar
 /// c.add(Cookie::new("key".to_string(), "value".to_string()));
@@ -58,7 +59,7 @@ enum Flavor<'a> {
 }
 
 struct Child<'a> {
-    parent: &'a CookieJar<'a>,
+    parent: &'a mut CookieJar<'a>,
     read: Read,
     write: Write,
 }
@@ -67,9 +68,9 @@ type Read = fn(&Root, Cookie) -> Option<Cookie>;
 type Write = fn(&Root, Cookie) -> Cookie;
 
 struct Root {
-    map: RefCell<HashMap<String, Cookie>>,
-    new_cookies: RefCell<HashSet<String>>,
-    removed_cookies: RefCell<HashSet<String>>,
+    map: HashMap<String, Cookie>,
+    new_cookies: HashSet<String>,
+    removed_cookies: HashSet<String>,
     key: Vec<u8>,
 }
 
@@ -89,21 +90,11 @@ impl<'a> CookieJar<'a> {
 
         CookieJar {
             flavor: Flavor::Root(Root {
-                map: RefCell::new(HashMap::new()),
-                new_cookies: RefCell::new(HashSet::new()),
-                removed_cookies: RefCell::new(HashSet::new()),
+                map: HashMap::new(),
+                new_cookies: HashSet::new(),
+                removed_cookies: HashSet::new(),
                 key: normalized_key,
             })
-        }
-    }
-
-    fn root<'a>(&'a self) -> &'a Root {
-        let mut cur = self;
-        loop {
-            match cur.flavor {
-                Flavor::Child(ref child) => cur = child.parent,
-                Flavor::Root(ref me) => return me,
-            }
         }
     }
 
@@ -117,8 +108,22 @@ impl<'a> CookieJar<'a> {
             Flavor::Child(..) => panic!("can't add an original cookie to a child jar!"),
             Flavor::Root(ref mut root) => {
                 let name = cookie.name.clone();
-                root.map.borrow_mut().insert(name, cookie);
+                root.map.insert(name, cookie);
             }
+        }
+    }
+
+    fn root<'a>(&'a self) -> &'a Root {
+        match self.flavor {
+            Flavor::Child(ref child) => child.parent.root(),
+            Flavor::Root(ref me) => return me
+        }
+    }
+
+    fn root_mut<'a>(&'a mut self) -> &'a mut Root {
+        match self.flavor {
+            Flavor::Child(ref mut child) => child.parent.root_mut(),
+            Flavor::Root(ref mut me) => return me
         }
     }
 
@@ -126,31 +131,24 @@ impl<'a> CookieJar<'a> {
     ///
     /// If this jar is a child cookie jar, this will walk up the chain of
     /// borrowed jars, modifying the cookie as it goes along.
-    pub fn add(&self, mut cookie: Cookie) {
-        let mut cur = self;
-        let root = self.root();
-        loop {
-            match cur.flavor {
-                Flavor::Child(ref child) => {
-                    cookie = (child.write)(root, cookie);
-                    cur = child.parent;
-                }
-                Flavor::Root(..) => break,
-            }
-        }
+    pub fn add(&mut self, cookie: Cookie) {
+        let cookie = self.write(self.root(), cookie);
+        let root = self.root_mut();
+
         let name = cookie.name.clone();
-        root.map.borrow_mut().insert(name.clone(), cookie);
-        root.removed_cookies.borrow_mut().remove(&name);
-        root.new_cookies.borrow_mut().insert(name);
+        root.map.insert(name.clone(), cookie);
+        root.removed_cookies.remove(&name);
+        root.new_cookies.insert(name);
     }
 
     /// Removes a cookie from this cookie jar.
-    pub fn remove(&self, cookie: &str) {
-        let root = self.root();
+    pub fn remove(&mut self, cookie: &str) {
         let cookie = cookie.to_string();
-        root.map.borrow_mut().remove(&cookie);
-        root.new_cookies.borrow_mut().remove(&cookie);
-        root.removed_cookies.borrow_mut().insert(cookie);
+        let root = self.root_mut();
+
+        root.map.remove(&cookie);
+        root.new_cookies.remove(&cookie);
+        root.removed_cookies.insert(cookie);
     }
 
     /// Finds a cookie inside of this cookie jar.
@@ -158,33 +156,33 @@ impl<'a> CookieJar<'a> {
     /// The cookie is subject to modification by any of the child cookie jars
     /// that are currently borrowed. A copy of the cookie is returned.
     pub fn find(&self, name: &str) -> Option<Cookie> {
-        let name = name.to_string();
         let root = self.root();
-        if root.removed_cookies.borrow().contains(&name) {
+        let name = name.to_string();
+        if root.removed_cookies.contains(&name) {
             return None
         }
-        root.map.borrow().get(&name).and_then(|c| self.try_read(root, c.clone()))
+        root.map.get(&name).and_then(|c| self.try_read(root, Some(c.clone())))
     }
 
     /// Creates a child signed cookie jar.
     ///
     /// All cookies read from the child jar will require a valid signature and
     /// all cookies written will be signed automatically.
-    pub fn signed<'a>(&'a self) -> CookieJar<'a> {
-        return CookieJar {
+    pub fn signed(&'a mut self) -> CookieJar<'a> {
+        CookieJar {
             flavor: Flavor::Child(Child {
                 parent: self,
                 read: secure::design,
                 write: secure::sign,
             })
-        };
+        }
     }
 
     /// Creates a child encrypted cookie jar.
     ///
     /// All cookies read from the child jar must be encrypted and signed by a valid key and
     /// all cookies written will be encrypted and signed automatically.
-    pub fn encrypted<'a>(&'a self) -> CookieJar<'a> {
+    pub fn encrypted(&'a mut self) -> CookieJar<'a> {
         return CookieJar {
             flavor: Flavor::Child(Child {
                 parent: self,
@@ -198,7 +196,7 @@ impl<'a> CookieJar<'a> {
     ///
     /// All cookies written to the child jar will have an expiration date 20
     /// years into the future to ensure they stick around for a long time.
-    pub fn permanent<'a>(&'a self) -> CookieJar<'a> {
+    pub fn permanent(&'a mut self) -> CookieJar<'a> {
         return CookieJar {
             flavor: Flavor::Child(Child {
                 parent: self,
@@ -224,9 +222,9 @@ impl<'a> CookieJar<'a> {
     /// Calculates the changes that have occurred to this cookie jar over time,
     /// returning a vector of `Set-Cookie` headers.
     pub fn delta(&self) -> Vec<Cookie> {
-        let mut ret = Vec::new();
         let root = self.root();
-        for cookie in root.removed_cookies.borrow().iter() {
+        let mut ret = Vec::new();
+        for cookie in root.removed_cookies.iter() {
             let mut c = Cookie::new(cookie.clone(), String::new());
             c.max_age = Some(0);
             let mut now = time::now();
@@ -234,8 +232,8 @@ impl<'a> CookieJar<'a> {
             c.expires = Some(now);
             ret.push(c);
         }
-        let map = root.map.borrow();
-        for cookie in root.new_cookies.borrow().iter() {
+        let map = &root.map;
+        for cookie in root.new_cookies.iter() {
             ret.push(map.get(cookie).unwrap().clone());
         }
         return ret;
@@ -243,31 +241,40 @@ impl<'a> CookieJar<'a> {
 
     /// Copies `self` that can read by this Jar into a new Vec.
     pub fn to_vec(&self) -> Vec<Cookie> {
-        let mut cookies = Vec::new();
         let root = self.root();
-        let map = root.map.borrow();
+        let mut cookies = Vec::new();
+        let map = &root.map;
         for cookie in map.values() {
-            match self.try_read(root, cookie.clone()) {
+            match self.try_read(root, Some(cookie.clone())) {
                 Some(cookie) => cookies.push(cookie),
                 None => ()
             }
         }
 
-        cookies
+        cookies        
     }
 
-    fn try_read(&self, root: &Root, cookie: Cookie) -> Option<Cookie> {
-        let mut ret = Some(cookie);
-        let mut cur = self;
-        loop {
-            match (&cur.flavor, ret) {
-                (_, None) => return None,
-                (&Flavor::Child(Child { read, parent, .. }), Some(cookie)) => {
-                    ret = read(root, cookie);
-                    cur = parent;
-                }
-                (&Flavor::Root(..), Some(cookie)) => return Some(cookie),
+    pub fn iter<'a>(&'a self) -> Entries<'a, String, Cookie> {
+        self.root().map.iter()
+    }
+
+    fn write(&self, root: &Root, mut cookie: Cookie) -> Cookie {
+        match self.flavor {
+            Flavor::Child(ref child) => {
+                cookie = (child.write)(root, cookie);
+                child.parent.write(root, cookie)
             }
+            Flavor::Root(..) => cookie
+        }
+    }
+
+    fn try_read(&self, root: &Root, cookie: Option<Cookie>) -> Option<Cookie> {
+        match self.flavor {
+            _ if cookie.is_none() => return None,
+            Flavor::Child(ref child) => {
+                child.parent.try_read(root, (child.read)(root, cookie.unwrap()))
+            }
+            Flavor::Root(..) => cookie,
         }
     }
 }
@@ -405,7 +412,7 @@ mod test {
 
     #[test]
     fn simple() {
-        let c = CookieJar::new(KEY);
+        let mut c = CookieJar::new(KEY);
 
         c.add(Cookie::new("test".to_string(), "".to_string()));
         c.add(Cookie::new("test2".to_string(), "".to_string()));
@@ -435,19 +442,19 @@ mod test {
 
     #[test]
     fn signed() {
-        let c = CookieJar::new(KEY);
+        let mut c = CookieJar::new(KEY);
         secure_behaviour!(c, signed)
     }
 
     #[test]
     fn encrypted() {
-        let c = CookieJar::new(KEY);
+        let mut c = CookieJar::new(KEY);
         secure_behaviour!(c, encrypted)
     }
 
     #[test]
     fn permanent() {
-        let c = CookieJar::new(KEY);
+        let mut c = CookieJar::new(KEY);
 
         c.permanent().add(Cookie::new("test".to_string(), "test".to_string()));
 
@@ -460,7 +467,7 @@ mod test {
 
     #[test]
     fn chained() {
-        let c = CookieJar::new(KEY);
+        let mut c = CookieJar::new(KEY);
 
         c.permanent().signed()
          .add(Cookie::new("test".to_string(), "test".to_string()));
