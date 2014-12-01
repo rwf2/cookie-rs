@@ -11,7 +11,7 @@
 //! cookies, etc. This functionality can also be chaned together.
 
 use std::collections::{HashMap, HashSet};
-use std::cell::{RefCell};
+use std::cell::RefCell;
 use time;
 
 use Cookie;
@@ -71,6 +71,11 @@ struct Root {
     new_cookies: RefCell<HashSet<String>>,
     removed_cookies: RefCell<HashSet<String>>,
     key: Vec<u8>,
+}
+
+pub struct Iter<'a> {
+    jar: &'a CookieJar<'a>,
+    keys: Vec<String>,
 }
 
 impl<'a> CookieJar<'a> {
@@ -182,8 +187,9 @@ impl<'a> CookieJar<'a> {
 
     /// Creates a child encrypted cookie jar.
     ///
-    /// All cookies read from the child jar must be encrypted and signed by a valid key and
-    /// all cookies written will be encrypted and signed automatically.
+    /// All cookies read from the child jar must be encrypted and signed by a
+    /// valid key and all cookies written will be encrypted and signed
+    /// automatically.
     pub fn encrypted<'a>(&'a self) -> CookieJar<'a> {
         return CookieJar {
             flavor: Flavor::Child(Child {
@@ -241,32 +247,43 @@ impl<'a> CookieJar<'a> {
         return ret;
     }
 
-    /// Copies `self` that can read by this Jar into a new Vec.
-    pub fn to_vec(&self) -> Vec<Cookie> {
-        let mut cookies = Vec::new();
-        let root = self.root();
-        let map = root.map.borrow();
-        for cookie in map.values() {
-            match self.try_read(root, cookie.clone()) {
-                Some(cookie) => cookies.push(cookie),
-                None => ()
+    fn try_read(&self, root: &Root, mut cookie: Cookie) -> Option<Cookie> {
+        let mut jar = self;
+        loop {
+            match jar.flavor {
+                Flavor::Child(Child { read, parent, .. }) => {
+                    cookie = match read(root, cookie) {
+                        Some(c) => c, None => return None,
+                    };
+                    jar = parent;
+                }
+                Flavor::Root(..) => return Some(cookie),
             }
         }
-
-        cookies
     }
 
-    fn try_read(&self, root: &Root, cookie: Cookie) -> Option<Cookie> {
-        let mut ret = Some(cookie);
-        let mut cur = self;
+    pub fn iter(&self) -> Iter {
+        let map = self.root().map.borrow();
+        Iter { jar: self, keys: map.keys().cloned().collect() }
+    }
+}
+
+impl<'a> Iterator<Cookie> for Iter<'a> {
+    fn next(&mut self) -> Option<Cookie> {
         loop {
-            match (&cur.flavor, ret) {
-                (_, None) => return None,
-                (&Flavor::Child(Child { read, parent, .. }), Some(cookie)) => {
-                    ret = read(root, cookie);
-                    cur = parent;
-                }
-                (&Flavor::Root(..), Some(cookie)) => return Some(cookie),
+            let key = match self.keys.pop() {
+                Some(v) => v,
+                None => return None,
+            };
+            let root = self.jar.root();
+            let map = root.map.borrow();
+            let cookie = match map.get(&key) {
+                Some(cookie) => cookie.clone(),
+                None => continue,
+            };
+            match self.jar.try_read(root, cookie) {
+                Some(cookie) => return Some(cookie),
+                None => {}
             }
         }
     }
@@ -472,10 +489,11 @@ mod test {
     }
 
     #[test]
-    fn to_vec() {
+    fn iter() {
         let mut c = CookieJar::new(KEY);
 
-        c.add_original(Cookie::new("original".to_string(), "original".to_string()));
+        c.add_original(Cookie::new("original".to_string(),
+                                   "original".to_string()));
 
         c.add(Cookie::new("test".to_string(), "test".to_string()));
         c.add(Cookie::new("test2".to_string(), "test2".to_string()));
@@ -484,19 +502,22 @@ mod test {
 
         c.signed()
          .add(Cookie::new("signed".to_string(), "signed".to_string()));
-        
+
         c.encrypted()
          .add(Cookie::new("encrypted".to_string(), "encrypted".to_string()));
 
         c.remove("test");
 
-        let cookies = c.to_vec();
+        let cookies = c.iter().collect::<Vec<_>>();
         assert_eq!(cookies.len(), 6);
 
-        let encrypted_cookies = c.encrypted().to_vec();
+        let encrypted_cookies = c.encrypted().iter().collect::<Vec<_>>();
         assert_eq!(encrypted_cookies.len(), 1);
+        assert_eq!(encrypted_cookies[0].name.as_slice(), "encrypted");
 
-        let signged_cookies = c.signed().to_vec();
-        assert_eq!(signged_cookies.len(), 2);
+        let signed_cookies = c.signed().iter().collect::<Vec<_>>();
+        assert_eq!(signed_cookies.len(), 2);
+        assert!(signed_cookies[0].name.as_slice() == "signed" ||
+                signed_cookies[1].name.as_slice() == "signed");
     }
 }
