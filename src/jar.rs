@@ -73,6 +73,7 @@ struct Root {
     key: Vec<u8>,
 }
 
+/// Iterator over the cookies in a cookie jar
 pub struct Iter<'a> {
     jar: &'a CookieJar<'a>,
     keys: Vec<String>,
@@ -262,6 +263,12 @@ impl<'a> CookieJar<'a> {
         }
     }
 
+    /// Return an iterator over the cookies in this jar.
+    ///
+    /// This iterator will only yield valid cookies for this jar. For example if
+    /// this is an encrypted child jar then only valid encrypted cookies will be
+    /// yielded. If the root cookie jar is iterated over then all cookies will
+    /// be yielded.
     pub fn iter(&self) -> Iter {
         let map = self.root().map.borrow();
         Iter { jar: self, keys: map.keys().cloned().collect() }
