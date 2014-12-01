@@ -239,23 +239,12 @@ impl<'a> CookieJar<'a> {
         return ret;
     }
 
-    /// Copies `self` that can read by this Jar into a new Vec.
-    pub fn to_vec(&self) -> Vec<Cookie> {
-        let root = self.root();
-        let mut cookies = Vec::new();
-        let map = &root.map;
-        for cookie in map.values() {
-            match self.try_read(root, Some(cookie.clone())) {
-                Some(cookie) => cookies.push(cookie),
-                None => ()
-            }
-        }
-
-        cookies        
+    pub fn iter_all<'a>(&'a self) -> Entries<'a, String, Cookie> {
+        self.root().map.iter()
     }
 
-    pub fn iter<'a>(&'a self) -> Entries<'a, String, Cookie> {
-        self.root().map.iter()
+    pub fn iter(&'a self) -> Cookies<'a> {
+        Cookies::new(self)
     }
 
     fn write(&self, root: &Root, mut cookie: Cookie) -> Cookie {
@@ -276,6 +265,42 @@ impl<'a> CookieJar<'a> {
             }
             Flavor::Root(..) => cookie,
         }
+    }
+}
+
+pub struct Cookies<'a> {
+    jar: &'a CookieJar<'a>,
+    iter: Entries<'a, String, Cookie>,
+    root: &'a Root
+}
+
+impl<'a> Cookies<'a> {
+    pub fn new<'a>(jar: &'a CookieJar<'a>) -> Cookies<'a> {
+        Cookies {
+            jar: jar,
+            iter: jar.iter_all(),
+            root: jar.root()
+        }
+    }
+}
+
+impl<'a> Iterator<Cookie> for Cookies<'a> {
+    fn next(&mut self) -> Option<Cookie> {
+        loop {
+            match self.iter.next() {
+                Some((_, cookie)) => {
+                    match self.jar.try_read(self.root, Some(cookie.clone())) {
+                        Some(result_cookie) => return Some(result_cookie),
+                        None => continue
+                    }
+                },
+                None => return None
+            }
+        }
+    }
+
+    fn size_hint(&self) -> (uint, Option<uint>) {
+        return self.iter.size_hint()
     }
 }
 
@@ -479,7 +504,7 @@ mod test {
     }
 
     #[test]
-    fn to_vec() {
+    fn iter() {
         let mut c = CookieJar::new(KEY);
 
         c.add_original(Cookie::new("original".to_string(), "original".to_string()));
@@ -497,13 +522,13 @@ mod test {
 
         c.remove("test");
 
-        let cookies = c.to_vec();
+        let cookies: Vec<Cookie> = c.iter().collect();
         assert_eq!(cookies.len(), 6);
 
-        let encrypted_cookies = c.encrypted().to_vec();
+        let encrypted_cookies: Vec<Cookie> = c.encrypted().iter().collect();
         assert_eq!(encrypted_cookies.len(), 1);
 
-        let signged_cookies = c.signed().to_vec();
+        let signged_cookies: Vec<Cookie> = c.signed().iter().collect();
         assert_eq!(signged_cookies.len(), 2);
     }
 }
