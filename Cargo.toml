@@ -2,7 +2,7 @@
 
 name = "cookie"
 authors = ["Alex Crichton <alex@alexcrichton.com>"]
-version = "0.0.1"
+version = "0.1.0"
 license = "MIT/Apache-2.0"
 repository = "https://github.com/alexcrichton/cookie-rs"
 documentation = "http://alexcrichton.com/cookie-rs"
@@ -14,9 +14,12 @@ similar to Rails' cookie jar.
 
 [dependencies.openssl]
 git = "https://github.com/sfackler/rust-openssl"
+version = "0.2.0"
 
 [dependencies.url]
 git = "https://github.com/servo/rust-url"
+version = "0.2.0"
 
 [dependencies.time]
 git = "https://github.com/rust-lang/time"
+version = "0.1.0"
