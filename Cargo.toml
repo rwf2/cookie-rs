@@ -18,7 +18,7 @@ version = "0.2.0"
 
 [dependencies.url]
 git = "https://github.com/servo/rust-url"
-version = "0.1.0"
+version = "0.2.0"
 
 [dependencies.time]
 git = "https://github.com/rust-lang/time"
