@@ -103,7 +103,7 @@ impl<'a> CookieJar<'a> {
         }
     }
 
-    fn root<'a>(&'a self) -> &'a Root {
+    fn root<'b>(&'b self) -> &'b Root {
         let mut cur = self;
         loop {
             match cur.flavor {
@@ -176,7 +176,7 @@ impl<'a> CookieJar<'a> {
     ///
     /// All cookies read from the child jar will require a valid signature and
     /// all cookies written will be signed automatically.
-    pub fn signed<'a>(&'a self) -> CookieJar<'a> {
+    pub fn signed<'b>(&'b self) -> CookieJar<'b> {
         return CookieJar {
             flavor: Flavor::Child(Child {
                 parent: self,
@@ -191,7 +191,7 @@ impl<'a> CookieJar<'a> {
     /// All cookies read from the child jar must be encrypted and signed by a
     /// valid key and all cookies written will be encrypted and signed
     /// automatically.
-    pub fn encrypted<'a>(&'a self) -> CookieJar<'a> {
+    pub fn encrypted<'b>(&'b self) -> CookieJar<'b> {
         return CookieJar {
             flavor: Flavor::Child(Child {
                 parent: self,
@@ -205,7 +205,7 @@ impl<'a> CookieJar<'a> {
     ///
     /// All cookies written to the child jar will have an expiration date 20
     /// years into the future to ensure they stick around for a long time.
-    pub fn permanent<'a>(&'a self) -> CookieJar<'a> {
+    pub fn permanent<'b>(&'b self) -> CookieJar<'b> {
         return CookieJar {
             flavor: Flavor::Child(Child {
                 parent: self,
