@@ -13,13 +13,13 @@ similar to Rails' cookie jar.
 """
 
 [dependencies.openssl]
-git = "https://github.com/sfackler/rust-openssl"
+#git = "https://github.com/sfackler/rust-openssl"
 version = "0.2.0"
 
 [dependencies.url]
-git = "https://github.com/servo/rust-url"
+#git = "https://github.com/servo/rust-url"
 version = "0.2.0"
 
 [dependencies.time]
-git = "https://github.com/rust-lang/time"
+#git = "https://github.com/rust-lang/time"
 version = "0.1.0"
