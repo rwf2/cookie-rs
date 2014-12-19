@@ -455,7 +455,7 @@ mod test {
             $c.add(cookie);
             assert!($c.$secure().find("test").is_none());
         })
-    )
+    );
 
     #[test]
     fn signed() {

@@ -46,7 +46,7 @@ impl Cookie {
     pub fn parse(s: &str) -> Result<Cookie, ()> {
         macro_rules! try_option( ($e:expr) => (
             match $e { Some(s) => s, None => return Err(()) }
-        ) )
+        ) );
 
         let mut c = Cookie::new(String::new(), String::new());
         let mut pairs = s.trim().split(';');
