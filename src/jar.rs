@@ -439,7 +439,7 @@ mod test {
         assert!(c.find("test2").is_some());
     }
 
-    macro_rules! secure_behaviour(
+    macro_rules! secure_behaviour {
         ($c:ident, $secure:ident) => ({
             $c.$secure().add(Cookie::new("test".to_string(), "test".to_string()));
             assert!($c.find("test").unwrap().value.as_slice() != "test");
@@ -455,7 +455,7 @@ mod test {
             $c.add(cookie);
             assert!($c.$secure().find("test").is_none());
         })
-    )
+    }
 
     #[test]
     fn signed() {
