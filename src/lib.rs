@@ -6,7 +6,7 @@ extern crate time;
 extern crate openssl;
 extern crate serialize;
 
-use std::collections::TreeMap;
+use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
 
@@ -24,7 +24,7 @@ pub struct Cookie {
     pub path: Option<String>,
     pub secure: bool,
     pub httponly: bool,
-    pub custom: TreeMap<String, String>,
+    pub custom: BTreeMap<String, String>,
 }
 
 
@@ -39,7 +39,7 @@ impl Cookie {
             path: Some("/".to_string()),
             secure: false,
             httponly: false,
-            custom: TreeMap::new(),
+            custom: BTreeMap::new(),
         }
     }
 
