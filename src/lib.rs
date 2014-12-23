@@ -4,7 +4,7 @@
 extern crate url;
 extern crate time;
 extern crate openssl;
-extern crate serialize;
+extern crate "rustc-serialize" as serialize;
 
 use std::collections::BTreeMap;
 use std::fmt;
