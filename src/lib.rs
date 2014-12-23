@@ -1,5 +1,5 @@
 #![feature(macro_rules)]
-#![crate_type = "lib"]
+#![cfg_attr(test, deny(warnings))]
 
 extern crate url;
 extern crate time;
@@ -64,7 +64,7 @@ impl Cookie {
                 s => {
                     let (k, v) = try!(split(s));
                     match k {
-                        "Max-Age" => c.max_age = Some(try_option!(from_str(v))),
+                        "Max-Age" => c.max_age = Some(try_option!(v.parse())),
                         "Domain" => c.domain = Some(v.to_string()),
                         "Path" => c.path = Some(v.to_string()),
                         "Expires" => {
