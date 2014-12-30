@@ -6,6 +6,7 @@ extern crate time;
 extern crate openssl;
 extern crate "rustc-serialize" as serialize;
 
+use std::ascii::AsciiExt;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
@@ -58,18 +59,35 @@ impl Cookie {
         c.value = try!(String::from_utf8(value).map_err(|_| ()));
 
         for attr in pairs {
-            match attr.trim() {
-                "Secure" => c.secure = true,
-                "HttpOnly" => c.httponly = true,
-                s => {
-                    let (k, v) = try!(split(s));
-                    match k {
-                        "Max-Age" => c.max_age = Some(try_option!(v.parse())),
-                        "Domain" => c.domain = Some(v.to_string()),
-                        "Path" => c.path = Some(v.to_string()),
-                        "Expires" => {
-                            let fmt = "%a, %d %b %Y %H:%M:%S %Z";
-                            let tm = try_option!(time::strptime(v, fmt).ok());
+            let trimmed = attr.trim();
+            match trimmed.to_ascii_lowercase().as_slice() {
+                "secure" => c.secure = true,
+                "httponly" => c.httponly = true,
+                _ => {
+                    let (k, v) = try!(split(trimmed));
+                    match k.to_ascii_lowercase().as_slice() {
+                        "max-age" => c.max_age = Some(try_option!(v.parse())),
+                        "domain" => {
+                            let domain = if v.char_at(0) == '.' {
+                                v.slice_from(1)
+                            } else {
+                                v
+                            };
+                            c.domain = Some(domain.to_ascii_lowercase());
+                        }
+                        "path" => c.path = Some(v.to_string()),
+                        "expires" => {
+                            // Try strptime with three date formats according to
+                            // http://tools.ietf.org/html/rfc2616#section-3.3.1
+                            // Try additional ones as encountered in the real world.
+                            let tm = time::strptime(v, "%a, %d %b %Y %H:%M:%S %Z").or_else(|_| {
+                                time::strptime(v, "%A, %d-%b-%y %H:%M:%S %Z")
+                            }).or_else(|_| {
+                                time::strptime(v, "%a, %d-%b-%Y %H:%M:%S %Z")
+                            }).or_else(|_| {
+                                time::strptime(v, "%a %b %d %H:%M:%S %Y")
+                            });
+                            let tm = try_option!(tm.ok());
                             c.expires = Some(tm);
                         }
                         _ => { c.custom.insert(k.to_string(), v.to_string()); }
