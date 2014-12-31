@@ -45,13 +45,13 @@ impl Cookie {
     }
 
     pub fn parse(s: &str) -> Result<Cookie, ()> {
-        macro_rules! try_option{ ($e:expr) => (
-            match $e { Some(s) => s, None => return Err(()) }
+        macro_rules! unwrap_or_skip{ ($e:expr) => (
+            match $e { Some(s) => s, None => continue, }
         ) }
 
         let mut c = Cookie::new(String::new(), String::new());
         let mut pairs = s.trim().split(';');
-        let keyval = try_option!(pairs.next());
+        let keyval = try!(pairs.next().ok_or(()));
         let (name, value) = try!(split(keyval));
         let name = url::percent_decode(name.as_bytes());
         let value = url::percent_decode(value.as_bytes());
@@ -64,9 +64,9 @@ impl Cookie {
                 "secure" => c.secure = true,
                 "httponly" => c.httponly = true,
                 _ => {
-                    let (k, v) = try!(split(trimmed));
+                    let (k, v) = unwrap_or_skip!(split(trimmed).ok());
                     match k.to_ascii_lowercase().as_slice() {
-                        "max-age" => c.max_age = Some(try_option!(v.parse())),
+                        "max-age" => c.max_age = Some(unwrap_or_skip!(v.parse())),
                         "domain" => {
                             let domain = if v.char_at(0) == '.' {
                                 v.slice_from(1)
@@ -87,7 +87,7 @@ impl Cookie {
                             }).or_else(|_| {
                                 time::strptime(v, "%a %b %d %H:%M:%S %Y")
                             });
-                            let tm = try_option!(tm.ok());
+                            let tm = unwrap_or_skip!(tm.ok());
                             c.expires = Some(tm);
                         }
                         _ => { c.custom.insert(k.to_string(), v.to_string()); }
@@ -100,7 +100,7 @@ impl Cookie {
 
         fn split<'a>(s: &'a str) -> Result<(&'a str, &'a str), ()> {
             let mut parts = s.trim().splitn(1, '=');
-            Ok((try_option!(parts.next()), try_option!(parts.next())))
+            Ok((try!(parts.next().ok_or(())), try!(parts.next().ok_or(()))))
         }
     }
 
