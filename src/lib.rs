@@ -165,6 +165,9 @@ mod tests {
         assert_eq!(Cookie::parse(" foo=bar ").unwrap(), expected);
         expected.httponly = true;
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly").unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;httponly").unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;HTTPONLY").unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ; sekure; HTTPONLY").unwrap(), expected);
         expected.secure = true;
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure").unwrap(), expected);
         expected.max_age = Some(4);
