@@ -2,7 +2,7 @@
 
 name = "cookie"
 authors = ["Alex Crichton <alex@alexcrichton.com>"]
-version = "0.1.4"
+version = "0.1.5"
 license = "MIT/Apache-2.0"
 repository = "https://github.com/alexcrichton/cookie-rs"
 documentation = "http://alexcrichton.com/cookie-rs"
@@ -16,4 +16,4 @@ similar to Rails' cookie jar.
 openssl = "0.2"
 url = "0.2"
 time = "0.1"
-rustc-serialize = "0.1"
+rustc-serialize = "0.2"

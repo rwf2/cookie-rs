@@ -15,7 +15,7 @@ pub use jar::CookieJar;
 
 mod jar;
 
-#[deriving(PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub struct Cookie {
     pub name: String,
     pub value: String,
