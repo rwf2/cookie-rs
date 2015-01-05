@@ -275,7 +275,9 @@ impl<'a> CookieJar<'a> {
     }
 }
 
-impl<'a> Iterator<Cookie> for Iter<'a> {
+impl<'a> Iterator for Iter<'a> {
+    type Item = Cookie;
+
     fn next(&mut self) -> Option<Cookie> {
         loop {
             let key = match self.keys.pop() {
