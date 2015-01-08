@@ -1,4 +1,3 @@
-#![feature(associated_types, macro_rules)]
 #![cfg_attr(test, deny(warnings))]
 
 extern crate url;
