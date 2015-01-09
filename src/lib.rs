@@ -1,4 +1,5 @@
 #![cfg_attr(test, deny(warnings))]
+#![cfg_attr(test, allow(warnings))]
 
 extern crate url;
 extern crate time;
@@ -14,7 +15,7 @@ pub use jar::CookieJar;
 
 mod jar;
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Show)]
 pub struct Cookie {
     pub name: String,
     pub value: String,
@@ -110,7 +111,7 @@ impl Cookie {
 
 pub struct AttrVal<'a>(pub &'a str, pub &'a str);
 
-impl<'a> fmt::Show for AttrVal<'a> {
+impl<'a> fmt::String for AttrVal<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let AttrVal(ref attr, ref val) = *self;
         write!(f, "{}={}", attr, url::percent_encode(val.as_bytes(),
@@ -118,7 +119,7 @@ impl<'a> fmt::Show for AttrVal<'a> {
     }
 }
 
-impl fmt::Show for Cookie {
+impl fmt::String for Cookie {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         try!(AttrVal(self.name.as_slice(), self.value.as_slice()).fmt(f));
         if self.httponly { try!(write!(f, "; HttpOnly")); }

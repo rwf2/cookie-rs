@@ -21,8 +21,7 @@ use Cookie;
 /// # Example
 ///
 /// ```
-/// # extern crate cookie;
-/// # fn main() {
+/// # #![allow(unstable)]
 /// use cookie::{Cookie, CookieJar};
 ///
 /// let c = CookieJar::new(b"f8f9eaf1ecdedff5e5b749c58115441e");
@@ -46,7 +45,6 @@ use Cookie;
 /// // Add a permanently signed and encrypted cookie to the jar
 /// c.permanent().encrypted()
 ///  .add(Cookie::new("key".to_string(), "value".to_string()));
-/// # }
 /// ```
 pub struct CookieJar<'a> {
     flavor: Flavor<'a>,
@@ -304,7 +302,7 @@ mod secure {
     use openssl::crypto::{hmac, hash, memcmp, symm};
     use serialize::hex::{ToHex, FromHex};
 
-    pub const MIN_KEY_LEN: uint = 32;
+    pub const MIN_KEY_LEN: usize = 32;
 
     // If a SHA1 HMAC is good enough for rails, it's probably good enough
     // for us as well:
