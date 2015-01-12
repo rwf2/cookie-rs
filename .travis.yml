@@ -1,4 +1,5 @@
 language: rust
+sudo: false
 script:
   - cargo build --verbose
   - cargo test --verbose
@@ -8,12 +9,9 @@ after_success: |
   [ $TRAVIS_BRANCH = master ] &&
   [ $TRAVIS_PULL_REQUEST = false ] &&
   echo '<meta http-equiv=refresh content=0;url=cookie/index.html>' > target/doc/index.html &&
-  sudo pip install ghp-import &&
-  ghp-import -n target/doc &&
-  git push -fq https://${TOKEN}@github.com/${TRAVIS_REPO_SLUG}.git gh-pages &&
-  rm target/doc/index.html &&
-  mv target/doc . &&
-  (curl http://www.rust-ci.org/artifacts/put?t=$RUSTCI_TOKEN | sh)
+  pip install ghp-import --user $USER &&
+  $HOME/.local/bin/ghp-import -n target/doc &&
+  git push -qf https://${TOKEN}@github.com/${TRAVIS_REPO_SLUG}.git gh-pages
 env:
   global:
     - secure: Mfh2HVUG4x9/c5y3/4w81FlIdfOahPJAapxKTMetW7AtpiPzAoW8eRi7kG5+lquwaPHfNEp35LGynM/06AdXDjiedT6EritFdvs1B8s4hN6uxuMqThgSJC0ov0ndRwM5MawDqUh+qn93lLmzdBV7mPeUyt9fw1YGec4SjEMTKns=
