@@ -54,6 +54,9 @@ impl Cookie {
         let keyval = try!(pairs.next().ok_or(()));
         let (name, value) = try!(split(keyval));
         let name = url::percent_decode(name.as_bytes());
+        if name.is_empty() {
+            return Err(());
+        }
         let value = url::percent_decode(value.as_bytes());
         c.name = try!(String::from_utf8(name).map_err(|_| ()));
         c.value = try!(String::from_utf8(value).map_err(|_| ()));
@@ -68,6 +71,10 @@ impl Cookie {
                     match &k.to_ascii_lowercase()[] {
                         "max-age" => c.max_age = Some(unwrap_or_skip!(v.parse())),
                         "domain" => {
+                            if v.is_empty() {
+                                continue;
+                            }
+
                             let domain = if v.char_at(0) == '.' {
                                 v.slice_from(1)
                             } else {
@@ -100,7 +107,9 @@ impl Cookie {
 
         fn split<'a>(s: &'a str) -> Result<(&'a str, &'a str), ()> {
             let mut parts = s.trim().splitn(1, '=');
-            Ok((try!(parts.next().ok_or(())), try!(parts.next().ok_or(()))))
+            let first = try!(parts.next().ok_or(())).trim();
+            let second = try!(parts.next().ok_or(())).trim();
+            Ok((first, second))
         }
     }
 
