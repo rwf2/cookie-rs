@@ -169,9 +169,17 @@ mod tests {
 
     #[test]
     fn parse() {
+        assert!(Cookie::parse("bar").is_err());
+        assert!(Cookie::parse("=bar").is_err());
+        assert!(Cookie::parse(" =bar").is_err());
+        assert!(Cookie::parse("foo=").is_ok());
         let mut expected = Cookie::new("foo".to_string(), "bar".to_string());
         assert_eq!(Cookie::parse("foo=bar").unwrap(), expected);
+        assert_eq!(Cookie::parse("foo = bar").unwrap(), expected);
         assert_eq!(Cookie::parse(" foo=bar ").unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;Domain=").unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;Domain= ").unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;Ignored").unwrap(), expected);
         expected.httponly = true;
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly").unwrap(), expected);
         assert_eq!(Cookie::parse(" foo=bar ;httponly").unwrap(), expected);
@@ -182,6 +190,8 @@ mod tests {
         expected.max_age = Some(4);
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
                                   Max-Age=4").unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
+                                  Max-Age = 4 ").unwrap(), expected);
         expected.path = Some("/foo".to_string());
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
                                   Max-Age=4; Path=/foo").unwrap(), expected);
@@ -189,6 +199,9 @@ mod tests {
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
                                   Max-Age=4; Path=/foo; \
                                   Domain=foo.com").unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
+                                  Max-Age=4; Path=/foo; \
+                                  Domain=FOO.COM").unwrap(), expected);
         expected.custom.insert("wut".to_string(), "lol".to_string());
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
                                   Max-Age=4; Path=/foo; \
