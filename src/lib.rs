@@ -54,6 +54,9 @@ impl Cookie {
         let keyval = try!(pairs.next().ok_or(()));
         let (name, value) = try!(split(keyval));
         let name = url::percent_decode(name.as_bytes());
+        if name.is_empty() {
+            return Err(());
+        }
         let value = url::percent_decode(value.as_bytes());
         c.name = try!(String::from_utf8(name).map_err(|_| ()));
         c.value = try!(String::from_utf8(value).map_err(|_| ()));
@@ -68,6 +71,10 @@ impl Cookie {
                     match &k.to_ascii_lowercase()[] {
                         "max-age" => c.max_age = Some(unwrap_or_skip!(v.parse())),
                         "domain" => {
+                            if v.is_empty() {
+                                continue;
+                            }
+
                             let domain = if v.char_at(0) == '.' {
                                 v.slice_from(1)
                             } else {
@@ -100,7 +107,9 @@ impl Cookie {
 
         fn split<'a>(s: &'a str) -> Result<(&'a str, &'a str), ()> {
             let mut parts = s.trim().splitn(1, '=');
-            Ok((try!(parts.next().ok_or(())), try!(parts.next().ok_or(()))))
+            let first = try!(parts.next().ok_or(())).trim();
+            let second = try!(parts.next().ok_or(())).trim();
+            Ok((first, second))
         }
     }
 
@@ -160,9 +169,17 @@ mod tests {
 
     #[test]
     fn parse() {
+        assert!(Cookie::parse("bar").is_err());
+        assert!(Cookie::parse("=bar").is_err());
+        assert!(Cookie::parse(" =bar").is_err());
+        assert!(Cookie::parse("foo=").is_ok());
         let mut expected = Cookie::new("foo".to_string(), "bar".to_string());
         assert_eq!(Cookie::parse("foo=bar").unwrap(), expected);
+        assert_eq!(Cookie::parse("foo = bar").unwrap(), expected);
         assert_eq!(Cookie::parse(" foo=bar ").unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;Domain=").unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;Domain= ").unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;Ignored").unwrap(), expected);
         expected.httponly = true;
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly").unwrap(), expected);
         assert_eq!(Cookie::parse(" foo=bar ;httponly").unwrap(), expected);
@@ -173,6 +190,8 @@ mod tests {
         expected.max_age = Some(4);
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
                                   Max-Age=4").unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
+                                  Max-Age = 4 ").unwrap(), expected);
         expected.path = Some("/foo".to_string());
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
                                   Max-Age=4; Path=/foo").unwrap(), expected);
@@ -180,6 +199,9 @@ mod tests {
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
                                   Max-Age=4; Path=/foo; \
                                   Domain=foo.com").unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
+                                  Max-Age=4; Path=/foo; \
+                                  Domain=FOO.COM").unwrap(), expected);
         expected.custom.insert("wut".to_string(), "lol".to_string());
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
                                   Max-Age=4; Path=/foo; \
