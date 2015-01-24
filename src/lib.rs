@@ -1,5 +1,5 @@
 #![cfg_attr(test, deny(warnings))]
-#![cfg_attr(test, allow(warnings))]
+#![cfg_attr(test, allow(unstable))]
 
 extern crate url;
 extern crate time;
@@ -76,7 +76,7 @@ impl Cookie {
                             }
 
                             let domain = if v.char_at(0) == '.' {
-                                v.slice_from(1)
+                                &v[1..]
                             } else {
                                 v
                             };
@@ -120,7 +120,7 @@ impl Cookie {
 
 pub struct AttrVal<'a>(pub &'a str, pub &'a str);
 
-impl<'a> fmt::String for AttrVal<'a> {
+impl<'a> fmt::Display for AttrVal<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let AttrVal(ref attr, ref val) = *self;
         write!(f, "{}={}", attr, url::percent_encode(val.as_bytes(),
@@ -128,7 +128,7 @@ impl<'a> fmt::String for AttrVal<'a> {
     }
 }
 
-impl fmt::String for Cookie {
+impl fmt::Display for Cookie {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         try!(AttrVal(&self.name[], &self.value[]).fmt(f));
         if self.httponly { try!(write!(f, "; HttpOnly")); }
@@ -174,38 +174,38 @@ mod tests {
         assert!(Cookie::parse(" =bar").is_err());
         assert!(Cookie::parse("foo=").is_ok());
         let mut expected = Cookie::new("foo".to_string(), "bar".to_string());
-        assert_eq!(Cookie::parse("foo=bar").unwrap(), expected);
-        assert_eq!(Cookie::parse("foo = bar").unwrap(), expected);
-        assert_eq!(Cookie::parse(" foo=bar ").unwrap(), expected);
-        assert_eq!(Cookie::parse(" foo=bar ;Domain=").unwrap(), expected);
-        assert_eq!(Cookie::parse(" foo=bar ;Domain= ").unwrap(), expected);
-        assert_eq!(Cookie::parse(" foo=bar ;Ignored").unwrap(), expected);
+        assert_eq!(Cookie::parse("foo=bar").ok().unwrap(), expected);
+        assert_eq!(Cookie::parse("foo = bar").ok().unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ").ok().unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;Domain=").ok().unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;Domain= ").ok().unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;Ignored").ok().unwrap(), expected);
         expected.httponly = true;
-        assert_eq!(Cookie::parse(" foo=bar ;HttpOnly").unwrap(), expected);
-        assert_eq!(Cookie::parse(" foo=bar ;httponly").unwrap(), expected);
-        assert_eq!(Cookie::parse(" foo=bar ;HTTPONLY").unwrap(), expected);
-        assert_eq!(Cookie::parse(" foo=bar ; sekure; HTTPONLY").unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;HttpOnly").ok().unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;httponly").ok().unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;HTTPONLY").ok().unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ; sekure; HTTPONLY").ok().unwrap(), expected);
         expected.secure = true;
-        assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure").unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure").ok().unwrap(), expected);
         expected.max_age = Some(4);
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
-                                  Max-Age=4").unwrap(), expected);
+                                  Max-Age=4").ok().unwrap(), expected);
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
-                                  Max-Age = 4 ").unwrap(), expected);
+                                  Max-Age = 4 ").ok().unwrap(), expected);
         expected.path = Some("/foo".to_string());
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
-                                  Max-Age=4; Path=/foo").unwrap(), expected);
+                                  Max-Age=4; Path=/foo").ok().unwrap(), expected);
         expected.domain = Some("foo.com".to_string());
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
                                   Max-Age=4; Path=/foo; \
-                                  Domain=foo.com").unwrap(), expected);
+                                  Domain=foo.com").ok().unwrap(), expected);
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
                                   Max-Age=4; Path=/foo; \
-                                  Domain=FOO.COM").unwrap(), expected);
+                                  Domain=FOO.COM").ok().unwrap(), expected);
         expected.custom.insert("wut".to_string(), "lol".to_string());
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
                                   Max-Age=4; Path=/foo; \
-                                  Domain=foo.com; wut=lol").unwrap(), expected);
+                                  Domain=foo.com; wut=lol").ok().unwrap(), expected);
 
         assert_eq!(expected.to_string(),
                    "foo=bar; HttpOnly; Secure; Path=/foo; Domain=foo.com; \
@@ -215,7 +215,7 @@ mod tests {
     #[test]
     fn odd_characters() {
         let expected = Cookie::new("foo".to_string(), "b/r".to_string());
-        assert_eq!(Cookie::parse("foo=b%2Fr").unwrap(), expected);
+        assert_eq!(Cookie::parse("foo=b%2Fr").ok().unwrap(), expected);
     }
 
     #[test]

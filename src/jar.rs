@@ -324,7 +324,7 @@ mod secure {
         };
         let val_len = val.len();
         if ext.len() == val_len { return None }
-        let text = val.slice_to(val_len - ext.len() - 2);
+        let text = &val[..val_len - ext.len() - 2];
         let ext = match ext.from_hex() {
             Ok(sig) => sig, Err(..) => return None,
         };
@@ -367,7 +367,7 @@ mod secure {
 
         let mut encrypted_data = symm::encrypt(
             symm::Type::AES_256_CBC,
-            root.key.as_slice().slice_to(MIN_KEY_LEN),
+            &root.key[..MIN_KEY_LEN],
             iv,
             val.as_bytes()
         ).as_slice().to_hex();
@@ -401,7 +401,7 @@ mod secure {
 
         Some(symm::decrypt(
             symm::Type::AES_256_CBC,
-            root.key.as_slice().slice_to(MIN_KEY_LEN),
+            &root.key[..MIN_KEY_LEN],
             iv,
             actual.as_slice()
         ))
