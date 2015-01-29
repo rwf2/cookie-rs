@@ -1,5 +1,5 @@
+#![feature(core, collections, std_misc)]
 #![cfg_attr(test, deny(warnings))]
-#![cfg_attr(test, allow(unstable))]
 
 extern crate url;
 extern crate time;
