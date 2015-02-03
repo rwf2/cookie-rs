@@ -15,7 +15,7 @@ pub use jar::CookieJar;
 
 mod jar;
 
-#[derive(PartialEq, Clone, Show)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct Cookie {
     pub name: String,
     pub value: String,
@@ -69,7 +69,7 @@ impl Cookie {
                 _ => {
                     let (k, v) = unwrap_or_skip!(split(trimmed).ok());
                     match &k.to_ascii_lowercase()[] {
-                        "max-age" => c.max_age = Some(unwrap_or_skip!(v.parse())),
+                        "max-age" => c.max_age = Some(unwrap_or_skip!(v.parse().ok())),
                         "domain" => {
                             if v.is_empty() {
                                 continue;
@@ -158,8 +158,9 @@ impl fmt::Display for Cookie {
 }
 
 impl FromStr for Cookie {
-    fn from_str(s: &str) -> Option<Cookie> {
-        Cookie::parse(s).ok()
+    type Err = ();
+    fn from_str(s: &str) -> Result<Cookie, ()> {
+        Cookie::parse(s)
     }
 }
 
