@@ -348,9 +348,9 @@ mod secure {
     }
 
     fn dosign(root: &Root, val: &str) -> Vec<u8> {
-        let mut hmac = hmac::HMAC(hash::HashType::SHA1, root.key.as_slice());
-        hmac.update(val.as_bytes());
-        hmac.finalize()
+        let mut hmac = hmac::HMAC::new(hash::Type::SHA1, root.key.as_slice());
+        let _ = hmac.write_all(val.as_bytes());
+        hmac.finish()
     }
 
     // Implementation details were taken from Rails. See
@@ -412,7 +412,7 @@ mod secure {
     }
 
     pub fn prepare_key(key: &[u8]) -> Vec<u8> {
-        hash::hash(hash::HashType::SHA256, key)
+        hash::hash(hash::Type::SHA256, key)
     }
 }
 
