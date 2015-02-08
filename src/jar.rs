@@ -8,7 +8,7 @@
 //!
 //! A cookie jar can also be borrowed to a child cookie jar with new
 //! functionality such as automatically signing cookies, storing permanent
-//! cookies, etc. This functionality can also be chaned together.
+//! cookies, etc. This functionality can also be chained together.
 
 use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
@@ -30,7 +30,7 @@ use Cookie;
 /// c.add(Cookie::new("key".to_string(), "value".to_string()));
 ///
 /// // Remove the added cookie
-/// c.remove("test");
+/// c.remove("key");
 ///
 /// // Add a signed cookie to the jar
 /// c.signed().add(Cookie::new("key".to_string(), "value".to_string()));
