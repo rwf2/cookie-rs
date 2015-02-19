@@ -1,4 +1,4 @@
-#![feature(core, collections, std_misc, io)]
+#![feature(core, collections, old_io)]
 #![cfg_attr(test, deny(warnings))]
 
 extern crate url;
