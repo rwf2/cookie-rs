@@ -63,12 +63,12 @@ impl Cookie {
 
         for attr in pairs {
             let trimmed = attr.trim();
-            match &trimmed.to_ascii_lowercase()[] {
+            match &trimmed.to_ascii_lowercase()[..] {
                 "secure" => c.secure = true,
                 "httponly" => c.httponly = true,
                 _ => {
                     let (k, v) = unwrap_or_skip!(split(trimmed).ok());
-                    match &k.to_ascii_lowercase()[] {
+                    match &k.to_ascii_lowercase()[..] {
                         "max-age" => c.max_age = Some(unwrap_or_skip!(v.parse().ok())),
                         "domain" => {
                             if v.is_empty() {
@@ -114,7 +114,7 @@ impl Cookie {
     }
 
     pub fn pair(&self) -> AttrVal {
-        AttrVal(&self.name[], &self.value[])
+        AttrVal(&self.name[..], &self.value[..])
     }
 }
 
@@ -130,7 +130,7 @@ impl<'a> fmt::Display for AttrVal<'a> {
 
 impl fmt::Display for Cookie {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        try!(AttrVal(&self.name[], &self.value[]).fmt(f));
+        try!(AttrVal(&self.name[..], &self.value[..]).fmt(f));
         if self.httponly { try!(write!(f, "; HttpOnly")); }
         if self.secure { try!(write!(f, "; Secure")); }
         match self.path {
@@ -151,7 +151,7 @@ impl fmt::Display for Cookie {
         }
 
         for (k, v) in self.custom.iter() {
-            try!(write!(f, "; {}", AttrVal(&k[], &v[])));
+            try!(write!(f, "; {}", AttrVal(&k[..], &v[..])));
         }
         Ok(())
     }
