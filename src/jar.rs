@@ -317,7 +317,7 @@ mod secure {
     }
 
     fn split_value(val: &str) -> Option<(&str, Vec<u8>)> {
-        let parts = val.split_str("--");
+        let parts = val.split("--");
         let ext = match parts.last() {
             Some(ext) => ext,
             _ => return None,
