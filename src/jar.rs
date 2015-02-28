@@ -297,11 +297,11 @@ impl<'a> Iterator for Iter<'a> {
 }
 
 mod secure {
+    use Cookie;
     use jar::{Root};
-    use {Cookie};
     use openssl::crypto::{hmac, hash, memcmp, symm};
     use serialize::hex::{ToHex, FromHex};
-    use std::io::prelude::{Write};
+    use std::io::prelude::*;
 
     pub const MIN_KEY_LEN: usize = 32;
 
@@ -350,7 +350,7 @@ mod secure {
 
     fn dosign(root: &Root, val: &str) -> Vec<u8> {
         let mut hmac = hmac::HMAC::new(hash::Type::SHA1, root.key.as_slice());
-        let _ = hmac.write(val.as_bytes()); // FIXME: shouldn't maybe ignore the result - amount of bytes written?
+        hmac.write_all(val.as_bytes()).unwrap();
         hmac.finish()
     }
 
