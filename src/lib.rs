@@ -1,3 +1,4 @@
+#![doc(html_root_url = "http://alexcrichton.com/cookie-rs")]
 #![feature(core, collections, io)]
 #![cfg_attr(test, deny(warnings))]
 
