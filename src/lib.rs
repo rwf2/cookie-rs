@@ -1,5 +1,5 @@
 #![doc(html_root_url = "http://alexcrichton.com/cookie-rs")]
-#![feature(core, collections, io)]
+#![feature(core, collections)]
 #![cfg_attr(test, deny(warnings))]
 
 extern crate url;
