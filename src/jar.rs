@@ -178,10 +178,17 @@ impl<'a> CookieJar<'a> {
         return CookieJar {
             flavor: Flavor::Child(Child {
                 parent: self,
-                read: secure::design,
-                write: secure::sign,
+                read: design,
+                write: sign,
             })
         };
+
+        fn design(root: &Root, cookie: Cookie) -> Option<Cookie> {
+            secure::design(&root.key, cookie)
+        }
+        fn sign(root: &Root, cookie: Cookie) -> Cookie {
+            secure::sign(&root.key, cookie)
+        }
     }
 
     /// Creates a child encrypted cookie jar.
@@ -193,10 +200,16 @@ impl<'a> CookieJar<'a> {
         return CookieJar {
             flavor: Flavor::Child(Child {
                 parent: self,
-                read: secure::design_and_decrypt,
-                write: secure::encrypt_and_sign,
+                read: read,
+                write: write,
             })
         };
+        fn read(root: &Root, cookie: Cookie) -> Option<Cookie> {
+            secure::design_and_decrypt(&root.key, cookie)
+        }
+        fn write(root: &Root, cookie: Cookie) -> Cookie {
+            secure::encrypt_and_sign(&root.key, cookie)
+        }
     }
 
     /// Creates a child jar for permanent cookie storage.
@@ -298,7 +311,6 @@ impl<'a> Iterator for Iter<'a> {
 
 mod secure {
     use Cookie;
-    use jar::{Root};
     use openssl::crypto::{hmac, hash, memcmp, symm};
     use serialize::hex::{ToHex, FromHex};
     use std::io::prelude::*;
@@ -310,10 +322,10 @@ mod secure {
     //
     // https://github.com/rails/rails/blob/master/activesupport/lib
     //                   /active_support/message_verifier.rb#L70
-    pub fn sign(root: &Root, mut cookie: Cookie) -> Cookie {
-        let signature = dosign(root, cookie.value.as_slice());
+    pub fn sign(key: &[u8], mut cookie: Cookie) -> Cookie {
+        let signature = dosign(key, &cookie.value);
         cookie.value.push_str("--");
-        cookie.value.push_str(signature.as_slice().to_hex().as_slice());
+        cookie.value.push_str(&signature.to_hex());
         cookie
     }
 
@@ -333,13 +345,13 @@ mod secure {
         Some((text, ext))
     }
 
-    pub fn design(root: &Root, mut cookie: Cookie) -> Option<Cookie> {
+    pub fn design(key: &[u8], mut cookie: Cookie) -> Option<Cookie> {
         let len = {
-            let (text, signature) = match split_value(cookie.value.as_slice()) {
+            let (text, signature) = match split_value(&cookie.value) {
                 Some(pair) => pair, None => return None
             };
-            let expected = dosign(root, text);
-            if !memcmp::eq(expected.as_slice(), signature.as_slice()) {
+            let expected = dosign(key, text);
+            if !memcmp::eq(&expected, &signature) {
                 return None
             }
             text.len()
@@ -348,64 +360,58 @@ mod secure {
         Some(cookie)
     }
 
-    fn dosign(root: &Root, val: &str) -> Vec<u8> {
-        let mut hmac = hmac::HMAC::new(hash::Type::SHA1, root.key.as_slice());
+    fn dosign(key: &[u8], val: &str) -> Vec<u8> {
+        let mut hmac = hmac::HMAC::new(hash::Type::SHA1, key);
         hmac.write_all(val.as_bytes()).unwrap();
         hmac.finish()
     }
 
     // Implementation details were taken from Rails. See
     // https://github.com/rails/rails/blob/master/activesupport/lib/active_support/message_encryptor.rb#L57
-    pub fn encrypt_and_sign(root: &Root, mut cookie: Cookie) -> Cookie {
-        let encrypted_data = encrypt_data(root, cookie.value.as_slice());
+    pub fn encrypt_and_sign(key: &[u8], mut cookie: Cookie) -> Cookie {
+        let encrypted_data = encrypt_data(key, &cookie.value);
         cookie.value = encrypted_data;
-        sign(root, cookie)
+        sign(key, cookie)
     }
 
-    fn encrypt_data(root: &Root, val: &str) -> String {
+    fn encrypt_data(key: &[u8], val: &str) -> String {
         let iv = random_iv();
-        let iv_str = iv.as_slice().to_hex();
+        let iv_str = iv.to_hex();
 
-        let mut encrypted_data = symm::encrypt(
-            symm::Type::AES_256_CBC,
-            &root.key[..MIN_KEY_LEN],
-            iv,
-            val.as_bytes()
-        ).as_slice().to_hex();
+        let mut encrypted_data = symm::encrypt(symm::Type::AES_256_CBC,
+                                               &key[..MIN_KEY_LEN], iv,
+                                               val.as_bytes()).to_hex();
 
         encrypted_data.push_str("--");
-        encrypted_data.push_str(iv_str.as_slice());
+        encrypted_data.push_str(&iv_str);
         encrypted_data
     }
 
-    pub fn design_and_decrypt(root: &Root, cookie: Cookie) -> Option<Cookie> {
-        let mut cookie = match design(root, cookie) {
+    pub fn design_and_decrypt(key: &[u8], cookie: Cookie) -> Option<Cookie> {
+        let mut cookie = match design(key, cookie) {
             Some(cookie) => cookie,
             None => return None
         };
 
-        let decrypted_data = decrypt_data(root, cookie.value.as_slice()).and_then(|data| String::from_utf8(data).ok());
+        let decrypted_data = decrypt_data(key, &cookie.value)
+                                .and_then(|data| String::from_utf8(data).ok());
         match decrypted_data {
-            Some(val) => { cookie.value = val; Some(cookie) },
-            None => return None
+            Some(val) => { cookie.value = val; Some(cookie) }
+            None => None
         }
     }
 
-    fn decrypt_data(root: &Root, val: &str) -> Option<Vec<u8>> {
+    fn decrypt_data(key: &[u8], val: &str) -> Option<Vec<u8>> {
         let (val, iv) = match split_value(val) {
             Some(pair) => pair, None => return None
         };
 
-        let actual = match val.as_slice().from_hex() {
+        let actual = match val.from_hex() {
             Ok(actual) => actual, Err(_) => return None
         };
 
-        Some(symm::decrypt(
-            symm::Type::AES_256_CBC,
-            &root.key[..MIN_KEY_LEN],
-            iv,
-            actual.as_slice()
-        ))
+        Some(symm::decrypt(symm::Type::AES_256_CBC, &key[..MIN_KEY_LEN],
+                           iv, &actual))
     }
 
     fn random_iv() -> Vec<u8> {
@@ -443,8 +449,8 @@ mod test {
     macro_rules! secure_behaviour {
         ($c:ident, $secure:ident) => ({
             $c.$secure().add(Cookie::new("test".to_string(), "test".to_string()));
-            assert!($c.find("test").unwrap().value.as_slice() != "test");
-            assert!($c.$secure().find("test").unwrap().value.as_slice() == "test");
+            assert!($c.find("test").unwrap().value != "test");
+            assert!($c.$secure().find("test").unwrap().value == "test");
 
             let mut cookie = $c.find("test").unwrap();
             cookie.value.push('l');
@@ -477,8 +483,8 @@ mod test {
         c.permanent().add(Cookie::new("test".to_string(), "test".to_string()));
 
         let cookie = c.find("test").unwrap();
-        assert_eq!(cookie.value.as_slice(), "test");
-        assert_eq!(c.permanent().find("test").unwrap().value.as_slice(), "test");
+        assert_eq!(cookie.value, "test");
+        assert_eq!(c.permanent().find("test").unwrap().value, "test");
         assert!(cookie.expires.is_some());
         assert!(cookie.max_age.is_some());
     }
@@ -491,7 +497,7 @@ mod test {
          .add(Cookie::new("test".to_string(), "test".to_string()));
 
         let cookie = c.signed().find("test").unwrap();
-        assert_eq!(cookie.value.as_slice(), "test");
+        assert_eq!(cookie.value, "test");
         assert!(cookie.expires.is_some());
         assert!(cookie.max_age.is_some());
     }
@@ -521,11 +527,11 @@ mod test {
 
         let encrypted_cookies = c.encrypted().iter().collect::<Vec<_>>();
         assert_eq!(encrypted_cookies.len(), 1);
-        assert_eq!(encrypted_cookies[0].name.as_slice(), "encrypted");
+        assert_eq!(encrypted_cookies[0].name, "encrypted");
 
         let signed_cookies = c.signed().iter().collect::<Vec<_>>();
         assert_eq!(signed_cookies.len(), 2);
-        assert!(signed_cookies[0].name.as_slice() == "signed" ||
-                signed_cookies[1].name.as_slice() == "signed");
+        assert!(signed_cookies[0].name == "signed" ||
+                signed_cookies[1].name == "signed");
     }
 }

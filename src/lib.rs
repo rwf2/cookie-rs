@@ -1,5 +1,4 @@
 #![doc(html_root_url = "http://alexcrichton.com/cookie-rs")]
-#![feature(core, collections)]
 #![cfg_attr(test, deny(warnings))]
 
 extern crate url;
@@ -52,7 +51,7 @@ impl Cookie {
 
         let mut c = Cookie::new(String::new(), String::new());
         let mut pairs = s.trim().split(';');
-        let keyval = try!(pairs.next().ok_or(()));
+        let keyval = match pairs.next() { Some(s) => s, _ => return Err(()) };
         let (name, value) = try!(split(keyval));
         let name = url::percent_decode(name.as_bytes());
         if name.is_empty() {
@@ -76,7 +75,7 @@ impl Cookie {
                                 continue;
                             }
 
-                            let domain = if v.char_at(0) == '.' {
+                            let domain = if v.chars().next() == Some('.') {
                                 &v[1..]
                             } else {
                                 v
@@ -107,9 +106,12 @@ impl Cookie {
         return Ok(c);
 
         fn split<'a>(s: &'a str) -> Result<(&'a str, &'a str), ()> {
+            macro_rules! try {
+                ($e:expr) => (match $e { Some(s) => s, None => return Err(()) })
+            }
             let mut parts = s.trim().splitn(1, '=');
-            let first = try!(parts.next().ok_or(())).trim();
-            let second = try!(parts.next().ok_or(())).trim();
+            let first = try!(parts.next()).trim();
+            let second = try!(parts.next()).trim();
             Ok((first, second))
         }
     }
