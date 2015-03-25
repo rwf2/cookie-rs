@@ -312,7 +312,7 @@ impl<'a> Iterator for Iter<'a> {
 mod secure {
     use Cookie;
     use openssl::crypto::{hmac, hash, memcmp, symm};
-    use serialize::hex::{ToHex, FromHex};
+    use rustc_serialize::hex::{ToHex, FromHex};
     use std::io::prelude::*;
 
     pub const MIN_KEY_LEN: usize = 32;
