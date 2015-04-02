@@ -109,7 +109,7 @@ impl Cookie {
             macro_rules! try {
                 ($e:expr) => (match $e { Some(s) => s, None => return Err(()) })
             }
-            let mut parts = s.trim().splitn(1, '=');
+            let mut parts = s.trim().splitn(2, '=');
             let first = try!(parts.next()).trim();
             let second = try!(parts.next()).trim();
             Ok((first, second))
