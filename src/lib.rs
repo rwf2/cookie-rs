@@ -53,11 +53,11 @@ impl Cookie {
         let mut pairs = s.trim().split(';');
         let keyval = match pairs.next() { Some(s) => s, _ => return Err(()) };
         let (name, value) = try!(split(keyval));
-        let name = url::percent_decode(name.as_bytes());
+        let name = url::percent_encoding::percent_decode(name.as_bytes());
         if name.is_empty() {
             return Err(());
         }
-        let value = url::percent_decode(value.as_bytes());
+        let value = url::percent_encoding::percent_decode(value.as_bytes());
         c.name = try!(String::from_utf8(name).map_err(|_| ()));
         c.value = try!(String::from_utf8(value).map_err(|_| ()));
 
@@ -126,8 +126,10 @@ pub struct AttrVal<'a>(pub &'a str, pub &'a str);
 impl<'a> fmt::Display for AttrVal<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let AttrVal(ref attr, ref val) = *self;
-        write!(f, "{}={}", attr, url::percent_encode(val.as_bytes(),
-                                                     url::DEFAULT_ENCODE_SET))
+        write!(f, "{}={}", attr, url::percent_encoding::percent_encode(
+            val.as_bytes(),
+            url::percent_encoding::DEFAULT_ENCODE_SET)
+        )
     }
 }
 
