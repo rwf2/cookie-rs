@@ -3,6 +3,7 @@
 
 extern crate url;
 extern crate time;
+#[cfg(feature="openssl")]
 extern crate openssl;
 extern crate rustc_serialize;
 
@@ -11,8 +12,9 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
 
+#[cfg(feature="openssl")]
 pub use jar::CookieJar;
-
+#[cfg(feature="openssl")]
 mod jar;
 
 #[derive(PartialEq, Clone, Debug)]
