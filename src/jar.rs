@@ -10,6 +10,8 @@
 //! functionality such as automatically signing cookies, storing permanent
 //! cookies, etc. This functionality can also be chained together.
 
+extern crate rustc_serialize;
+
 use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
 use time;
@@ -310,10 +312,12 @@ impl<'a> Iterator for Iter<'a> {
 }
 
 mod secure {
-    use Cookie;
-    use openssl::crypto::{hmac, hash, memcmp, symm};
-    use rustc_serialize::hex::{ToHex, FromHex};
+    extern crate openssl;
     use std::io::prelude::*;
+
+    use Cookie;
+    use self::openssl::crypto::{hmac, hash, memcmp, symm};
+    use super::rustc_serialize::hex::{ToHex, FromHex};
 
     pub const MIN_KEY_LEN: usize = 32;
 
@@ -415,7 +419,7 @@ mod secure {
     }
 
     fn random_iv() -> Vec<u8> {
-        ::openssl::crypto::rand::rand_bytes(16)
+        openssl::crypto::rand::rand_bytes(16)
     }
 
     pub fn prepare_key(key: &[u8]) -> Vec<u8> {
