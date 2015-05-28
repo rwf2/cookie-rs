@@ -9,9 +9,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
 
-#[cfg(feature = "default")]
 pub use jar::CookieJar;
-#[cfg(feature = "default")]
 mod jar;
 
 #[derive(PartialEq, Clone, Debug)]

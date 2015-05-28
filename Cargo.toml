@@ -13,7 +13,8 @@ similar to Rails' cookie jar.
 """
 
 [features]
-default = ["openssl", "rustc-serialize"]
+default = ["secure"]
+secure = ["openssl", "rustc-serialize"]
 
 [dependencies]
 url = "0.2"
