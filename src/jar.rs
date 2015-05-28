@@ -10,7 +10,6 @@
 //! functionality such as automatically signing cookies, storing permanent
 //! cookies, etc. This functionality can also be chained together.
 
-extern crate rustc_serialize;
 
 use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
@@ -34,19 +33,6 @@ use Cookie;
 /// // Remove the added cookie
 /// c.remove("key");
 ///
-/// // Add a signed cookie to the jar
-/// c.signed().add(Cookie::new("key".to_string(), "value".to_string()));
-///
-/// // Add a signed and encrypted cookie to the jar
-/// c.encrypted().add(Cookie::new("key".to_string(), "value".to_string()));
-///
-/// // Add a permanently signed cookie to the jar
-/// c.permanent().signed()
-///  .add(Cookie::new("key".to_string(), "value".to_string()));
-///
-/// // Add a permanently signed and encrypted cookie to the jar
-/// c.permanent().encrypted()
-///  .add(Cookie::new("key".to_string(), "value".to_string()));
 /// ```
 pub struct CookieJar<'a> {
     flavor: Flavor<'a>,
@@ -66,11 +52,32 @@ struct Child<'a> {
 type Read = fn(&Root, Cookie) -> Option<Cookie>;
 type Write = fn(&Root, Cookie) -> Cookie;
 
+#[cfg(feature = "secure")]
+type SigningKey = Vec<u8>;
+#[cfg(not(feature = "secure"))]
+type SigningKey = ();
+
+#[cfg(feature = "secure")]
+fn prepare_key(key: &[u8]) -> Vec<u8> {
+    if key.len() >= secure::MIN_KEY_LEN {
+        key.to_vec()
+    } else {
+        // Using a SHA-256 hash to normalize key as Rails suggests.
+        // See https://github.com/rails/rails/blob/master/activesupport/lib/active_support/message_encryptor.rb
+        secure::prepare_key(key)
+    }
+}
+
+#[cfg(not(feature = "secure"))]
+fn prepare_key(_key: &[u8]) -> () {
+    ()
+}
+
 struct Root {
     map: RefCell<HashMap<String, Cookie>>,
     new_cookies: RefCell<HashSet<String>>,
     removed_cookies: RefCell<HashSet<String>>,
-    key: Vec<u8>,
+    _key: SigningKey,
 }
 
 /// Iterator over the cookies in a cookie jar
@@ -79,26 +86,18 @@ pub struct Iter<'a> {
     keys: Vec<String>,
 }
 
+
 impl<'a> CookieJar<'a> {
     /// Creates a new empty cookie jar with the given signing key.
     ///
     /// The given key is used to sign cookies in the signed cookie jar.
     pub fn new(key: &[u8]) -> CookieJar<'static> {
-
-        let normalized_key = if key.len() >= secure::MIN_KEY_LEN {
-            key.to_vec()
-        } else {
-            // Using a SHA-256 hash to normalize key as Rails suggests.
-            // See https://github.com/rails/rails/blob/master/activesupport/lib/active_support/message_encryptor.rb
-            secure::prepare_key(key)
-        };
-
         CookieJar {
             flavor: Flavor::Root(Root {
                 map: RefCell::new(HashMap::new()),
                 new_cookies: RefCell::new(HashSet::new()),
                 removed_cookies: RefCell::new(HashSet::new()),
-                key: normalized_key,
+                _key: prepare_key(key),
             })
         }
     }
@@ -176,6 +175,21 @@ impl<'a> CookieJar<'a> {
     ///
     /// All cookies read from the child jar will require a valid signature and
     /// all cookies written will be signed automatically.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use cookie::{Cookie, CookieJar};
+    /// let c = CookieJar::new(b"f8f9eaf1ecdedff5e5b749c58115441e");
+    ///
+    /// // Add a signed cookie to the jar
+    /// c.signed().add(Cookie::new("key".to_string(), "value".to_string()));
+    ///
+    /// // Add a permanently signed cookie to the jar
+    /// c.permanent().signed()
+    ///  .add(Cookie::new("key".to_string(), "value".to_string()));
+    /// ```
+    #[cfg(feature = "secure")]
     pub fn signed<'b>(&'b self) -> CookieJar<'b> {
         return CookieJar {
             flavor: Flavor::Child(Child {
@@ -186,10 +200,10 @@ impl<'a> CookieJar<'a> {
         };
 
         fn design(root: &Root, cookie: Cookie) -> Option<Cookie> {
-            secure::design(&root.key, cookie)
+            secure::design(&root._key, cookie)
         }
         fn sign(root: &Root, cookie: Cookie) -> Cookie {
-            secure::sign(&root.key, cookie)
+            secure::sign(&root._key, cookie)
         }
     }
 
@@ -198,6 +212,22 @@ impl<'a> CookieJar<'a> {
     /// All cookies read from the child jar must be encrypted and signed by a
     /// valid key and all cookies written will be encrypted and signed
     /// automatically.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use cookie::{Cookie, CookieJar};
+    /// let c = CookieJar::new(b"f8f9eaf1ecdedff5e5b749c58115441e");
+    ///
+    /// // Add a signed and encrypted cookie to the jar
+    /// c.encrypted().add(Cookie::new("key".to_string(), "value".to_string()));
+    ///
+
+    /// // Add a permanently signed and encrypted cookie to the jar
+    /// c.permanent().encrypted()
+    ///  .add(Cookie::new("key".to_string(), "value".to_string()));
+    /// ```
+    #[cfg(feature = "secure")]
     pub fn encrypted<'b>(&'b self) -> CookieJar<'b> {
         return CookieJar {
             flavor: Flavor::Child(Child {
@@ -207,10 +237,10 @@ impl<'a> CookieJar<'a> {
             })
         };
         fn read(root: &Root, cookie: Cookie) -> Option<Cookie> {
-            secure::design_and_decrypt(&root.key, cookie)
+            secure::design_and_decrypt(&root._key, cookie)
         }
         fn write(root: &Root, cookie: Cookie) -> Cookie {
-            secure::encrypt_and_sign(&root.key, cookie)
+            secure::encrypt_and_sign(&root._key, cookie)
         }
     }
 
@@ -311,13 +341,15 @@ impl<'a> Iterator for Iter<'a> {
     }
 }
 
+#[cfg(feature = "secure")]
 mod secure {
     extern crate openssl;
+    extern crate rustc_serialize;
     use std::io::prelude::*;
 
     use Cookie;
     use self::openssl::crypto::{hmac, hash, memcmp, symm};
-    use super::rustc_serialize::hex::{ToHex, FromHex};
+    use self::rustc_serialize::hex::{ToHex, FromHex};
 
     pub const MIN_KEY_LEN: usize = 32;
 
@@ -468,12 +500,14 @@ mod test {
         })
     }
 
+    #[cfg(features = "secure")]
     #[test]
     fn signed() {
         let c = CookieJar::new(KEY);
         secure_behaviour!(c, signed)
     }
 
+    #[cfg(features = "secure")]
     #[test]
     fn encrypted() {
         let c = CookieJar::new(KEY);
@@ -493,6 +527,7 @@ mod test {
         assert!(cookie.max_age.is_some());
     }
 
+    #[cfg(features = "secure")]
     #[test]
     fn chained() {
         let c = CookieJar::new(KEY);
@@ -506,6 +541,7 @@ mod test {
         assert!(cookie.max_age.is_some());
     }
 
+    #[cfg(features = "secure")]
     #[test]
     fn iter() {
         let mut c = CookieJar::new(KEY);
