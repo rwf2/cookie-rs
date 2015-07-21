@@ -349,7 +349,7 @@ mod secure {
 
     use Cookie;
     use self::openssl::crypto::{hmac, hash, memcmp, symm};
-    use self::rustc_serialize::hex::{ToHex, FromHex};
+    use self::rustc_serialize::base64::{ToBase64, FromBase64, STANDARD};
 
     pub const MIN_KEY_LEN: usize = 32;
 
@@ -361,7 +361,7 @@ mod secure {
     pub fn sign(key: &[u8], mut cookie: Cookie) -> Cookie {
         let signature = dosign(key, &cookie.value);
         cookie.value.push_str("--");
-        cookie.value.push_str(&signature.to_hex());
+        cookie.value.push_str(&signature.to_base64(STANDARD));
         cookie
     }
 
@@ -374,7 +374,7 @@ mod secure {
         let val_len = val.len();
         if ext.len() == val_len { return None }
         let text = &val[..val_len - ext.len() - 2];
-        let ext = match ext.from_hex() {
+        let ext = match ext.from_base64() {
             Ok(sig) => sig, Err(..) => return None,
         };
 
@@ -412,11 +412,11 @@ mod secure {
 
     fn encrypt_data(key: &[u8], val: &str) -> String {
         let iv = random_iv();
-        let iv_str = iv.to_hex();
+        let iv_str = iv.to_base64(STANDARD);
 
         let mut encrypted_data = symm::encrypt(symm::Type::AES_256_CBC,
                                                &key[..MIN_KEY_LEN], iv,
-                                               val.as_bytes()).to_hex();
+                                               val.as_bytes()).to_base64(STANDARD);
 
         encrypted_data.push_str("--");
         encrypted_data.push_str(&iv_str);
@@ -442,7 +442,7 @@ mod secure {
             Some(pair) => pair, None => return None
         };
 
-        let actual = match val.from_hex() {
+        let actual = match val.from_base64() {
             Ok(actual) => actual, Err(_) => return None
         };
 
