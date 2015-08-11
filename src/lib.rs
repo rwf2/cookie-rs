@@ -66,7 +66,10 @@ impl Cookie {
                 _ => {
                     let (k, v) = unwrap_or_skip!(split(trimmed).ok());
                     match &k.to_ascii_lowercase()[..] {
-                        "max-age" => c.max_age = Some(unwrap_or_skip!(v.parse().ok())),
+                        "max-age" => {
+                            let max_age_signed: i64 = unwrap_or_skip!(v.parse().ok());
+                            c.max_age = Some(if max_age_signed.is_negative() { 0u64 } else { max_age_signed as u64 });
+                        },
                         "domain" => {
                             if v.is_empty() {
                                 continue;
@@ -190,6 +193,15 @@ mod tests {
         assert_eq!(Cookie::parse(" foo=bar ; sekure; HTTPONLY").ok().unwrap(), expected);
         expected.secure = true;
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure").ok().unwrap(), expected);
+        expected.max_age = Some(0);
+        assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
+                                  Max-Age=0").ok().unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
+                                  Max-Age = 0 ").ok().unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
+                                  Max-Age=-1").ok().unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
+                                  Max-Age = -1 ").ok().unwrap(), expected);
         expected.max_age = Some(4);
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
                                   Max-Age=4").ok().unwrap(), expected);
