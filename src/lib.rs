@@ -67,8 +67,16 @@ impl Cookie {
                     let (k, v) = unwrap_or_skip!(split(trimmed).ok());
                     match &k.to_ascii_lowercase()[..] {
                         "max-age" => {
-                            let max_age_signed: i64 = unwrap_or_skip!(v.parse().ok());
-                            c.max_age = Some(if max_age_signed.is_negative() { 0u64 } else { max_age_signed as u64 });
+                            // See RFC 6265 Section 5.2.2, negative values
+                            // indicate that the earliest possible expiration
+                            // time should be used, so set the max age as 0
+                            // seconds.
+                            let max_age: i64 = unwrap_or_skip!(v.parse().ok());
+                            c.max_age = Some(if max_age < 0 {
+                                0
+                            } else {
+                                max_age as u64
+                            });
                         },
                         "domain" => {
                             if v.is_empty() {
