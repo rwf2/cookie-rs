@@ -34,7 +34,7 @@ impl Cookie {
             expires: None,
             max_age: None,
             domain: None,
-            path: Some("/".to_string()),
+            path: None,
             secure: false,
             httponly: false,
             custom: BTreeMap::new(),
