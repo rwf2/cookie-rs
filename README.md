@@ -8,8 +8,8 @@ A library for parsing HTTP cookies and managing cookie jars
 
 ```toml
 # Cargo.toml
-[dependencies.cookie]
-git = "https://github.com/alexcrichton/cookie-rs"
+[dependencies]
+cookie = "0.2"
 ```
 
 # License
