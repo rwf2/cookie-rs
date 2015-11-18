@@ -415,7 +415,7 @@ mod secure {
         let iv_str = iv.to_base64(STANDARD);
 
         let mut encrypted_data = symm::encrypt(symm::Type::AES_256_CBC,
-                                               &key[..MIN_KEY_LEN], iv,
+                                               &key[..MIN_KEY_LEN], &iv,
                                                val.as_bytes()).to_base64(STANDARD);
 
         encrypted_data.push_str("--");
@@ -447,7 +447,7 @@ mod secure {
         };
 
         Some(symm::decrypt(symm::Type::AES_256_CBC, &key[..MIN_KEY_LEN],
-                           iv, &actual))
+                           &iv, &actual))
     }
 
     fn random_iv() -> Vec<u8> {
