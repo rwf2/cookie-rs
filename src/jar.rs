@@ -387,7 +387,8 @@ mod secure {
                 Some(pair) => pair, None => return None
             };
             let expected = dosign(key, text);
-            if !memcmp::eq(&expected, &signature) {
+            if expected.len() != signature.len() ||
+               !memcmp::eq(&expected, &signature) {
                 return None
             }
             text.len()
