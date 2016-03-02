@@ -25,6 +25,12 @@ pub struct Cookie {
     pub custom: BTreeMap<String, String>,
 }
 
+fn percent_decode(input: &str) -> Result<String, ()> {
+    match url::percent_encoding::percent_decode(input.as_bytes()).decode_utf8() {
+        Ok(s) => Ok(s.into_owned()),
+        Err(_) => Err(())
+    }
+}
 
 impl Cookie {
     pub fn new(name: String, value: String) -> Cookie {
@@ -50,13 +56,11 @@ impl Cookie {
         let mut pairs = s.trim().split(';');
         let keyval = match pairs.next() { Some(s) => s, _ => return Err(()) };
         let (name, value) = try!(split(keyval));
-        let name = url::percent_encoding::percent_decode(name.as_bytes());
-        if name.is_empty() {
+        c.name = try!(percent_decode(name));
+        if c.name.is_empty() {
             return Err(());
         }
-        let value = url::percent_encoding::percent_decode(value.as_bytes());
-        c.name = try!(String::from_utf8(name).map_err(|_| ()));
-        c.value = try!(String::from_utf8(value).map_err(|_| ()));
+        c.value = try!(percent_decode(value));
 
         for attr in pairs {
             let trimmed = attr.trim();
