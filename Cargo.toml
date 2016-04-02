@@ -8,7 +8,7 @@ repository = "https://github.com/alexcrichton/cookie-rs"
 documentation = "http://alexcrichton.com/cookie-rs"
 description = """
 Crate for parsing HTTP cookie headers and managing a cookie jar. Supports
-encrypted, signed, and permanent cookie chars composed together in amanner
+encrypted, signed, and permanent cookie chars composed together in a manner
 similar to Rails' cookie jar.
 """
 
