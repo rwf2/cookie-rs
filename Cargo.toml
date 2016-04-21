@@ -17,7 +17,7 @@ default = ["secure"]
 secure = ["openssl", "rustc-serialize"]
 
 [dependencies]
-url = "0.5"
+url = "1.0"
 time = "0.1"
 rustc-serialize = { version = "0.3", optional = true }
 openssl = { version = "0.7.0", optional = true }
