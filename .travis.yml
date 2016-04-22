@@ -8,6 +8,7 @@ script:
   - cargo build --verbose
   - cargo test --verbose --no-default-features
   - cargo test --verbose
+  - cargo test --verbose --features serialize-rustc
   - rustdoc --test README.md -L target
   - cargo doc --no-deps
 after_success: |
