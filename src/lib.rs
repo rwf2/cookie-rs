@@ -3,6 +3,7 @@
 
 extern crate url;
 extern crate time;
+#[cfg(feature = "serialize-rustc")] extern crate rustc_serialize;  
 
 use std::ascii::AsciiExt;
 use std::collections::BTreeMap;
@@ -13,6 +14,7 @@ pub use jar::CookieJar;
 mod jar;
 
 #[derive(PartialEq, Clone, Debug)]
+#[cfg_attr(feature = "serialize-rustc", derive(RustcEncodable, RustcDecodable))]
 pub struct Cookie {
     pub name: String,
     pub value: String,
