@@ -65,59 +65,66 @@ impl Cookie {
         c.value = try!(percent_decode(value));
 
         for attr in pairs {
-            let trimmed = attr.trim();
-            match &trimmed.to_ascii_lowercase()[..] {
-                "secure" => c.secure = true,
-                "httponly" => c.httponly = true,
-                _ => {
-                    let (k, v) = unwrap_or_skip!(split(trimmed).ok());
-                    match &k.to_ascii_lowercase()[..] {
-                        "max-age" => {
-                            // See RFC 6265 Section 5.2.2, negative values
-                            // indicate that the earliest possible expiration
-                            // time should be used, so set the max age as 0
-                            // seconds.
-                            let max_age: i64 = unwrap_or_skip!(v.parse().ok());
-                            c.max_age = Some(if max_age < 0 {
-                                0
-                            } else {
-                                max_age as u64
-                            });
-                        },
-                        "domain" => {
-                            if v.is_empty() {
-                                continue;
-                            }
-
-                            let domain = if v.chars().next() == Some('.') {
-                                &v[1..]
-                            } else {
-                                v
-                            };
-                            c.domain = Some(domain.to_ascii_lowercase());
-                        }
-                        "path" => c.path = Some(v.to_string()),
-                        "expires" => {
-                            // Try strptime with three date formats according to
-                            // http://tools.ietf.org/html/rfc2616#section-3.3.1
-                            // Try additional ones as encountered in the real world.
-                            let tm = time::strptime(v, "%a, %d %b %Y %H:%M:%S %Z").or_else(|_| {
-                                time::strptime(v, "%A, %d-%b-%y %H:%M:%S %Z")
-                            }).or_else(|_| {
-                                time::strptime(v, "%a, %d-%b-%Y %H:%M:%S %Z")
-                            }).or_else(|_| {
-                                time::strptime(v, "%a %b %d %H:%M:%S %Y")
-                            });
-                            let tm = unwrap_or_skip!(tm.ok());
-                            c.expires = Some(tm);
-                        }
-                        _ => { c.custom.insert(k.to_string(), v.to_string()); }
+            let (k, v) = attr_split(attr);
+            match (&k.to_ascii_lowercase()[..], v) {
+                ("secure", _) => c.secure = true,
+                ("httponly", _) => c.httponly = true,
+                ("max-age", Some(v)) => {
+                    // See RFC 6265 Section 5.2.2, negative values
+                    // indicate that the earliest possible expiration
+                    // time should be used, so set the max age as 0
+                    // seconds.
+                    let max_age: i64 = unwrap_or_skip!(v.parse().ok());
+                    c.max_age = Some(if max_age < 0 {
+                        0
+                    } else {
+                        max_age as u64
+                    });
+                },
+                ("domain", Some(v)) => {
+                    if v.is_empty() {
+                        continue;
                     }
+
+                    let domain = if v.chars().next() == Some('.') {
+                        &v[1..]
+                    } else {
+                        v
+                    };
+                    c.domain = Some(domain.to_ascii_lowercase());
                 }
+                ("path", Some(v)) => c.path = Some(v.to_string()),
+                ("expires", Some(v)) => {
+                    // Try strptime with three date formats according to
+                    // http://tools.ietf.org/html/rfc2616#section-3.3.1
+                    // Try additional ones as encountered in the real world.
+                    let tm = time::strptime(v, "%a, %d %b %Y %H:%M:%S %Z").or_else(|_| {
+                        time::strptime(v, "%A, %d-%b-%y %H:%M:%S %Z")
+                    }).or_else(|_| {
+                        time::strptime(v, "%a, %d-%b-%Y %H:%M:%S %Z")
+                    }).or_else(|_| {
+                        time::strptime(v, "%a %b %d %H:%M:%S %Y")
+                    });
+                    let tm = unwrap_or_skip!(tm.ok());
+                    c.expires = Some(tm);
+                }
+                (_, Some(v)) => {c.custom.insert(k.to_string(), v.to_string());}
+                (_, _) => {}
             }
         }
 
         return Ok(c);
+
+        fn attr_split<'a>(s: &'a str) -> (&'a str, Option<&'a str>) {
+            match s.find("=") {
+                Some(pos) => {
+                    let parts = s.split_at(pos);
+                    let value = parts.1[1..].trim();
+                    (parts.0.trim(), Some(value))
+                }
+                None => (s.trim(), None)
+            }
+        }
 
         fn split<'a>(s: &'a str) -> Result<(&'a str, &'a str), ()> {
             macro_rules! try {
@@ -203,10 +210,11 @@ mod tests {
         expected.httponly = true;
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly").ok().unwrap(), expected);
         assert_eq!(Cookie::parse(" foo=bar ;httponly").ok().unwrap(), expected);
-        assert_eq!(Cookie::parse(" foo=bar ;HTTPONLY").ok().unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;HTTPONLY=whatever").ok().unwrap(), expected);
         assert_eq!(Cookie::parse(" foo=bar ; sekure; HTTPONLY").ok().unwrap(), expected);
         expected.secure = true;
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure").ok().unwrap(), expected);
+        assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure=aaaa").ok().unwrap(), expected);
         expected.max_age = Some(0);
         assert_eq!(Cookie::parse(" foo=bar ;HttpOnly; Secure; \
                                   Max-Age=0").ok().unwrap(), expected);
