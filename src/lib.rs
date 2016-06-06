@@ -4,11 +4,14 @@
 extern crate url;
 extern crate time;
 #[cfg(feature = "serialize-rustc")] extern crate rustc_serialize;  
+#[cfg(feature = "serialize-serde")] extern crate serde;
 
 use std::ascii::AsciiExt;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
+
+#[cfg(feature = "serialize-serde")] use serde::{Serialize, Deserialize};
 
 pub use jar::CookieJar;
 mod jar;
@@ -142,6 +145,40 @@ impl Cookie {
     }
 }
 
+#[cfg(feature = "serialize-serde")]
+impl Serialize for Cookie {
+    fn serialize<S>(&self, serializer: &mut S) -> Result<(), S::Error>
+        where S: serde::Serializer
+    {
+        serializer.serialize_str(&*self.to_string())
+    }
+}
+
+#[cfg(feature = "serialize-serde")]
+impl Deserialize for Cookie {
+    fn deserialize<D>(deserializer: &mut D) -> Result<Cookie, D::Error>
+        where D: serde::Deserializer
+    {
+        deserializer.deserialize_string(CookieVisitor)
+    }
+}
+#[cfg(feature = "serialize-serde")]
+struct CookieVisitor;
+
+#[cfg(feature = "serialize-serde")]
+impl serde::de::Visitor for CookieVisitor {
+    type Value = Cookie;
+
+    fn visit_str<E>(&mut self, v: &str) -> Result<Cookie, E>
+        where E: serde::de::Error
+    {
+        match Cookie::parse(v) {
+            Ok(cookie) => Ok(cookie),
+            Err(()) => Err(serde::de::Error::custom("Could not parse serialized cookie!"))
+        }
+    }
+}
+
 pub struct AttrVal<'a>(pub &'a str, pub &'a str);
 
 impl<'a> fmt::Display for AttrVal<'a> {
@@ -259,5 +296,37 @@ mod tests {
     fn pair() {
         let cookie = Cookie::new("foo".to_string(), "bar".to_string());
         assert_eq!(cookie.pair().to_string(), "foo=bar".to_string());
+    }
+
+    #[cfg(feature = "serialize-serde")]
+    #[test]
+    fn test_serialize() {
+        #[cfg(feature = "serialize-serde")] extern crate serde_json;
+
+        use super::Cookie;
+        use time;
+        use std::collections::BTreeMap;
+
+        let mut custom = BTreeMap::new();
+        custom.insert("x86".to_string(), "rdi".to_string());
+        custom.insert("arm".to_string(), "x0".to_string());
+        let original = Cookie {
+            name: "Hello".to_owned(),
+            value: "World!".to_owned(),
+            expires: Some(time::strptime("Sun, 23 Nov 2014 20:00:00 UTC",
+                                         "%a, %d %b %Y %H:%M:%S %Z").unwrap()),
+            max_age: Some(42),
+            domain: Some("servo.org".to_owned()),
+            path: Some("/".to_owned()),
+            secure: true,
+            httponly: false,
+            custom: custom
+        };
+
+        let serialized = serde_json::to_string(&original).unwrap();
+
+        let roundtrip: Cookie = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(original, roundtrip);
     }
 }

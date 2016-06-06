@@ -16,9 +16,14 @@ similar to Rails' cookie jar.
 default = ["secure"]
 serialize-rustc = ["rustc-serialize", "time/rustc-serialize"]
 secure = ["openssl", "rustc-serialize"]
+serialize-serde = ["serde"]
 
 [dependencies]
 url = "1.0"
 time = "0.1"
 rustc-serialize = { version = "0.3", optional = true }
 openssl = { version = "0.7.0", optional = true }
+serde = { version = "0.7.5", optional = true }
+
+[dev-dependencies]
+serde_json = "0.7.0"
