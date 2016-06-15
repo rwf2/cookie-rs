@@ -329,4 +329,36 @@ mod tests {
 
         assert_eq!(original, roundtrip);
     }
+
+    #[cfg(feature = "serialize-serde")]
+    #[test]
+    fn test_serialize_semicolons() {
+        #[cfg(feature = "serialize-serde")] extern crate serde_json;
+
+        use super::Cookie;
+        use time;
+        use std::collections::BTreeMap;
+
+        let mut custom = BTreeMap::new();
+        custom.insert("x86".to_string(), "rdi".to_string());
+        custom.insert("arm".to_string(), "x0".to_string());
+        let original = Cookie {
+            name: "test".to_owned(),
+            value: "hello;world".to_owned(),
+            expires: Some(time::strptime("Tue, 15 Jun 2016 20:00:00 UTC",
+                                         "%a, %d %b %Y %H:%M:%S %Z").unwrap()),
+            max_age: Some(42),
+            domain: Some("example.com".to_owned()),
+            path: Some("/".to_owned()),
+            secure: true,
+            httponly: false,
+            custom: custom
+        };
+
+        let serialized = serde_json::to_string(&original).unwrap();
+
+        let roundtrip: Cookie = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(original, roundtrip);
+    }
 }
