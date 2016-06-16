@@ -186,7 +186,7 @@ impl<'a> fmt::Display for AttrVal<'a> {
         let AttrVal(ref attr, ref val) = *self;
         write!(f, "{}={}", attr, url::percent_encoding::percent_encode(
             val.as_bytes(),
-            url::percent_encoding::DEFAULT_ENCODE_SET)
+            url::percent_encoding::USERINFO_ENCODE_SET)
         )
     }
 }
@@ -332,7 +332,7 @@ mod tests {
 
     #[cfg(feature = "serialize-serde")]
     #[test]
-    fn test_serialize_semicolons() {
+    fn test_serialize_odd_characters() {
         #[cfg(feature = "serialize-serde")] extern crate serde_json;
 
         use super::Cookie;
@@ -344,7 +344,7 @@ mod tests {
         custom.insert("arm".to_string(), "x0".to_string());
         let original = Cookie {
             name: "test".to_owned(),
-            value: "hello;world".to_owned(),
+            value: "^start/foo=bar\\s,name@place:[test]|hello;world".to_owned(),
             expires: Some(time::strptime("Tue, 15 Jun 2016 20:00:00 UTC",
                                          "%a, %d %b %Y %H:%M:%S %Z").unwrap()),
             max_age: Some(42),
