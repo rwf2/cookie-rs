@@ -398,9 +398,9 @@ mod secure {
     }
 
     fn dosign(key: &[u8], val: &str) -> Vec<u8> {
-        let mut hmac = hmac::HMAC::new(hash::Type::SHA1, key);
+        let mut hmac = hmac::HMAC::new(hash::Type::SHA1, key).unwrap();
         hmac.write_all(val.as_bytes()).unwrap();
-        hmac.finish()
+        hmac.finish().unwrap()
     }
 
     // Implementation details were taken from Rails. See
@@ -416,8 +416,10 @@ mod secure {
         let iv_str = iv.to_base64(STANDARD);
 
         let mut encrypted_data = symm::encrypt(symm::Type::AES_256_CBC,
-                                               &key[..MIN_KEY_LEN], &iv,
-                                               val.as_bytes()).to_base64(STANDARD);
+                                               &key[..MIN_KEY_LEN],
+                                               Some(&iv),
+                                               val.as_bytes()).unwrap()
+                                                              .to_base64(STANDARD);
 
         encrypted_data.push_str("--");
         encrypted_data.push_str(&iv_str);
@@ -447,16 +449,20 @@ mod secure {
             Ok(actual) => actual, Err(_) => return None
         };
 
-        Some(symm::decrypt(symm::Type::AES_256_CBC, &key[..MIN_KEY_LEN],
-                           &iv, &actual))
+        Some(symm::decrypt(symm::Type::AES_256_CBC,
+                           &key[..MIN_KEY_LEN],
+                           Some(&iv),
+                           &actual).unwrap())
     }
 
     fn random_iv() -> Vec<u8> {
-        openssl::crypto::rand::rand_bytes(16)
+        let mut ret = vec![0; 16];
+        openssl::crypto::rand::rand_bytes(&mut ret).unwrap();
+        return ret
     }
 
     pub fn prepare_key(key: &[u8]) -> Vec<u8> {
-        hash::hash(hash::Type::SHA256, key)
+        hash::hash(hash::Type::SHA256, key).unwrap()
     }
 }
 

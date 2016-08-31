@@ -22,7 +22,7 @@ serialize-serde = ["serde"]
 url = "1.0"
 time = "0.1"
 rustc-serialize = { version = "0.3", optional = true }
-openssl = { version = "0.7.0", optional = true }
+openssl = { version = "0.8.0", optional = true, features = ["hmac"] }
 serde = { version = "0.8", optional = true }
 
 [dev-dependencies]
