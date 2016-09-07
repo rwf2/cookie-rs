@@ -30,10 +30,21 @@ pub struct Cookie {
     pub custom: BTreeMap<String, String>,
 }
 
-fn percent_decode(input: &str) -> Result<String, ()> {
+#[derive(Debug)]
+pub struct Error {
+    inner: ErrorInner,
+}
+
+#[derive(Debug)]
+enum ErrorInner {
+    Parse,
+    Utf8,
+}
+
+fn percent_decode(input: &str) -> Result<String, Error> {
     match url::percent_encoding::percent_decode(input.as_bytes()).decode_utf8() {
         Ok(s) => Ok(s.into_owned()),
-        Err(_) => Err(())
+        Err(_) => Err(Error { inner: ErrorInner::Utf8 }),
     }
 }
 
@@ -52,18 +63,23 @@ impl Cookie {
         }
     }
 
-    pub fn parse(s: &str) -> Result<Cookie, ()> {
+    pub fn parse(s: &str) -> Result<Cookie, Error> {
         macro_rules! unwrap_or_skip{ ($e:expr) => (
             match $e { Some(s) => s, None => continue, }
         ) }
 
         let mut c = Cookie::new(String::new(), String::new());
         let mut pairs = s.trim().split(';');
-        let keyval = match pairs.next() { Some(s) => s, _ => return Err(()) };
+        let keyval = match pairs.next() {
+            Some(s) => s,
+            _ => {
+                return Err(Error { inner: ErrorInner::Parse });
+            }
+        };
         let (name, value) = try!(split(keyval));
         c.name = try!(percent_decode(name));
         if c.name.is_empty() {
-            return Err(());
+            return Err(Error { inner: ErrorInner::Parse });
         }
         c.value = try!(percent_decode(value));
 
@@ -129,9 +145,12 @@ impl Cookie {
             }
         }
 
-        fn split<'a>(s: &'a str) -> Result<(&'a str, &'a str), ()> {
+        fn split<'a>(s: &'a str) -> Result<(&'a str, &'a str), Error> {
             macro_rules! try {
-                ($e:expr) => (match $e { Some(s) => s, None => return Err(()) })
+                ($e:expr) => (match $e {
+                    Some(s) => s,
+                    None => return Err(Error { inner: ErrorInner::Parse })
+                })
             }
             let mut parts = s.trim().splitn(2, '=');
             let first = try!(parts.next()).trim();
@@ -174,7 +193,7 @@ impl serde::de::Visitor for CookieVisitor {
     {
         match Cookie::parse(v) {
             Ok(cookie) => Ok(cookie),
-            Err(()) => Err(serde::de::Error::custom("Could not parse serialized cookie!"))
+            Err(_) => Err(serde::de::Error::custom("Could not parse serialized cookie!"))
         }
     }
 }
@@ -221,8 +240,8 @@ impl fmt::Display for Cookie {
 }
 
 impl FromStr for Cookie {
-    type Err = ();
-    fn from_str(s: &str) -> Result<Cookie, ()> {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Cookie, Error> {
         Cookie::parse(s)
     }
 }
@@ -284,6 +303,17 @@ mod tests {
         assert_eq!(expected.to_string(),
                    "foo=bar; HttpOnly; Secure; Path=/foo; Domain=foo.com; \
                     Max-Age=4; wut=lol");
+    }
+
+    #[test]
+    fn cookie_parse_error() {
+        use super::{Error, ErrorInner};
+
+        match Cookie::parse("bar") {
+            Ok(_) => assert!(false),
+            Err(Error { inner: ErrorInner::Parse { .. }, .. }) => assert!(true),
+            Err(Error { inner: ErrorInner::Utf8 { .. }, .. }) => assert!(false),
+        }
     }
 
     #[test]
