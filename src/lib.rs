@@ -31,15 +31,20 @@ pub struct Cookie {
 }
 
 #[derive(Debug)]
-pub enum CookieError {
-    ParseError,
-    Utf8Error(std::str::Utf8Error),
+pub struct Error {
+    inner: ErrorInner,
 }
 
-fn percent_decode(input: &str) -> Result<String, CookieError> {
+#[derive(Debug)]
+enum ErrorInner {
+    Parse,
+    Utf8,
+}
+
+fn percent_decode(input: &str) -> Result<String, Error> {
     match url::percent_encoding::percent_decode(input.as_bytes()).decode_utf8() {
         Ok(s) => Ok(s.into_owned()),
-        Err(err) => Err(CookieError::Utf8Error(err)),
+        Err(_) => Err(Error { inner: ErrorInner::Utf8 }),
     }
 }
 
@@ -58,18 +63,23 @@ impl Cookie {
         }
     }
 
-    pub fn parse(s: &str) -> Result<Cookie, CookieError> {
+    pub fn parse(s: &str) -> Result<Cookie, Error> {
         macro_rules! unwrap_or_skip{ ($e:expr) => (
             match $e { Some(s) => s, None => continue, }
         ) }
 
         let mut c = Cookie::new(String::new(), String::new());
         let mut pairs = s.trim().split(';');
-        let keyval = match pairs.next() { Some(s) => s, _ => return Err(CookieError::ParseError) };
+        let keyval = match pairs.next() {
+            Some(s) => s,
+            _ => {
+                return Err(Error { inner: ErrorInner::Parse });
+            }
+        };
         let (name, value) = try!(split(keyval));
         c.name = try!(percent_decode(name));
         if c.name.is_empty() {
-            return Err(CookieError::ParseError);
+            return Err(Error { inner: ErrorInner::Parse });
         }
         c.value = try!(percent_decode(value));
 
@@ -135,9 +145,12 @@ impl Cookie {
             }
         }
 
-        fn split<'a>(s: &'a str) -> Result<(&'a str, &'a str), CookieError> {
+        fn split<'a>(s: &'a str) -> Result<(&'a str, &'a str), Error> {
             macro_rules! try {
-                ($e:expr) => (match $e { Some(s) => s, None => return Err(CookieError::ParseError) })
+                ($e:expr) => (match $e {
+                    Some(s) => s,
+                    None => return Err(Error { inner: ErrorInner::Parse })
+                })
             }
             let mut parts = s.trim().splitn(2, '=');
             let first = try!(parts.next()).trim();
@@ -227,8 +240,8 @@ impl fmt::Display for Cookie {
 }
 
 impl FromStr for Cookie {
-    type Err = CookieError;
-    fn from_str(s: &str) -> Result<Cookie, CookieError> {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Cookie, Error> {
         Cookie::parse(s)
     }
 }
@@ -294,11 +307,12 @@ mod tests {
 
     #[test]
     fn cookie_parse_error() {
-        use super::CookieError;
+        use super::{Error, ErrorInner};
+
         match Cookie::parse("bar") {
             Ok(_) => assert!(false),
-            Err(CookieError::ParseError) => assert!(true),
-            Err(CookieError::Utf8Error(_)) => assert!(false),
+            Err(Error { inner: ErrorInner::Parse { .. }, .. }) => assert!(true),
+            Err(Error { inner: ErrorInner::Utf8 { .. }, .. }) => assert!(false),
         }
     }
 
