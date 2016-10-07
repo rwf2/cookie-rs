@@ -13,6 +13,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
+use std::fmt;
 use time;
 
 use Cookie;
@@ -85,7 +86,6 @@ pub struct Iter<'a> {
     jar: &'a CookieJar<'a>,
     keys: Vec<String>,
 }
-
 
 impl<'a> CookieJar<'a> {
     /// Creates a new empty cookie jar with the given signing key.
@@ -315,6 +315,23 @@ impl<'a> CookieJar<'a> {
     pub fn iter(&self) -> Iter {
         let map = self.root().map.borrow();
         Iter { jar: self, keys: map.keys().cloned().collect() }
+    }
+}
+
+impl<'a> fmt::Debug for CookieJar<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let root = self.root();
+        try!(write!(f, "CookieJar {{"));
+        let mut first = true;
+        for (name, cookie) in &*root.map.borrow() {
+            if !first {
+                try!(write!(f, ", "));
+            }
+            first = false;
+            try!(write!(f, "{:?}: {:?}", name, cookie));
+        }
+        try!(write!(f, " }}"));
+        Ok(())
     }
 }
 
