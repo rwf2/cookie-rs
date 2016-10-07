@@ -513,6 +513,13 @@ mod test {
 
         assert!(c.find("test").is_none());
         assert!(c.find("test2").is_some());
+
+        c.add(Cookie::new("test3".to_string(), "".to_string()));
+        c.clear();
+
+        assert!(c.find("test").is_none());
+        assert!(c.find("test2").is_none());
+        assert!(c.find("test3").is_none());
     }
 
     macro_rules! secure_behaviour {
