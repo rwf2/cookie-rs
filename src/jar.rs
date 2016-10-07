@@ -158,6 +158,15 @@ impl<'a> CookieJar<'a> {
         root.removed_cookies.borrow_mut().insert(cookie);
     }
 
+    /// Clears all cookies from this cookie jar.
+    pub fn clear(&self) {
+        let root = self.root();
+        let all_cookies: Vec<_> = root.map.borrow().keys().map(|n| n.to_owned()).collect();
+        root.map.borrow_mut().clear();
+        root.new_cookies.borrow_mut().clear();
+        root.removed_cookies.borrow_mut().extend(all_cookies);
+    }
+
     /// Finds a cookie inside of this cookie jar.
     ///
     /// The cookie is subject to modification by any of the child cookie jars
@@ -504,6 +513,13 @@ mod test {
 
         assert!(c.find("test").is_none());
         assert!(c.find("test2").is_some());
+
+        c.add(Cookie::new("test3".to_string(), "".to_string()));
+        c.clear();
+
+        assert!(c.find("test").is_none());
+        assert!(c.find("test2").is_none());
+        assert!(c.find("test3").is_none());
     }
 
     macro_rules! secure_behaviour {
