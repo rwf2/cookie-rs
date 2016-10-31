@@ -1,5 +1,23 @@
+#![deny(missing_docs)]
 #![doc(html_root_url = "http://alexcrichton.com/cookie-rs")]
 #![cfg_attr(test, deny(warnings))]
+
+//! HTTP Cookie parsing and Cookie Jar management
+//!
+//! Usage:
+//!
+//! add the following to the `[dependencies]` section of
+//! your `Cargo.toml`:
+//!
+//! ```ignore
+//! cookie = "0.3.2"
+//! ```
+//!
+//! Then add the following line to your crate root:
+//!
+//! ```ignore
+//! extern crate cookie;
+//! ```
 
 extern crate url;
 extern crate time;
@@ -16,20 +34,31 @@ use std::str::FromStr;
 pub use jar::CookieJar;
 mod jar;
 
+/// Holds all the data for a single cookie
 #[derive(PartialEq, Clone, Debug)]
 #[cfg_attr(feature = "serialize-rustc", derive(RustcEncodable, RustcDecodable))]
 pub struct Cookie {
+    #[allow(missing_docs)]
     pub name: String,
+    #[allow(missing_docs)]
     pub value: String,
+    #[allow(missing_docs)]
     pub expires: Option<time::Tm>,
+    #[allow(missing_docs)]
     pub max_age: Option<u64>,
+    #[allow(missing_docs)]
     pub domain: Option<String>,
+    #[allow(missing_docs)]
     pub path: Option<String>,
+    #[allow(missing_docs)]
     pub secure: bool,
+    #[allow(missing_docs)]
     pub httponly: bool,
+    #[allow(missing_docs)]
     pub custom: BTreeMap<String, String>,
 }
 
+/// Crate-level error type used to indicate either a problem with parsing, or a UTF-8 issue
 #[derive(Debug)]
 pub struct Error {
     inner: ErrorInner,
@@ -49,6 +78,17 @@ fn percent_decode(input: &str) -> Result<String, Error> {
 }
 
 impl Cookie {
+    /// Creates a new `Cookie` instance from key and value strings
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::Cookie;
+    ///
+    /// let c = Cookie::new("foo".into(), "bar".into());
+    /// assert_eq!(c.name, "foo");
+    /// assert_eq!(c.value, "bar");
+    /// ```
     pub fn new(name: String, value: String) -> Cookie {
         Cookie {
             name: name,
@@ -63,6 +103,18 @@ impl Cookie {
         }
     }
 
+    /// Attempts to parse a string into a `Cookie` instance
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::Cookie;
+    ///
+    /// let c = Cookie::parse("foo=bar; httponly").expect("Failed to parse cookie");
+    /// assert_eq!(c.name, "foo");
+    /// assert_eq!(c.value, "bar");
+    /// assert!(c.httponly);
+    /// ```
     pub fn parse(s: &str) -> Result<Cookie, Error> {
         macro_rules! unwrap_or_skip{ ($e:expr) => (
             match $e { Some(s) => s, None => continue, }
@@ -159,6 +211,7 @@ impl Cookie {
         }
     }
 
+    /// Returns the (name, value) pair for this `Cookie` instance
     pub fn pair(&self) -> AttrVal {
         AttrVal(&self.name, &self.value)
     }
@@ -198,6 +251,7 @@ impl serde::de::Visitor for CookieVisitor {
     }
 }
 
+/// Represents a key/value pair
 pub struct AttrVal<'a>(pub &'a str, pub &'a str);
 
 impl<'a> fmt::Display for AttrVal<'a> {
