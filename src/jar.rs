@@ -371,10 +371,12 @@ impl<'a> Iterator for Iter<'a> {
 mod secure {
     extern crate openssl;
     extern crate rustc_serialize;
-    use std::io::prelude::*;
 
     use Cookie;
-    use self::openssl::crypto::{hmac, hash, memcmp, symm};
+    use self::openssl::{hash, memcmp, symm};
+    use self::openssl::pkey::PKey;
+    use self::openssl::sign::Signer;
+    use self::openssl::hash::MessageDigest;
     use self::rustc_serialize::base64::{ToBase64, FromBase64, STANDARD};
 
     pub const MIN_KEY_LEN: usize = 32;
@@ -424,9 +426,10 @@ mod secure {
     }
 
     fn dosign(key: &[u8], val: &str) -> Vec<u8> {
-        let mut hmac = hmac::HMAC::new(hash::Type::SHA1, key).unwrap();
-        hmac.write_all(val.as_bytes()).unwrap();
-        hmac.finish().unwrap()
+        let pkey = PKey::hmac(key).unwrap();
+        let mut signer = Signer::new(MessageDigest::sha1(), &pkey).unwrap();
+        signer.update(val.as_bytes()).unwrap();
+        signer.finish().unwrap()
     }
 
     // Implementation details were taken from Rails. See
@@ -441,7 +444,7 @@ mod secure {
         let iv = random_iv();
         let iv_str = iv.to_base64(STANDARD);
 
-        let mut encrypted_data = symm::encrypt(symm::Type::AES_256_CBC,
+        let mut encrypted_data = symm::encrypt(symm::Cipher::aes_256_cbc(),
                                                &key[..MIN_KEY_LEN],
                                                Some(&iv),
                                                val.as_bytes()).unwrap()
@@ -475,7 +478,7 @@ mod secure {
             Ok(actual) => actual, Err(_) => return None
         };
 
-        Some(symm::decrypt(symm::Type::AES_256_CBC,
+        Some(symm::decrypt(symm::Cipher::aes_256_cbc(),
                            &key[..MIN_KEY_LEN],
                            Some(&iv),
                            &actual).unwrap())
@@ -483,12 +486,12 @@ mod secure {
 
     fn random_iv() -> Vec<u8> {
         let mut ret = vec![0; 16];
-        openssl::crypto::rand::rand_bytes(&mut ret).unwrap();
+        openssl::rand::rand_bytes(&mut ret).unwrap();
         return ret
     }
 
     pub fn prepare_key(key: &[u8]) -> Vec<u8> {
-        hash::hash(hash::Type::SHA256, key).unwrap()
+        hash::hash(MessageDigest::sha256(), key).unwrap()
     }
 }
 
