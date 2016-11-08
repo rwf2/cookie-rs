@@ -410,18 +410,17 @@ mod secure {
     }
 
     pub fn design(key: &[u8], mut cookie: Cookie) -> Option<Cookie> {
-        let len = {
-            let (text, signature) = match split_value(&cookie.value) {
-                Some(pair) => pair, None => return None
-            };
-            let expected = dosign(key, &cookie.to_string());
-            if expected.len() != signature.len() ||
-               !memcmp::eq(&expected, &signature) {
-                return None
-            }
-            text.len()
+        let signed_value = cookie.value;
+        let (text, signature) = match split_value(&signed_value) {
+            Some(pair) => pair, None => return None
         };
-        cookie.value.truncate(len);
+        cookie.value = text.to_owned();
+
+        let expected = dosign(key, &cookie.to_string());
+        if expected.len() != signature.len() ||
+           !memcmp::eq(&expected, &signature) {
+            return None
+        }
         Some(cookie)
     }
 
