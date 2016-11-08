@@ -550,14 +550,14 @@ mod test {
         })
     }
 
-    #[cfg(features = "secure")]
+    #[cfg(feature = "secure")]
     #[test]
     fn signed() {
         let c = CookieJar::new(KEY);
         secure_behaviour!(c, signed)
     }
 
-    #[cfg(features = "secure")]
+    #[cfg(feature = "secure")]
     #[test]
     fn encrypted() {
         let c = CookieJar::new(KEY);
