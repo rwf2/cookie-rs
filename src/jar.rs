@@ -544,7 +544,7 @@ mod test {
             $c.$secure().add(Cookie::new("test".to_string(), "test".to_string()));
             assert!($c.$secure().find("test").unwrap().value == "test");
             let mut cookie = $c.find("test").unwrap();
-            cookie.expires = Some(cookie.expires.unwrap_or(0) + 1);
+            cookie.max_age = Some(cookie.max_age.unwrap_or(0) + 1);
             $c.add(cookie);
             assert!($c.$secure().find("test").is_none());
         })
