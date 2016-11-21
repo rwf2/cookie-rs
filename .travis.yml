@@ -10,6 +10,7 @@ script:
   - cargo test --verbose
   - cargo test --verbose --features serialize-rustc
   - cargo test --verbose --features serialize-serde
+  - cargo test --verbose --features secure
   - rustdoc --test README.md -L target
   - cargo doc --no-deps
 after_success: |

@@ -387,7 +387,7 @@ mod secure {
     // https://github.com/rails/rails/blob/master/activesupport/lib
     //                   /active_support/message_verifier.rb#L70
     pub fn sign(key: &[u8], mut cookie: Cookie) -> Cookie {
-        let signature = dosign(key, &cookie.value);
+        let signature = dosign(key, &cookie.to_string());
         cookie.value.push_str("--");
         cookie.value.push_str(&signature.to_base64(STANDARD));
         cookie
@@ -410,18 +410,17 @@ mod secure {
     }
 
     pub fn design(key: &[u8], mut cookie: Cookie) -> Option<Cookie> {
-        let len = {
-            let (text, signature) = match split_value(&cookie.value) {
-                Some(pair) => pair, None => return None
-            };
-            let expected = dosign(key, text);
-            if expected.len() != signature.len() ||
-               !memcmp::eq(&expected, &signature) {
-                return None
-            }
-            text.len()
+        let signed_value = cookie.value;
+        let (text, signature) = match split_value(&signed_value) {
+            Some(pair) => pair, None => return None
         };
-        cookie.value.truncate(len);
+        cookie.value = text.to_owned();
+
+        let expected = dosign(key, &cookie.to_string());
+        if expected.len() != signature.len() ||
+           !memcmp::eq(&expected, &signature) {
+            return None
+        }
         Some(cookie)
     }
 
@@ -540,17 +539,24 @@ mod test {
             cookie.value = "foobar".to_string();
             $c.add(cookie);
             assert!($c.$secure().find("test").is_none());
+
+            $c.$secure().add(Cookie::new("test".to_string(), "test".to_string()));
+            assert!($c.$secure().find("test").unwrap().value == "test");
+            let mut cookie = $c.find("test").unwrap();
+            cookie.max_age = Some(cookie.max_age.unwrap_or(0) + 1);
+            $c.add(cookie);
+            assert!($c.$secure().find("test").is_none());
         })
     }
 
-    #[cfg(features = "secure")]
+    #[cfg(feature = "secure")]
     #[test]
     fn signed() {
         let c = CookieJar::new(KEY);
         secure_behaviour!(c, signed)
     }
 
-    #[cfg(features = "secure")]
+    #[cfg(feature = "secure")]
     #[test]
     fn encrypted() {
         let c = CookieJar::new(KEY);
