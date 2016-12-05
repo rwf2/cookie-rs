@@ -21,7 +21,7 @@
 
 extern crate url;
 extern crate time;
-#[cfg(feature = "serialize-rustc")] extern crate rustc_serialize;  
+#[cfg(feature = "serialize-rustc")] extern crate rustc_serialize;
 #[cfg(feature = "serialize-serde")] extern crate serde;
 
 use std::ascii::AsciiExt;
