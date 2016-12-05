@@ -10,7 +10,7 @@
 //! your `Cargo.toml`:
 //!
 //! ```ignore
-//! cookie = "0.3.2"
+//! cookie = "0.4"
 //! ```
 //!
 //! Then add the following line to your crate root:
