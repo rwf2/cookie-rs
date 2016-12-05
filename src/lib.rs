@@ -10,7 +10,7 @@
 //! your `Cargo.toml`:
 //!
 //! ```ignore
-//! cookie = "0.3.2"
+//! cookie = "0.4"
 //! ```
 //!
 //! Then add the following line to your crate root:
@@ -21,7 +21,7 @@
 
 extern crate url;
 extern crate time;
-#[cfg(feature = "serialize-rustc")] extern crate rustc_serialize;  
+#[cfg(feature = "serialize-rustc")] extern crate rustc_serialize;
 #[cfg(feature = "serialize-serde")] extern crate serde;
 
 use std::ascii::AsciiExt;
