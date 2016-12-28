@@ -60,7 +60,7 @@ pub struct Cookie {
 
 /// Crate-level error type used to indicate a problem with parsing
 #[derive(Debug)]
-pub struct Error;
+pub struct Error(());
 
 impl Cookie {
     /// Creates a new `Cookie` instance from key and value strings
@@ -110,13 +110,13 @@ impl Cookie {
         let keyval = match pairs.next() {
             Some(s) => s,
             _ => {
-                return Err(Error);
+                return Err(Error(()));
             }
         };
         let (name, value) = try!(split(keyval));
         c.name = name.into();
         if c.name.is_empty() {
-            return Err(Error);
+            return Err(Error(()));
         }
         c.value = value.into();
 
@@ -186,7 +186,7 @@ impl Cookie {
             macro_rules! try {
                 ($e:expr) => (match $e {
                     Some(s) => s,
-                    None => return Err(Error)
+                    None => return Err(Error(()))
                 })
             }
             let mut parts = s.trim().splitn(2, '=');
