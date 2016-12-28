@@ -58,24 +58,9 @@ pub struct Cookie {
     pub custom: BTreeMap<String, String>,
 }
 
-/// Crate-level error type used to indicate either a problem with parsing, or a UTF-8 issue
+/// Crate-level error type used to indicate a problem with parsing
 #[derive(Debug)]
-pub struct Error {
-    inner: ErrorInner,
-}
-
-#[derive(Debug)]
-enum ErrorInner {
-    Parse,
-    Utf8,
-}
-
-fn percent_decode(input: &str) -> Result<String, Error> {
-    match url::percent_encoding::percent_decode(input.as_bytes()).decode_utf8() {
-        Ok(s) => Ok(s.into_owned()),
-        Err(_) => Err(Error { inner: ErrorInner::Utf8 }),
-    }
-}
+pub struct Error;
 
 impl Cookie {
     /// Creates a new `Cookie` instance from key and value strings
@@ -125,15 +110,15 @@ impl Cookie {
         let keyval = match pairs.next() {
             Some(s) => s,
             _ => {
-                return Err(Error { inner: ErrorInner::Parse });
+                return Err(Error);
             }
         };
         let (name, value) = try!(split(keyval));
-        c.name = try!(percent_decode(name));
+        c.name = name.into();
         if c.name.is_empty() {
-            return Err(Error { inner: ErrorInner::Parse });
+            return Err(Error);
         }
-        c.value = try!(percent_decode(value));
+        c.value = value.into();
 
         for attr in pairs {
             let (k, v) = attr_split(attr);
@@ -201,7 +186,7 @@ impl Cookie {
             macro_rules! try {
                 ($e:expr) => (match $e {
                     Some(s) => s,
-                    None => return Err(Error { inner: ErrorInner::Parse })
+                    None => return Err(Error)
                 })
             }
             let mut parts = s.trim().splitn(2, '=');
@@ -257,10 +242,7 @@ pub struct AttrVal<'a>(pub &'a str, pub &'a str);
 impl<'a> fmt::Display for AttrVal<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let AttrVal(ref attr, ref val) = *self;
-        write!(f, "{}={}", attr, url::percent_encoding::percent_encode(
-            val.as_bytes(),
-            url::percent_encoding::USERINFO_ENCODE_SET)
-        )
+        write!(f, "{}={}", attr, val)
     }
 }
 
@@ -361,18 +343,15 @@ mod tests {
 
     #[test]
     fn cookie_parse_error() {
-        use super::{Error, ErrorInner};
-
         match Cookie::parse("bar") {
             Ok(_) => assert!(false),
-            Err(Error { inner: ErrorInner::Parse { .. }, .. }) => assert!(true),
-            Err(Error { inner: ErrorInner::Utf8 { .. }, .. }) => assert!(false),
+            Err(_) => assert!(true),
         }
     }
 
     #[test]
     fn odd_characters() {
-        let expected = Cookie::new("foo".to_string(), "b/r".to_string());
+        let expected = Cookie::new("foo".to_string(), "b%2Fr".to_string());
         assert_eq!(Cookie::parse("foo=b%2Fr").ok().unwrap(), expected);
     }
 
@@ -428,7 +407,7 @@ mod tests {
         custom.insert("arm".to_string(), "x0".to_string());
         let original = Cookie {
             name: "test".to_owned(),
-            value: "^start/foo=bar\\s,name@place:[test]|hello;world".to_owned(),
+            value: "^start/foo=bar\\s,name@place:[test]|hello%3Bworld".to_owned(),
             expires: Some(time::strptime("Tue, 15 Jun 2016 20:00:00 UTC",
                                          "%a, %d %b %Y %H:%M:%S %Z").unwrap()),
             max_age: Some(42),
