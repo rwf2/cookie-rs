@@ -387,7 +387,7 @@ mod secure {
     // https://github.com/rails/rails/blob/master/activesupport/lib
     //                   /active_support/message_verifier.rb#L70
     pub fn sign(key: &[u8], mut cookie: Cookie) -> Cookie {
-        let signature = dosign(key, &cookie.to_string());
+        let signature = dosign(key, &cookie.value);
         cookie.value.push_str("--");
         cookie.value.push_str(&signature.to_base64(STANDARD));
         cookie
@@ -416,7 +416,7 @@ mod secure {
         };
         cookie.value = text.to_owned();
 
-        let expected = dosign(key, &cookie.to_string());
+        let expected = dosign(key, text);
         if expected.len() != signature.len() ||
            !memcmp::eq(&expected, &signature) {
             return None
@@ -537,13 +537,6 @@ mod test {
 
             let mut cookie = $c.find("test").unwrap();
             cookie.value = "foobar".to_string();
-            $c.add(cookie);
-            assert!($c.$secure().find("test").is_none());
-
-            $c.$secure().add(Cookie::new("test".to_string(), "test".to_string()));
-            assert!($c.$secure().find("test").unwrap().value == "test");
-            let mut cookie = $c.find("test").unwrap();
-            cookie.max_age = Some(cookie.max_age.unwrap_or(0) + 1);
             $c.add(cookie);
             assert!($c.$secure().find("test").is_none());
         })
