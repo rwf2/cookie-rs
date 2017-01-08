@@ -467,35 +467,27 @@ mod secure {
         let sealed = &in_out[..out_len];
         
         // Build the final cookie value, combining sealed and nonce
-        cookie.value = build_encrypted(sealed, &nonce);
-
-        cookie
-    }
-
-    /// Given sealed and nonce bytes, build an encrypted cookie value
-    fn build_encrypted(sealed: &[u8], nonce: &[u8]) -> String {
         let mut encrypted = sealed.to_base64(STANDARD);
         encrypted.push_str(SEALED_NONCE_SEPARATOR);
         encrypted.push_str(&nonce.to_base64(STANDARD));
-        encrypted
-    }
+        cookie.value = encrypted;
 
-    /// Given an encrypted cookie value, split it into sealed and nonce bytes
-    fn split_encrypted(encrypted: &str) -> Result<(Vec<u8>, Vec<u8>), ()> {
-        let mut parts =
-            encrypted.splitn(2, SEALED_NONCE_SEPARATOR)
-                .filter_map(|n| n.from_base64().ok());
-        match (parts.next(), parts.next()) {
-            (Some(in_out), Some(nonce)) => Ok((in_out, nonce)),
-            (_, _)=> Err(()),
-        }
+        cookie
     }
 
     pub fn design_and_decrypt(key: &[u8], mut cookie: Cookie)
         -> Result<Cookie, ()>
     {
         assert_eq!(key.len(), ENCRYPTION_KEY_LEN);
-        let (mut in_out, nonce) = try!(split_encrypted(&cookie.value));
+        let (mut in_out, nonce) = {
+            let mut parts =
+                cookie.value.splitn(2, SEALED_NONCE_SEPARATOR)
+                    .filter_map(|n| n.from_base64().ok());
+            match (parts.next(), parts.next()) {
+                (Some(in_out), Some(nonce)) => (in_out, nonce),
+                (_, _)=> return Err(()),
+            }
+        };
         let opening_key = aead::OpeningKey::new(ENCRYPTION_ALGORITHM, key)
             .expect("could not create aead opening key");
         let out_len = try!(
