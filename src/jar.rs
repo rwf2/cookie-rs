@@ -485,7 +485,7 @@ mod secure {
                     .filter_map(|n| n.from_base64().ok());
             match (parts.next(), parts.next()) {
                 (Some(in_out), Some(nonce)) => (in_out, nonce),
-                (_, _)=> return Err(()),
+                (_, _) => return Err(()),
             }
         };
         let opening_key = aead::OpeningKey::new(ENCRYPTION_ALGORITHM, key)
