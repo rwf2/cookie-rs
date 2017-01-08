@@ -378,7 +378,7 @@ mod secure {
     extern crate rustc_serialize;
 
     use Cookie;
-    use self::ring::{aead, constant_time, digest, hmac, rand, pbkdf2};
+    use self::ring::{aead, digest, hmac, rand, pbkdf2};
     use self::rustc_serialize::base64::{ToBase64, FromBase64, STANDARD};
 
     /// Algorithm used to sign the cookie value
@@ -401,7 +401,8 @@ mod secure {
 
     pub fn sign(key: &[u8], mut cookie: Cookie) -> Cookie {
         assert_eq!(key.len(), SIGNING_KEY_LEN);
-        let signature = dosign(key, &cookie.value);
+        let signing_key = hmac::SigningKey::new(SIGNING_ALGORITHM, key);
+        let signature = hmac::sign(&signing_key, cookie.value.as_bytes());
         cookie.value.push_str(SIGNATURE_SEPARATOR);
         cookie.value.push_str(&signature.as_ref().to_base64(STANDARD));
         cookie
@@ -429,19 +430,16 @@ mod secure {
         let (text, signature) = match split_value(&signed_value) {
             Some(pair) => pair, None => return None
         };
-        cookie.value = text.to_owned();
-
-        let expected = dosign(key, text);
-        if constant_time::verify_slices_are_equal(expected.as_ref(),
-                                                  &signature).is_err() {
-            return None
+        let verification_key =
+            hmac::VerificationKey::new(SIGNING_ALGORITHM, key);
+        let is_valid_signature = hmac::verify(
+            &verification_key, text.as_bytes(), &signature).is_ok();
+        if is_valid_signature {
+            cookie.value = text.to_owned();
+            Some(cookie)
+        } else {
+            None
         }
-        Some(cookie)
-    }
-
-    fn dosign(key: &[u8], val: &str) -> digest::Digest {
-        let signing_key = hmac::SigningKey::new(SIGNING_ALGORITHM, key);
-        hmac::sign(&signing_key, val.as_bytes())
     }
 
     pub fn encrypt_and_sign(key: &[u8], mut cookie: Cookie) -> Cookie {
