@@ -57,26 +57,12 @@ struct SecureKeys {
     key256: [u8; 256 / 8],
     key512: [u8; 512 / 8],
 }
-#[cfg(not(feature = "secure"))]
-type SecureKeys = ();
-
-#[cfg(feature = "secure")]
-fn prepare_keys(secret: &[u8]) -> SecureKeys {
-    let (key256, key512) = secure::generate_keys(secret);
-    SecureKeys {
-        key256: key256,
-        key512: key512,
-    }
-}
-#[cfg(not(feature = "secure"))]
-fn prepare_keys(_secret: &[u8]) -> () {
-    ()
-}
 
 struct Root {
     map: RefCell<HashMap<String, Cookie>>,
     new_cookies: RefCell<HashSet<String>>,
     removed_cookies: RefCell<HashSet<String>>,
+    #[cfg(feature = "secure")]
     keys: SecureKeys,
 }
 
@@ -92,12 +78,31 @@ impl<'a> CookieJar<'a> {
     /// The given secret is used to generate keys which are used to sign
     /// cookies in the signed cookie jar.
     pub fn new(secret: &[u8]) -> CookieJar<'static> {
+        CookieJar::_new(secret)
+    }
+
+    #[cfg(feature = "secure")]
+    fn _new(secret: &[u8]) -> CookieJar<'static> {
+        let (key256, key512) = secure::generate_keys(secret);
         CookieJar {
             flavor: Flavor::Root(Root {
                 map: RefCell::new(HashMap::new()),
                 new_cookies: RefCell::new(HashSet::new()),
                 removed_cookies: RefCell::new(HashSet::new()),
-                keys: prepare_keys(secret),
+                keys: SecureKeys {
+                    key256: key256,
+                    key512: key512,
+                },
+            })
+        }
+    }
+    #[cfg(not(feature = "secure"))]
+    fn _new(_secret: &[u8]) -> CookieJar<'static> {
+        CookieJar {
+            flavor: Flavor::Root(Root {
+                map: RefCell::new(HashMap::new()),
+                new_cookies: RefCell::new(HashSet::new()),
+                removed_cookies: RefCell::new(HashSet::new()),
             })
         }
     }
@@ -519,8 +524,12 @@ mod secure {
 mod test {
     use {Cookie, CookieJar};
 
+    #[cfg(feature = "secure")]
     const SHORT_KEY: &'static [u8] = b"foo";
+
     const KEY: &'static [u8] = b"f8f9eaf1ecdedff5e5b749c58115441e";
+
+    #[cfg(feature = "secure")]
     const LONG_KEY: &'static [u8] =
         b"ff8f9eaf1ecdedff5e5b749c58115441ef8f9eaf1ecdedff5e5b749c58115441ef\
           9eaf1ecdedff5e5b749c58115441e8f9eaf1ecdedff5e5b749c58115441eef8f9a";
