@@ -432,13 +432,12 @@ mod secure {
         };
         let verification_key =
             hmac::VerificationKey::new(SIGNING_ALGORITHM, key);
-        let is_valid_signature = hmac::verify(
-            &verification_key, text.as_bytes(), &signature).is_ok();
-        if is_valid_signature {
-            cookie.value = text.to_owned();
-            Some(cookie)
-        } else {
-            None
+        match hmac::verify(&verification_key, text.as_bytes(), &signature) {
+            Ok(_) => {
+                cookie.value = text.to_owned();
+                Some(cookie)
+            }
+            Err(_) => None
         }
     }
 
