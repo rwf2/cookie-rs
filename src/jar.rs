@@ -23,7 +23,6 @@ use Cookie;
 /// # Example
 ///
 /// ```
-/// # #![allow(unstable)]
 /// use cookie::{Cookie, CookieJar};
 ///
 /// let c = CookieJar::new(b"f8f9eaf1ecdedff5e5b749c58115441e");
@@ -54,31 +53,17 @@ type Read = fn(&Root, Cookie) -> Option<Cookie>;
 type Write = fn(&Root, Cookie) -> Cookie;
 
 #[cfg(feature = "secure")]
-type SigningKey = Vec<u8>;
-#[cfg(not(feature = "secure"))]
-type SigningKey = ();
-
-#[cfg(feature = "secure")]
-fn prepare_key(key: &[u8]) -> Vec<u8> {
-    if key.len() >= secure::MIN_KEY_LEN {
-        key.to_vec()
-    } else {
-        // Using a SHA-256 hash to normalize key as Rails suggests.
-        // See https://github.com/rails/rails/blob/master/activesupport/lib/active_support/message_encryptor.rb
-        secure::prepare_key(key)
-    }
-}
-
-#[cfg(not(feature = "secure"))]
-fn prepare_key(_key: &[u8]) -> () {
-    ()
+struct SecureKeys {
+    key256: [u8; 256 / 8],
+    key512: [u8; 512 / 8],
 }
 
 struct Root {
     map: RefCell<HashMap<String, Cookie>>,
     new_cookies: RefCell<HashSet<String>>,
     removed_cookies: RefCell<HashSet<String>>,
-    _key: SigningKey,
+    #[cfg(feature = "secure")]
+    keys: SecureKeys,
 }
 
 /// Iterator over the cookies in a cookie jar
@@ -88,16 +73,36 @@ pub struct Iter<'a> {
 }
 
 impl<'a> CookieJar<'a> {
-    /// Creates a new empty cookie jar with the given signing key.
+    /// Creates a new empty cookie jar with the given secret.
     ///
-    /// The given key is used to sign cookies in the signed cookie jar.
-    pub fn new(key: &[u8]) -> CookieJar<'static> {
+    /// The given secret is used to generate keys which are used to sign
+    /// cookies in the signed cookie jar.
+    pub fn new(secret: &[u8]) -> CookieJar<'static> {
+        CookieJar::_new(secret)
+    }
+
+    #[cfg(feature = "secure")]
+    fn _new(secret: &[u8]) -> CookieJar<'static> {
+        let (key256, key512) = secure::generate_keys(secret);
         CookieJar {
             flavor: Flavor::Root(Root {
                 map: RefCell::new(HashMap::new()),
                 new_cookies: RefCell::new(HashSet::new()),
                 removed_cookies: RefCell::new(HashSet::new()),
-                _key: prepare_key(key),
+                keys: SecureKeys {
+                    key256: key256,
+                    key512: key512,
+                },
+            })
+        }
+    }
+    #[cfg(not(feature = "secure"))]
+    fn _new(_secret: &[u8]) -> CookieJar<'static> {
+        CookieJar {
+            flavor: Flavor::Root(Root {
+                map: RefCell::new(HashMap::new()),
+                new_cookies: RefCell::new(HashSet::new()),
+                removed_cookies: RefCell::new(HashSet::new()),
             })
         }
     }
@@ -209,10 +214,10 @@ impl<'a> CookieJar<'a> {
         };
 
         fn design(root: &Root, cookie: Cookie) -> Option<Cookie> {
-            secure::design(&root._key, cookie)
+            secure::design(&root.keys.key512, cookie)
         }
         fn sign(root: &Root, cookie: Cookie) -> Cookie {
-            secure::sign(&root._key, cookie)
+            secure::sign(&root.keys.key512, cookie)
         }
     }
 
@@ -246,10 +251,10 @@ impl<'a> CookieJar<'a> {
             })
         };
         fn read(root: &Root, cookie: Cookie) -> Option<Cookie> {
-            secure::design_and_decrypt(&root._key, cookie)
+            secure::design_and_decrypt(&root.keys.key256, cookie).ok()
         }
         fn write(root: &Root, cookie: Cookie) -> Cookie {
-            secure::encrypt_and_sign(&root._key, cookie)
+            secure::encrypt_and_sign(&root.keys.key256, cookie)
         }
     }
 
@@ -369,32 +374,42 @@ impl<'a> Iterator for Iter<'a> {
 
 #[cfg(feature = "secure")]
 mod secure {
-    extern crate openssl;
+    extern crate ring;
     extern crate rustc_serialize;
 
     use Cookie;
-    use self::openssl::{hash, memcmp, symm};
-    use self::openssl::pkey::PKey;
-    use self::openssl::sign::Signer;
-    use self::openssl::hash::MessageDigest;
+    use self::ring::{aead, digest, hmac, rand, pbkdf2};
     use self::rustc_serialize::base64::{ToBase64, FromBase64, STANDARD};
 
-    pub const MIN_KEY_LEN: usize = 32;
+    /// Algorithm used to sign the cookie value
+    static SIGNING_ALGORITHM: &'static digest::Algorithm = &digest::SHA1;
+    /// Separator between cookie value and signature
+    static SIGNATURE_SEPARATOR: &'static str = "--";
+    /// Key length (in bytes) used for signing
+    const SIGNING_KEY_LEN: usize = 512 / 8;
 
-    // If a SHA1 HMAC is good enough for rails, it's probably good enough
-    // for us as well:
-    //
-    // https://github.com/rails/rails/blob/master/activesupport/lib
-    //                   /active_support/message_verifier.rb#L70
+    /// Algorithm used to encrypt the cookie value
+    static ENCRYPTION_ALGORITHM: &'static aead::Algorithm =
+        &aead::CHACHA20_POLY1305;
+    /// Separator between sealed cookie value and nonce
+    static SEALED_NONCE_SEPARATOR: &'static str = "--";
+    /// Key length (in bytes) used for encryption
+    const ENCRYPTION_KEY_LEN: usize = 256 / 8;
+
+    /// Number of iterations for PBKDF2 when deriving keys
+    const PBKDF2_ITERATIONS: usize = 10_000;
+
     pub fn sign(key: &[u8], mut cookie: Cookie) -> Cookie {
-        let signature = dosign(key, &cookie.value);
-        cookie.value.push_str("--");
-        cookie.value.push_str(&signature.to_base64(STANDARD));
+        assert_eq!(key.len(), SIGNING_KEY_LEN);
+        let signing_key = hmac::SigningKey::new(SIGNING_ALGORITHM, key);
+        let signature = hmac::sign(&signing_key, cookie.value.as_bytes());
+        cookie.value.push_str(SIGNATURE_SEPARATOR);
+        cookie.value.push_str(&signature.as_ref().to_base64(STANDARD));
         cookie
     }
 
     fn split_value(val: &str) -> Option<(&str, Vec<u8>)> {
-        let parts = val.split("--");
+        let parts = val.split(SIGNATURE_SEPARATOR);
         let ext = match parts.last() {
             Some(ext) => ext,
             _ => return None,
@@ -410,87 +425,87 @@ mod secure {
     }
 
     pub fn design(key: &[u8], mut cookie: Cookie) -> Option<Cookie> {
+        assert_eq!(key.len(), SIGNING_KEY_LEN);
         let signed_value = cookie.value;
         let (text, signature) = match split_value(&signed_value) {
             Some(pair) => pair, None => return None
         };
-        cookie.value = text.to_owned();
-
-        let expected = dosign(key, text);
-        if expected.len() != signature.len() ||
-           !memcmp::eq(&expected, &signature) {
-            return None
+        let verification_key =
+            hmac::VerificationKey::new(SIGNING_ALGORITHM, key);
+        match hmac::verify(&verification_key, text.as_bytes(), &signature) {
+            Ok(_) => {
+                cookie.value = text.to_owned();
+                Some(cookie)
+            }
+            Err(_) => None
         }
-        Some(cookie)
     }
 
-    fn dosign(key: &[u8], val: &str) -> Vec<u8> {
-        let pkey = PKey::hmac(key).unwrap();
-        let mut signer = Signer::new(MessageDigest::sha1(), &pkey).unwrap();
-        signer.update(val.as_bytes()).unwrap();
-        signer.finish().unwrap()
-    }
-
-    // Implementation details were taken from Rails. See
-    // https://github.com/rails/rails/blob/master/activesupport/lib/active_support/message_encryptor.rb#L57
     pub fn encrypt_and_sign(key: &[u8], mut cookie: Cookie) -> Cookie {
-        let encrypted_data = encrypt_data(key, &cookie.value);
-        cookie.value = encrypted_data;
-        sign(key, cookie)
+        assert_eq!(key.len(), ENCRYPTION_KEY_LEN);
+        let sealing_key = aead::SealingKey::new(ENCRYPTION_ALGORITHM, key)
+            .expect("could not create aead sealing key");
+        let value_len = cookie.value.as_bytes().len();
+        let overhead_len = ENCRYPTION_ALGORITHM.max_overhead_len();
+
+        // Prepare bytes to be sealed
+        let in_out_len = cookie.value.as_bytes().len() + overhead_len;
+        let mut in_out = vec![0; in_out_len];
+        in_out[..value_len].copy_from_slice(cookie.value.as_bytes());
+
+        // Initialize nonce
+        let mut nonce = vec![0; ENCRYPTION_ALGORITHM.nonce_len()];
+        let system_random = rand::SystemRandom::new();
+        system_random.fill(&mut nonce)
+            .expect("could not generate random nonce");
+
+        // Seal the plaintext cookie value
+        let out_len = aead::seal_in_place(
+            &sealing_key, &nonce, &mut in_out, overhead_len, &[])
+                .expect("could not seal");
+        let sealed = &in_out[..out_len];
+        
+        // Build the final cookie value, combining sealed and nonce
+        let mut encrypted = sealed.to_base64(STANDARD);
+        encrypted.push_str(SEALED_NONCE_SEPARATOR);
+        encrypted.push_str(&nonce.to_base64(STANDARD));
+        cookie.value = encrypted;
+
+        cookie
     }
 
-    fn encrypt_data(key: &[u8], val: &str) -> String {
-        let iv = random_iv();
-        let iv_str = iv.to_base64(STANDARD);
-
-        let mut encrypted_data = symm::encrypt(symm::Cipher::aes_256_cbc(),
-                                               &key[..MIN_KEY_LEN],
-                                               Some(&iv),
-                                               val.as_bytes()).unwrap()
-                                                              .to_base64(STANDARD);
-
-        encrypted_data.push_str("--");
-        encrypted_data.push_str(&iv_str);
-        encrypted_data
-    }
-
-    pub fn design_and_decrypt(key: &[u8], cookie: Cookie) -> Option<Cookie> {
-        let mut cookie = match design(key, cookie) {
-            Some(cookie) => cookie,
-            None => return None
+    pub fn design_and_decrypt(key: &[u8], mut cookie: Cookie)
+        -> Result<Cookie, ()>
+    {
+        assert_eq!(key.len(), ENCRYPTION_KEY_LEN);
+        let (mut in_out, nonce) = {
+            let mut parts =
+                cookie.value.splitn(2, SEALED_NONCE_SEPARATOR)
+                    .filter_map(|n| n.from_base64().ok());
+            match (parts.next(), parts.next()) {
+                (Some(in_out), Some(nonce)) => (in_out, nonce),
+                (_, _) => return Err(()),
+            }
         };
-
-        let decrypted_data = decrypt_data(key, &cookie.value)
-                                .and_then(|data| String::from_utf8(data).ok());
-        match decrypted_data {
-            Some(val) => { cookie.value = val; Some(cookie) }
-            None => None
-        }
+        let opening_key = aead::OpeningKey::new(ENCRYPTION_ALGORITHM, key)
+            .expect("could not create aead opening key");
+        let out_len = try!(
+            aead::open_in_place(&opening_key, &nonce, 0, &mut in_out, &[])
+                .map_err(|_| ()));
+        let decrypted = try!(
+            String::from_utf8(in_out[..out_len].into()).map_err(|_| ()));
+        cookie.value = decrypted;
+        Ok(cookie)
     }
 
-    fn decrypt_data(key: &[u8], val: &str) -> Option<Vec<u8>> {
-        let (val, iv) = match split_value(val) {
-            Some(pair) => pair, None => return None
-        };
-
-        let actual = match val.from_base64() {
-            Ok(actual) => actual, Err(_) => return None
-        };
-
-        Some(symm::decrypt(symm::Cipher::aes_256_cbc(),
-                           &key[..MIN_KEY_LEN],
-                           Some(&iv),
-                           &actual).unwrap())
-    }
-
-    fn random_iv() -> Vec<u8> {
-        let mut ret = vec![0; 16];
-        openssl::rand::rand_bytes(&mut ret).unwrap();
-        return ret
-    }
-
-    pub fn prepare_key(key: &[u8]) -> Vec<u8> {
-        hash::hash(MessageDigest::sha256(), key).unwrap()
+    pub fn generate_keys(secret: &[u8]) -> ([u8; 32], [u8; 64]) {
+        let mut key256 = [0; 256 / 8];
+        let mut key512 = [0; 512 / 8];
+        pbkdf2::derive(
+            &pbkdf2::HMAC_SHA256, PBKDF2_ITERATIONS, &[], secret, &mut key256);
+        pbkdf2::derive(
+            &pbkdf2::HMAC_SHA512, PBKDF2_ITERATIONS, &[], secret, &mut key512);
+        (key256, key512)
     }
 }
 
@@ -498,7 +513,15 @@ mod secure {
 mod test {
     use {Cookie, CookieJar};
 
+    #[cfg(feature = "secure")]
+    const SHORT_KEY: &'static [u8] = b"foo";
+
     const KEY: &'static [u8] = b"f8f9eaf1ecdedff5e5b749c58115441e";
+
+    #[cfg(feature = "secure")]
+    const LONG_KEY: &'static [u8] =
+        b"ff8f9eaf1ecdedff5e5b749c58115441ef8f9eaf1ecdedff5e5b749c58115441ef\
+          9eaf1ecdedff5e5b749c58115441e8f9eaf1ecdedff5e5b749c58115441eef8f9a";
 
     #[test]
     fn short_key() {
@@ -546,14 +569,26 @@ mod test {
     #[test]
     fn signed() {
         let c = CookieJar::new(KEY);
-        secure_behaviour!(c, signed)
+        secure_behaviour!(c, signed);
+
+        let c = CookieJar::new(SHORT_KEY);
+        secure_behaviour!(c, signed);
+
+        let c = CookieJar::new(LONG_KEY);
+        secure_behaviour!(c, signed);
     }
 
     #[cfg(feature = "secure")]
     #[test]
     fn encrypted() {
         let c = CookieJar::new(KEY);
-        secure_behaviour!(c, encrypted)
+        secure_behaviour!(c, encrypted);
+
+        let c = CookieJar::new(SHORT_KEY);
+        secure_behaviour!(c, encrypted);
+
+        let c = CookieJar::new(LONG_KEY);
+        secure_behaviour!(c, encrypted);
     }
 
     #[test]
