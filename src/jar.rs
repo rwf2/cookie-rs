@@ -452,7 +452,7 @@ mod secure {
         // Prepare bytes to be sealed
         let in_out_len = cookie.value.as_bytes().len() + overhead_len;
         let mut in_out = vec![0; in_out_len];
-        in_out[..value_len].clone_from_slice(cookie.value.as_bytes());
+        in_out[..value_len].copy_from_slice(cookie.value.as_bytes());
 
         // Initialize nonce
         let mut nonce = vec![0; ENCRYPTION_ALGORITHM.nonce_len()];
