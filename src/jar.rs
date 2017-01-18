@@ -10,20 +10,20 @@
 //! functionality such as automatically signing cookies, storing permanent
 //! cookies, etc. This functionality can also be chained together.
 
-
 use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
 use std::fmt;
-use time;
+use std::borrow::Cow;
 
-use Cookie;
+use time::{self, Duration};
 
-/// A jar of cookies for managing a session
+use ::Cookie;
+
+/// A jar of cookies for managing a session.
 ///
 /// # Example
 ///
 /// ```
-/// # #![allow(unstable)]
 /// use cookie::{Cookie, CookieJar};
 ///
 /// let c = CookieJar::new(b"f8f9eaf1ecdedff5e5b749c58115441e");
@@ -33,7 +33,6 @@ use Cookie;
 ///
 /// // Remove the added cookie
 /// c.remove("key");
-///
 /// ```
 pub struct CookieJar<'a> {
     flavor: Flavor<'a>,
@@ -50,41 +49,20 @@ struct Child<'a> {
     write: Write,
 }
 
-type Read = fn(&Root, Cookie) -> Option<Cookie>;
-type Write = fn(&Root, Cookie) -> Cookie;
-
-#[cfg(feature = "secure")]
-type SigningKey = Vec<u8>;
-#[cfg(not(feature = "secure"))]
-type SigningKey = ();
-
-#[cfg(feature = "secure")]
-fn prepare_key(key: &[u8]) -> Vec<u8> {
-    if key.len() >= secure::MIN_KEY_LEN {
-        key.to_vec()
-    } else {
-        // Using a SHA-256 hash to normalize key as Rails suggests.
-        // See https://github.com/rails/rails/blob/master/activesupport/lib/active_support/message_encryptor.rb
-        secure::prepare_key(key)
-    }
-}
-
-#[cfg(not(feature = "secure"))]
-fn prepare_key(_key: &[u8]) -> () {
-    ()
-}
+type Read = fn(&Root, Cookie<'static>) -> Option<Cookie<'static>>;
+type Write = fn(&Root, Cookie<'static>) -> Cookie<'static>;
 
 struct Root {
-    map: RefCell<HashMap<String, Cookie>>,
-    new_cookies: RefCell<HashSet<String>>,
-    removed_cookies: RefCell<HashSet<String>>,
-    _key: SigningKey,
+    map: RefCell<HashMap<Cow<'static, str>, Cookie<'static>>>,
+    new_cookies: RefCell<HashSet<Cow<'static, str>>>,
+    removed_cookies: RefCell<HashSet<Cow<'static, str>>>,
+    _key: secure::SigningKey,
 }
 
 /// Iterator over the cookies in a cookie jar
 pub struct Iter<'a> {
     jar: &'a CookieJar<'a>,
-    keys: Vec<String>,
+    keys: Vec<Cow<'static, str>>,
 }
 
 impl<'a> CookieJar<'a> {
@@ -97,8 +75,8 @@ impl<'a> CookieJar<'a> {
                 map: RefCell::new(HashMap::new()),
                 new_cookies: RefCell::new(HashSet::new()),
                 removed_cookies: RefCell::new(HashSet::new()),
-                _key: prepare_key(key),
-            })
+                _key: secure::prepare_key(key),
+            }),
         }
     }
 
@@ -117,12 +95,16 @@ impl<'a> CookieJar<'a> {
     /// This method only works on the root cookie jar and is not intended for
     /// use during the lifetime of a request, it is intended to initialize a
     /// cookie jar from an incoming request.
-    pub fn add_original(&mut self, cookie: Cookie) {
+    ///
+    /// # Panics
+    ///
+    /// Panics if `self` is not the root cookie jar.
+    pub fn add_original(&mut self, cookie: Cookie<'static>) {
         match self.flavor {
             Flavor::Child(..) => panic!("can't add an original cookie to a child jar!"),
             Flavor::Root(ref mut root) => {
-                let name = cookie.name.clone();
-                root.map.borrow_mut().insert(name, cookie);
+                let name = cookie.name().to_string();
+                root.map.borrow_mut().insert(name.into(), cookie);
             }
         }
     }
@@ -131,7 +113,7 @@ impl<'a> CookieJar<'a> {
     ///
     /// If this jar is a child cookie jar, this will walk up the chain of
     /// borrowed jars, modifying the cookie as it goes along.
-    pub fn add(&self, mut cookie: Cookie) {
+    pub fn add(&self, mut cookie: Cookie<'static>) {
         let mut cur = self;
         let root = self.root();
         loop {
@@ -143,25 +125,30 @@ impl<'a> CookieJar<'a> {
                 Flavor::Root(..) => break,
             }
         }
-        let name = cookie.name.clone();
-        root.map.borrow_mut().insert(name.clone(), cookie);
-        root.removed_cookies.borrow_mut().remove(&name);
-        root.new_cookies.borrow_mut().insert(name);
+        let name = cookie.name().to_string();
+        root.map.borrow_mut().insert(name.clone().into(), cookie);
+        root.removed_cookies.borrow_mut().remove(&*name);
+        root.new_cookies.borrow_mut().insert(name.into());
     }
 
     /// Removes a cookie from this cookie jar.
-    pub fn remove(&self, cookie: &str) {
+    pub fn remove<N: Into<Cow<'static, str>>>(&self, cookie_name: N) {
         let root = self.root();
-        let cookie = cookie.to_string();
-        root.map.borrow_mut().remove(&cookie);
-        root.new_cookies.borrow_mut().remove(&cookie);
-        root.removed_cookies.borrow_mut().insert(cookie);
+        let name = cookie_name.into();
+        root.map.borrow_mut().remove(&name);
+        root.new_cookies.borrow_mut().remove(&name);
+        root.removed_cookies.borrow_mut().insert(name);
     }
 
     /// Clears all cookies from this cookie jar.
     pub fn clear(&self) {
         let root = self.root();
-        let all_cookies: Vec<_> = root.map.borrow().keys().map(|n| n.to_owned()).collect();
+        let all_cookies: Vec<_> = root.map
+            .borrow()
+            .keys()
+            .map(|n| n.to_owned())
+            .collect();
+
         root.map.borrow_mut().clear();
         root.new_cookies.borrow_mut().clear();
         root.removed_cookies.borrow_mut().extend(all_cookies);
@@ -171,13 +158,12 @@ impl<'a> CookieJar<'a> {
     ///
     /// The cookie is subject to modification by any of the child cookie jars
     /// that are currently borrowed. A copy of the cookie is returned.
-    pub fn find(&self, name: &str) -> Option<Cookie> {
-        let name = name.to_string();
+    pub fn find(&self, name: &str) -> Option<Cookie<'static>> {
         let root = self.root();
-        if root.removed_cookies.borrow().contains(&name) {
-            return None
+        if root.removed_cookies.borrow().contains(name) {
+            return None;
         }
-        root.map.borrow().get(&name).and_then(|c| self.try_read(root, c.clone()))
+        root.map.borrow().get(name).and_then(|c| self.try_read(root, c.clone()))
     }
 
     /// Creates a child signed cookie jar.
@@ -203,15 +189,16 @@ impl<'a> CookieJar<'a> {
         return CookieJar {
             flavor: Flavor::Child(Child {
                 parent: self,
-                read: design,
+                read: verify,
                 write: sign,
-            })
+            }),
         };
 
-        fn design(root: &Root, cookie: Cookie) -> Option<Cookie> {
-            secure::design(&root._key, cookie)
+        fn verify(root: &Root, cookie: Cookie<'static>) -> Option<Cookie<'static>> {
+            secure::verify(&root._key, cookie)
         }
-        fn sign(root: &Root, cookie: Cookie) -> Cookie {
+
+        fn sign(root: &Root, cookie: Cookie<'static>) -> Cookie<'static> {
             secure::sign(&root._key, cookie)
         }
     }
@@ -231,7 +218,6 @@ impl<'a> CookieJar<'a> {
     /// // Add a signed and encrypted cookie to the jar
     /// c.encrypted().add(Cookie::new("key".to_string(), "value".to_string()));
     ///
-
     /// // Add a permanently signed and encrypted cookie to the jar
     /// c.permanent().encrypted()
     ///  .add(Cookie::new("key".to_string(), "value".to_string()));
@@ -243,12 +229,14 @@ impl<'a> CookieJar<'a> {
                 parent: self,
                 read: read,
                 write: write,
-            })
+            }),
         };
-        fn read(root: &Root, cookie: Cookie) -> Option<Cookie> {
-            secure::design_and_decrypt(&root._key, cookie)
+
+        fn read(root: &Root, cookie: Cookie<'static>) -> Option<Cookie<'static>> {
+            secure::verify_and_decrypt(&root._key, cookie)
         }
-        fn write(root: &Root, cookie: Cookie) -> Cookie {
+
+        fn write(root: &Root, cookie: Cookie<'static>) -> Cookie<'static> {
             secure::encrypt_and_sign(&root._key, cookie)
         }
     }
@@ -263,50 +251,53 @@ impl<'a> CookieJar<'a> {
                 parent: self,
                 read: read,
                 write: write,
-            })
+            }),
         };
 
-        fn read(_root: &Root, cookie: Cookie) -> Option<Cookie> {
+        fn read(_root: &Root, cookie: Cookie<'static>) -> Option<Cookie<'static>> {
             Some(cookie)
         }
 
-        fn write(_root: &Root, mut cookie: Cookie) -> Cookie {
+        fn write(_root: &Root, mut cookie: Cookie<'static>) -> Cookie<'static> {
             // Expire 20 years in the future
-            cookie.max_age = Some(3600 * 24 * 365 * 20);
+            cookie.set_max_age(Duration::days(365 * 20));
             let mut now = time::now();
             now.tm_year += 20;
-            cookie.expires = Some(now);
+            cookie.set_expires(now);
             cookie
         }
     }
 
     /// Calculates the changes that have occurred to this cookie jar over time,
     /// returning a vector of `Set-Cookie` headers.
-    pub fn delta(&self) -> Vec<Cookie> {
+    pub fn delta(&self) -> Vec<Cookie<'static>> {
         let mut ret = Vec::new();
         let root = self.root();
         for cookie in root.removed_cookies.borrow().iter() {
             let mut c = Cookie::new(cookie.clone(), String::new());
-            c.max_age = Some(0);
+            c.set_max_age(Duration::zero());
             let mut now = time::now();
             now.tm_year -= 1;
-            c.expires = Some(now);
+            c.set_expires(now);
             ret.push(c);
         }
+
         let map = root.map.borrow();
         for cookie in root.new_cookies.borrow().iter() {
             ret.push(map.get(cookie).unwrap().clone());
         }
+
         return ret;
     }
 
-    fn try_read(&self, root: &Root, mut cookie: Cookie) -> Option<Cookie> {
+    fn try_read(&self, root: &Root, mut cookie: Cookie<'static>) -> Option<Cookie<'static>> {
         let mut jar = self;
         loop {
             match jar.flavor {
                 Flavor::Child(Child { read, parent, .. }) => {
                     cookie = match read(root, cookie) {
-                        Some(c) => c, None => return None,
+                        Some(c) => c,
+                        None => return None,
                     };
                     jar = parent;
                 }
@@ -323,7 +314,10 @@ impl<'a> CookieJar<'a> {
     /// be yielded.
     pub fn iter(&self) -> Iter {
         let map = self.root().map.borrow();
-        Iter { jar: self, keys: map.keys().cloned().collect() }
+        Iter {
+            jar: self,
+            keys: map.keys().cloned().collect(),
+        }
     }
 }
 
@@ -345,9 +339,9 @@ impl<'a> fmt::Debug for CookieJar<'a> {
 }
 
 impl<'a> Iterator for Iter<'a> {
-    type Item = Cookie;
+    type Item = Cookie<'static>;
 
-    fn next(&mut self) -> Option<Cookie> {
+    fn next(&mut self) -> Option<Cookie<'static>> {
         loop {
             let key = match self.keys.pop() {
                 Some(v) => v,
@@ -367,29 +361,49 @@ impl<'a> Iterator for Iter<'a> {
     }
 }
 
+
+#[cfg(not(feature = "secure"))]
+mod secure {
+    pub type SigningKey = ();
+
+    pub fn prepare_key(_key: &[u8]) -> () {
+        ()
+    }
+}
+
 #[cfg(feature = "secure")]
 mod secure {
     extern crate openssl;
     extern crate rustc_serialize;
 
-    use Cookie;
+    use ::Cookie;
     use self::openssl::{hash, memcmp, symm};
     use self::openssl::pkey::PKey;
     use self::openssl::sign::Signer;
     use self::openssl::hash::MessageDigest;
     use self::rustc_serialize::base64::{ToBase64, FromBase64, STANDARD};
 
+    pub type SigningKey = Vec<u8>;
     pub const MIN_KEY_LEN: usize = 32;
+
+    pub fn prepare_key(key: &[u8]) -> Vec<u8> {
+        if key.len() >= MIN_KEY_LEN {
+            key.to_vec()
+        } else {
+            // Using a SHA-256 hash to normalize key as Rails suggests.
+            hash::hash(MessageDigest::sha256(), key).unwrap()
+        }
+    }
 
     // If a SHA1 HMAC is good enough for rails, it's probably good enough
     // for us as well:
     //
     // https://github.com/rails/rails/blob/master/activesupport/lib
     //                   /active_support/message_verifier.rb#L70
-    pub fn sign(key: &[u8], mut cookie: Cookie) -> Cookie {
-        let signature = dosign(key, &cookie.value);
-        cookie.value.push_str("--");
-        cookie.value.push_str(&signature.to_base64(STANDARD));
+    pub fn sign(key: &[u8], mut cookie: Cookie<'static>) -> Cookie<'static> {
+        let signature = dosign(key, cookie.value()).to_base64(STANDARD);
+        let new_cookie_val = format!("{}--{}", cookie.value(), signature);
+        cookie.set_value(new_cookie_val);
         cookie
     }
 
@@ -400,27 +414,31 @@ mod secure {
             _ => return None,
         };
         let val_len = val.len();
-        if ext.len() == val_len { return None }
+        if ext.len() == val_len {
+            return None;
+        }
         let text = &val[..val_len - ext.len() - 2];
         let ext = match ext.from_base64() {
-            Ok(sig) => sig, Err(..) => return None,
+            Ok(sig) => sig,
+            Err(..) => return None,
         };
 
         Some((text, ext))
     }
 
-    pub fn design(key: &[u8], mut cookie: Cookie) -> Option<Cookie> {
-        let signed_value = cookie.value;
-        let (text, signature) = match split_value(&signed_value) {
-            Some(pair) => pair, None => return None
+    pub fn verify(key: &[u8], mut cookie: Cookie<'static>) -> Option<Cookie<'static>> {
+        let (text, signature) = match split_value(cookie.value()) {
+            Some((text, sig)) => (text.to_string(), sig),
+            None => return None,
         };
-        cookie.value = text.to_owned();
 
-        let expected = dosign(key, text);
-        if expected.len() != signature.len() ||
-           !memcmp::eq(&expected, &signature) {
-            return None
+
+        let expected = dosign(key, &text);
+        if expected.len() != signature.len() || !memcmp::eq(&expected, &signature) {
+            return None;
         }
+
+        cookie.set_value(text);
         Some(cookie)
     }
 
@@ -433,9 +451,9 @@ mod secure {
 
     // Implementation details were taken from Rails. See
     // https://github.com/rails/rails/blob/master/activesupport/lib/active_support/message_encryptor.rb#L57
-    pub fn encrypt_and_sign(key: &[u8], mut cookie: Cookie) -> Cookie {
-        let encrypted_data = encrypt_data(key, &cookie.value);
-        cookie.value = encrypted_data;
+    pub fn encrypt_and_sign(key: &[u8], mut cookie: Cookie<'static>) -> Cookie<'static> {
+        let encrypted_data = encrypt_data(key, cookie.value());
+        cookie.set_value(encrypted_data);
         sign(key, cookie)
     }
 
@@ -443,55 +461,53 @@ mod secure {
         let iv = random_iv();
         let iv_str = iv.to_base64(STANDARD);
 
-        let mut encrypted_data = symm::encrypt(symm::Cipher::aes_256_cbc(),
-                                               &key[..MIN_KEY_LEN],
-                                               Some(&iv),
-                                               val.as_bytes()).unwrap()
-                                                              .to_base64(STANDARD);
+        let cipher = symm::Cipher::aes_256_cbc();
+        let encrypted = symm::encrypt(cipher, &key[..MIN_KEY_LEN], Some(&iv), val.as_bytes());
+        let mut encrypted_data = encrypted.unwrap().to_base64(STANDARD);
 
         encrypted_data.push_str("--");
         encrypted_data.push_str(&iv_str);
         encrypted_data
     }
 
-    pub fn design_and_decrypt(key: &[u8], cookie: Cookie) -> Option<Cookie> {
-        let mut cookie = match design(key, cookie) {
+    pub fn verify_and_decrypt(key: &[u8], cookie: Cookie<'static>) -> Option<Cookie<'static>> {
+        let mut cookie = match verify(key, cookie) {
             Some(cookie) => cookie,
-            None => return None
+            None => return None,
         };
 
-        let decrypted_data = decrypt_data(key, &cookie.value)
-                                .and_then(|data| String::from_utf8(data).ok());
-        match decrypted_data {
-            Some(val) => { cookie.value = val; Some(cookie) }
-            None => None
-        }
+        decrypt_data(key, cookie.value())
+            .and_then(|data| String::from_utf8(data).ok())
+            .map(move |val| {
+                cookie.set_value(val);
+                cookie
+            })
     }
 
     fn decrypt_data(key: &[u8], val: &str) -> Option<Vec<u8>> {
         let (val, iv) = match split_value(val) {
-            Some(pair) => pair, None => return None
+            Some(pair) => pair,
+            None => return None,
         };
 
         let actual = match val.from_base64() {
-            Ok(actual) => actual, Err(_) => return None
+            Ok(actual) => actual,
+            Err(_) => return None,
         };
 
         Some(symm::decrypt(symm::Cipher::aes_256_cbc(),
                            &key[..MIN_KEY_LEN],
                            Some(&iv),
-                           &actual).unwrap())
+                           &actual)
+            .unwrap())
     }
 
     fn random_iv() -> Vec<u8> {
         let mut ret = vec![0; 16];
         openssl::rand::rand_bytes(&mut ret).unwrap();
-        return ret
+        return ret;
     }
 
-    pub fn prepare_key(key: &[u8]) -> Vec<u8> {
-        hash::hash(MessageDigest::sha256(), key).unwrap()
-    }
 }
 
 #[cfg(test)]
@@ -509,14 +525,14 @@ mod test {
     fn simple() {
         let c = CookieJar::new(KEY);
 
-        c.add(Cookie::new("test".to_string(), "".to_string()));
-        c.add(Cookie::new("test2".to_string(), "".to_string()));
+        c.add(Cookie::new("test", ""));
+        c.add(Cookie::new("test2", ""));
         c.remove("test");
 
         assert!(c.find("test").is_none());
         assert!(c.find("test2").is_some());
 
-        c.add(Cookie::new("test3".to_string(), "".to_string()));
+        c.add(Cookie::new("test3", ""));
         c.clear();
 
         assert!(c.find("test").is_none());
@@ -526,17 +542,18 @@ mod test {
 
     macro_rules! secure_behaviour {
         ($c:ident, $secure:ident) => ({
-            $c.$secure().add(Cookie::new("test".to_string(), "test".to_string()));
-            assert!($c.find("test").unwrap().value != "test");
-            assert!($c.$secure().find("test").unwrap().value == "test");
+            $c.$secure().add(Cookie::new("test", "test"));
+            assert!($c.find("test").unwrap().value() != "test");
+            assert!($c.$secure().find("test").unwrap().value() == "test");
 
             let mut cookie = $c.find("test").unwrap();
-            cookie.value.push('l');
+            let new_val = format!("{}l", cookie.value());
+            cookie.set_value(new_val);
             $c.add(cookie);
             assert!($c.$secure().find("test").is_none());
 
             let mut cookie = $c.find("test").unwrap();
-            cookie.value = "foobar".to_string();
+            cookie.set_value("foobar");
             $c.add(cookie);
             assert!($c.$secure().find("test").is_none());
         })
@@ -560,27 +577,25 @@ mod test {
     fn permanent() {
         let c = CookieJar::new(KEY);
 
-        c.permanent().add(Cookie::new("test".to_string(), "test".to_string()));
+        c.permanent().add(Cookie::new("test", "test"));
 
         let cookie = c.find("test").unwrap();
-        assert_eq!(cookie.value, "test");
-        assert_eq!(c.permanent().find("test").unwrap().value, "test");
-        assert!(cookie.expires.is_some());
-        assert!(cookie.max_age.is_some());
+        assert_eq!(cookie.value(), "test");
+        assert_eq!(c.permanent().find("test").unwrap().value(), "test");
+        assert!(cookie.expires().is_some());
+        assert!(cookie.max_age().is_some());
     }
 
-    #[cfg(features = "secure")]
+    #[cfg(feature = "secure")]
     #[test]
     fn chained() {
         let c = CookieJar::new(KEY);
-
-        c.permanent().signed()
-         .add(Cookie::new("test".to_string(), "test".to_string()));
+        c.permanent().signed().add(Cookie::new("test", "test"));
 
         let cookie = c.signed().find("test").unwrap();
-        assert_eq!(cookie.value, "test");
-        assert!(cookie.expires.is_some());
-        assert!(cookie.max_age.is_some());
+        assert_eq!(cookie.value(), "test");
+        assert!(cookie.expires().is_some());
+        assert!(cookie.max_age().is_some());
     }
 
     #[cfg(features = "secure")]
@@ -588,19 +603,16 @@ mod test {
     fn iter() {
         let mut c = CookieJar::new(KEY);
 
-        c.add_original(Cookie::new("original".to_string(),
-                                   "original".to_string()));
+        c.add_original(Cookie::new("original", "original"));
 
-        c.add(Cookie::new("test".to_string(), "test".to_string()));
-        c.add(Cookie::new("test2".to_string(), "test2".to_string()));
-        c.add(Cookie::new("test3".to_string(), "test3".to_string()));
-        c.add(Cookie::new("test4".to_string(), "test4".to_string()));
+        c.add(Cookie::new("test", "test"));
+        c.add(Cookie::new("test2", "test2"));
+        c.add(Cookie::new("test3", "test3"));
+        c.add(Cookie::new("test4", "test4"));
 
-        c.signed()
-         .add(Cookie::new("signed".to_string(), "signed".to_string()));
+        c.signed().add(Cookie::new("signed", "signed"));
 
-        c.encrypted()
-         .add(Cookie::new("encrypted".to_string(), "encrypted".to_string()));
+        c.encrypted().add(Cookie::new("encrypted", "encrypted"));
 
         c.remove("test");
 
@@ -613,7 +625,6 @@ mod test {
 
         let signed_cookies = c.signed().iter().collect::<Vec<_>>();
         assert_eq!(signed_cookies.len(), 2);
-        assert!(signed_cookies[0].name == "signed" ||
-                signed_cookies[1].name == "signed");
+        assert!(signed_cookies[0].name == "signed" || signed_cookies[1].name == "signed");
     }
 }
