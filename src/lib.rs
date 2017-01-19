@@ -76,9 +76,8 @@ pub use parse::ParseError;
 pub use builder::CookieBuilder;
 pub use jar::CookieJar;
 
-#[doc(hidden)]
 #[derive(Debug, Clone)]
-pub enum CookieStr {
+enum CookieStr {
     /// An string derived from indexes (start, end).
     Indexed(usize, usize),
     /// A string derived from a concrete string.
