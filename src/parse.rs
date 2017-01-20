@@ -22,6 +22,10 @@ pub enum ParseError {
     Utf8Error(Utf8Error),
     /// Internal error: this should not occur.
     Internal,
+    /// It is discouraged to exhaustively match on this enum as its variants may
+    /// grow without a breaking-change bump in version numbers.
+    #[doc(hidden)]
+    __Nonexhasutive,
 }
 
 impl ParseError {
@@ -35,6 +39,7 @@ impl ParseError {
             ParseError::Internal => {
                 "There was an internal error parsing the cookie. Please report this."
             }
+            ParseError::__Nonexhasutive => unreachable!("__Nonexhasutive ParseError")
         }
     }
 }
