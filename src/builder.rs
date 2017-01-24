@@ -52,7 +52,6 @@ impl CookieBuilder {
     /// let c = Cookie::build("foo", "bar").finish();
     /// assert_eq!(c.name_value(), ("foo", "bar"));
     /// ```
-    #[inline(always)]
     pub fn new<N, V>(name: N, value: V) -> CookieBuilder
         where N: Into<Cow<'static, str>>,
               V: Into<Cow<'static, str>>
@@ -78,7 +77,7 @@ impl CookieBuilder {
     /// assert!(c.expires().is_some());
     /// # }
     /// ```
-    #[inline(always)]
+    #[inline]
     pub fn expires(mut self, when: Tm) -> CookieBuilder {
         self.cookie.set_expires(when);
         self
@@ -103,7 +102,7 @@ impl CookieBuilder {
     /// assert_eq!(c.max_age(), Some(Duration::seconds(30 * 60)));
     /// # }
     /// ```
-    #[inline(always)]
+    #[inline]
     pub fn max_age(mut self, value: Duration) -> CookieBuilder {
         self.cookie.set_max_age(value);
         self
@@ -122,7 +121,6 @@ impl CookieBuilder {
     ///
     /// assert_eq!(c.domain(), Some("www.rust-lang.org"));
     /// ```
-    #[inline(always)]
     pub fn domain<D: Into<Cow<'static, str>>>(mut self, value: D) -> CookieBuilder {
         self.cookie.set_domain(value);
         self
@@ -141,7 +139,6 @@ impl CookieBuilder {
     ///
     /// assert_eq!(c.path(), Some("/"));
     /// ```
-    #[inline(always)]
     pub fn path<P: Into<Cow<'static, str>>>(mut self, path: P) -> CookieBuilder {
         self.cookie.set_path(path);
         self
@@ -160,7 +157,7 @@ impl CookieBuilder {
     ///
     /// assert_eq!(c.secure(), true);
     /// ```
-    #[inline(always)]
+    #[inline]
     pub fn secure(mut self, value: bool) -> CookieBuilder {
         self.cookie.set_secure(value);
         self
@@ -179,7 +176,7 @@ impl CookieBuilder {
     ///
     /// assert_eq!(c.http_only(), true);
     /// ```
-    #[inline(always)]
+    #[inline]
     pub fn http_only(mut self, value: bool) -> CookieBuilder {
         self.cookie.set_http_only(value);
         self
@@ -201,7 +198,7 @@ impl CookieBuilder {
     /// assert_eq!(c.domain(), Some("crates.io"));
     /// assert_eq!(c.path(), Some("/"));
     /// ```
-    #[inline(always)]
+    #[inline]
     pub fn finish(self) -> Cookie<'static> {
         self.cookie
     }

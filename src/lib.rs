@@ -176,7 +176,6 @@ impl Cookie<'static> {
     /// let cookie = Cookie::new("name", "value");
     /// assert_eq!(cookie.name_value(), ("name", "value"));
     /// ```
-    #[inline(always)]
     pub fn new<N, V>(name: N, value: V) -> Cookie<'static>
         where N: Into<Cow<'static, str>>,
               V: Into<Cow<'static, str>>
@@ -205,7 +204,6 @@ impl Cookie<'static> {
     /// let c = Cookie::build("foo", "bar").finish();
     /// assert_eq!(c.name_value(), ("foo", "bar"));
     /// ```
-    #[inline(always)]
     pub fn build<N, V>(name: N, value: V) -> CookieBuilder
         where N: Into<Cow<'static, str>>,
               V: Into<Cow<'static, str>>
@@ -227,7 +225,6 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.name_value(), ("foo", "bar%20baz"));
     /// assert_eq!(c.http_only(), true);
     /// ```
-    #[inline]
     pub fn parse<S>(s: S) -> Result<Cookie<'c>, ParseError>
         where S: Into<Cow<'c, str>>
     {
@@ -247,7 +244,6 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.name_value(), ("foo", "bar baz"));
     /// assert_eq!(c.http_only(), true);
     /// ```
-    #[inline]
     #[cfg(feature = "percent-encode")]
     pub fn parse_encoded<S>(s: S) -> Result<Cookie<'c>, ParseError>
         where S: Into<Cow<'c, str>>
@@ -345,7 +341,7 @@ impl<'c> Cookie<'c> {
     /// let c = Cookie::new("name", "value");
     /// assert_eq!(c.name_value(), ("name", "value"));
     /// ```
-    #[inline(always)]
+    #[inline]
     pub fn name_value(&self) -> (&str, &str) {
         (self.name(), self.value())
     }
@@ -476,7 +472,6 @@ impl<'c> Cookie<'c> {
     /// c.set_name("foo");
     /// assert_eq!(c.name(), "foo");
     /// ```
-    #[inline(always)]
     pub fn set_name<N: Into<Cow<'static, str>>>(&mut self, name: N) {
         self.name = CookieStr::Concrete(name.into())
     }
@@ -494,7 +489,6 @@ impl<'c> Cookie<'c> {
     /// c.set_value("bar");
     /// assert_eq!(c.value(), "bar");
     /// ```
-    #[inline(always)]
     pub fn set_value<V: Into<Cow<'static, str>>>(&mut self, value: V) {
         self.value = CookieStr::Concrete(value.into())
     }
@@ -512,7 +506,7 @@ impl<'c> Cookie<'c> {
     /// c.set_http_only(true);
     /// assert_eq!(c.http_only(), true);
     /// ```
-    #[inline(always)]
+    #[inline]
     pub fn set_http_only(&mut self, value: bool) {
         self.http_only = value;
     }
@@ -530,7 +524,7 @@ impl<'c> Cookie<'c> {
     /// c.set_secure(true);
     /// assert_eq!(c.secure(), true);
     /// ```
-    #[inline(always)]
+    #[inline]
     pub fn set_secure(&mut self, value: bool) {
         self.secure = value;
     }
@@ -554,7 +548,7 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.max_age(), Some(Duration::hours(10)));
     /// # }
     /// ```
-    #[inline(always)]
+    #[inline]
     pub fn set_max_age(&mut self, value: Duration) {
         self.max_age = Some(value);
     }
@@ -572,7 +566,6 @@ impl<'c> Cookie<'c> {
     /// c.set_path("/");
     /// assert_eq!(c.path(), Some("/"));
     /// ```
-    #[inline(always)]
     pub fn set_path<P: Into<Cow<'static, str>>>(&mut self, path: P) {
         self.path = Some(CookieStr::Concrete(path.into()));
     }
@@ -590,7 +583,6 @@ impl<'c> Cookie<'c> {
     /// c.set_domain("rust-lang.org");
     /// assert_eq!(c.domain(), Some("rust-lang.org"));
     /// ```
-    #[inline(always)]
     pub fn set_domain<D: Into<Cow<'static, str>>>(&mut self, domain: D) {
         self.domain = Some(CookieStr::Concrete(domain.into()));
     }
@@ -616,7 +608,7 @@ impl<'c> Cookie<'c> {
     /// assert!(c.expires().is_some())
     /// # }
     /// ```
-    #[inline(always)]
+    #[inline]
     pub fn set_expires(&mut self, time: Tm) {
         self.expires = Some(time);
     }
