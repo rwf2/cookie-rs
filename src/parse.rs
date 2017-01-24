@@ -5,9 +5,9 @@ use std::str::Utf8Error;
 use std::fmt;
 use std::convert::From;
 
-use time::{self, Duration};
 #[cfg(feature = "percent-encode")]
 use url::percent_encoding::percent_decode;
+use time::{self, Duration};
 
 use ::{Cookie, CookieStr};
 
@@ -39,7 +39,7 @@ impl ParseError {
             ParseError::Internal => {
                 "There was an internal error parsing the cookie. Please report this."
             }
-            ParseError::__Nonexhasutive => unreachable!("__Nonexhasutive ParseError")
+            ParseError::__Nonexhasutive => unreachable!("__Nonexhasutive ParseError"),
         }
     }
 }
@@ -79,17 +79,8 @@ fn indexes_of(needle: &str, haystack: &str) -> Option<(usize, usize)> {
     Some((start, end))
 }
 
-#[cfg(not(feature = "percent-encode"))]
-fn name_val(name: &str, val: &str, s: &str) -> Result<(CookieStr, CookieStr), ParseError> {
-    let name_indexes = indexes_of(name, s).expect("name sub");
-    let value_indexes = indexes_of(val, s).expect("value sub");
-    let name = CookieStr::Indexed(name_indexes.0, name_indexes.1);
-    let val = CookieStr::Indexed(value_indexes.0, value_indexes.1);
-    Ok((name, val))
-}
-
 #[cfg(feature = "percent-encode")]
-fn name_val(name: &str, val: &str, _: &str) -> Result<(CookieStr, CookieStr), ParseError> {
+fn name_val_decoded(name: &str, val: &str) -> Result<(CookieStr, CookieStr), ParseError> {
     let decoded_name = percent_decode(name.as_bytes()).decode_utf8()?;
     let decoded_value = percent_decode(val.as_bytes()).decode_utf8()?;
     let name = CookieStr::Concrete(Cow::Owned(decoded_name.into_owned()));
@@ -98,7 +89,16 @@ fn name_val(name: &str, val: &str, _: &str) -> Result<(CookieStr, CookieStr), Pa
     Ok((name, val))
 }
 
-pub fn parse_cookie(s: &str) -> Result<Cookie, ParseError> {
+#[cfg(not(feature = "percent-encode"))]
+fn name_val_decoded(_: &str, _: &str) -> Result<(CookieStr, CookieStr), ParseError> {
+    unreachable!("This function should never be called when the feature is disabled!")
+}
+
+// This function does the real parsing but _does not_ set the `cookie_string` in
+// the returned cookie object. This only exists so that the borrow to `s` is
+// returned at the end of the call, allowing the `cookie_string` field to be
+// set in the outer `parse` function.
+fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
     let mut attributes = s.split(';');
     let key_value = match attributes.next() {
         Some(s) => s,
@@ -119,9 +119,19 @@ pub fn parse_cookie(s: &str) -> Result<Cookie, ParseError> {
 
     // Create a cookie with all of the defaults. We'll fill things in while we
     // iterate through the parameters below.
-    let (name, value) = name_val(name, value, s)?;
+    let (name, value) = if decode {
+        name_val_decoded(name, value)?
+    } else {
+        let name_indexes = indexes_of(name, &s).expect("name sub");
+        let value_indexes = indexes_of(value, &s).expect("value sub");
+        let name = CookieStr::Indexed(name_indexes.0, name_indexes.1);
+        let value = CookieStr::Indexed(value_indexes.0, value_indexes.1);
+
+        (name, value)
+    };
+
     let mut cookie = Cookie {
-        cookie_string: Some(Cow::Borrowed(s)),
+        cookie_string: None,
         name: name,
         value: value,
         expires: None,
@@ -157,11 +167,11 @@ pub fn parse_cookie(s: &str) -> Result<Cookie, ParseError> {
                     false => v,
                 };
 
-                let (i, j) = indexes_of(domain, s).expect("domain sub");
+                let (i, j) = indexes_of(domain, &s).expect("domain sub");
                 cookie.domain = Some(CookieStr::Indexed(i, j));
             }
             ("path", Some(v)) => {
-                let (i, j) = indexes_of(v, s).expect("path sub");
+                let (i, j) = indexes_of(v, &s).expect("path sub");
                 cookie.path = Some(CookieStr::Indexed(i, j));
             }
             ("expires", Some(v)) => {
@@ -186,7 +196,15 @@ pub fn parse_cookie(s: &str) -> Result<Cookie, ParseError> {
         }
     }
 
+    Ok(cookie)
+}
 
+pub fn parse_cookie<'c, S>(cow: S, decode: bool) -> Result<Cookie<'c>, ParseError>
+    where S: Into<Cow<'c, str>>
+{
+    let s = cow.into();
+    let mut cookie = parse_inner(&s, decode)?;
+    cookie.cookie_string = Some(s);
     Ok(cookie)
 }
 
@@ -325,7 +343,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(feature = "percent-encode"))]
     fn odd_characters() {
         let expected = Cookie::new("foo", "b%2Fr");
         assert_eq_parse!("foo=b%2Fr", expected);
@@ -333,8 +350,13 @@ mod tests {
 
     #[test]
     #[cfg(feature = "percent-encode")]
-    fn odd_characters() {
+    fn odd_characters_encoded() {
         let expected = Cookie::new("foo", "b/r");
-        assert_eq_parse!("foo=b%2Fr", expected);
+        let cookie = match Cookie::parse_encoded("foo=b%2Fr") {
+            Ok(cookie) => cookie,
+            Err(e) => panic!("Failed to parse: {:?}", e)
+        };
+
+        assert_eq!(cookie, expected);
     }
 }

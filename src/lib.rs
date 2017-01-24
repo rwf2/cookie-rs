@@ -40,11 +40,14 @@
 //!
 //!   Enables percent encoding and decoding of names and values in cookies.
 //!
-//!   When this feature is enabled, cookie name and values will be
-//!   percent-encoded when `to_string` is called on a `Cookie` and
-//!   percent-decoded when a cookie is parsed using `parse` or `parse_static`.
-//!   When this feature is disabled, cookie names and values will not be
-//!   modified in any way.
+//!   When this feature is enabled, the
+//!   [encoded](struct.Cookie.html#method.encoded) and
+//!   [parse_encoded](struct.Cookie.html#method.parse_encoded) methods of
+//!   `Cookie` become available. The `encoded` method returns a wrapper around a
+//!   `Cookie` whose `Display` implementation percent-encodes the name and value
+//!   of the cookie. The `parse_encoded` method percent-decodes the name and
+//!   value of a `Cookie` during parsing. When this feature is disabled, the
+//!   `encoded` and `parse_encoded` methods are not available.
 //!
 //! You can enable features via the `Cargo.toml` file:
 //!
@@ -53,9 +56,9 @@
 //! features = ["secure", "percent-encode"]
 //! ```
 
-extern crate time;
 #[cfg(feature = "percent-encode")]
 extern crate url;
+extern crate time;
 
 mod builder;
 mod jar;
@@ -66,9 +69,9 @@ use std::ascii::AsciiExt;
 use std::fmt;
 use std::str::FromStr;
 
-use time::{Tm, Duration};
 #[cfg(feature = "percent-encode")]
 use url::percent_encoding::{USERINFO_ENCODE_SET, percent_encode};
+use time::{Tm, Duration};
 
 use parse::parse_cookie;
 pub use parse::ParseError;
@@ -191,46 +194,6 @@ impl Cookie<'static> {
         }
     }
 
-    /// Parses a `Cookie` from a `String` without any allocation.
-    ///
-    /// Prefer to use this method instead of [parse](#method.parse) when the
-    /// source string is a `String` to avoid allocations while retrieving a
-    /// `Cookie` with a `static` lifetime.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use cookie::Cookie;
-    ///
-    /// let cookie = Cookie::parse_static("name=value".to_string()).unwrap();
-    /// assert_eq!(cookie.name_value(), ("name", "value"));
-    /// ```
-    pub fn parse_static<S>(string: S) -> Result<Self, ParseError>
-        where S: Into<Cow<'static, str>>
-    {
-        let storage = string.into();
-
-        // We use `unsafe` here to convince Rust to move `storage` while a
-        // borrow to it "exists". The word "exists" is placed in quotes because
-        // this piece of code ensures that a borrow _does not_ exist when the
-        // move is made. This is because the field which holds the reference,
-        // `cookie_string`, is overwritten by `storage` when it is moved into
-        // `cookie_string`. This move invalidates the borrow, and safety is
-        // preserved.
-        //
-        // This safety can be violated if the borrow passed into `parse` is
-        // stored in any other field aside from `cookie_string`. The safety
-        // invariant can thus be stated as follows: this function is safe iff
-        // the call to `Cookie::parse` stores the borrow in its first argument
-        // in at most one field of `Cookie`: `cookie_string`.
-        let parsed_cookie = unsafe {
-            let str_ptr: *const str = &*storage;
-            Cookie::parse(&*str_ptr)?
-        };
-
-        Ok(Cookie { cookie_string: Some(storage), ..parsed_cookie })
-    }
-
     /// Creates a new `CookieBuilder` instance from the given key and value
     /// strings.
     ///
@@ -252,20 +215,62 @@ impl Cookie<'static> {
 }
 
 impl<'c> Cookie<'c> {
-    /// Parses a `Cookie` from the given HTTP cookie header value string.
+    /// Parses a `Cookie` from the given HTTP cookie header value string. Does
+    /// not perform any percent-decoding.
     ///
     /// # Example
     ///
     /// ```
     /// use cookie::Cookie;
     ///
-    /// let c = Cookie::parse("foo=bar; HttpOnly").unwrap();
-    /// assert_eq!(c.name_value(), ("foo", "bar"));
+    /// let c = Cookie::parse("foo=bar%20baz; HttpOnly").unwrap();
+    /// assert_eq!(c.name_value(), ("foo", "bar%20baz"));
     /// assert_eq!(c.http_only(), true);
     /// ```
     #[inline]
-    pub fn parse(s: &'c str) -> Result<Cookie<'c>, ParseError> {
-        parse_cookie(s)
+    pub fn parse<S>(s: S) -> Result<Cookie<'c>, ParseError>
+        where S: Into<Cow<'c, str>>
+    {
+        parse_cookie(s, false)
+    }
+
+    /// Parses a `Cookie` from the given HTTP cookie header value string where
+    /// the name and value fields are percent-encoded. Percent-decodes the
+    /// name/value fields.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::Cookie;
+    ///
+    /// let c = Cookie::parse_encoded("foo=bar%20baz; HttpOnly").unwrap();
+    /// assert_eq!(c.name_value(), ("foo", "bar baz"));
+    /// assert_eq!(c.http_only(), true);
+    /// ```
+    #[inline]
+    #[cfg(feature = "percent-encode")]
+    pub fn parse_encoded<S>(s: S) -> Result<Cookie<'c>, ParseError>
+        where S: Into<Cow<'c, str>>
+    {
+        parse_cookie(s, true)
+    }
+
+    /// Wraps `self` in an `EncodedCookie`: a cost-free wrapper around `Cookie`
+    /// whose `Display` implementation percent-encodes the name and value of the
+    /// wrapped `Cookie`. This method is only available when the
+    /// `percent-encode` feature is enabled.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::Cookie;
+    ///
+    /// let mut c = Cookie::new("my name", "this; value?");
+    /// assert_eq!(&c.encoded().to_string(), "my%20name=this%3B%20value%3F");
+    /// ```
+    #[cfg(feature = "percent-encode")]
+    pub fn encoded<'a>(&'a self) -> EncodedCookie<'a, 'c> {
+        EncodedCookie(self)
     }
 
     /// Converts `self` into a `Cookie` with a static lifetime. This method
@@ -450,7 +455,7 @@ impl<'c> Cookie<'c> {
     ///
     /// let expire_time = "Wed, 21 Oct 2017 07:28:00 GMT";
     /// let cookie_str = format!("name=value; Expires={}", expire_time);
-    /// let c = Cookie::parse_static(cookie_str).unwrap();
+    /// let c = Cookie::parse(cookie_str).unwrap();
     /// assert_eq!(c.expires().map(|t| t.tm_year), Some(117));
     /// ```
     #[inline]
@@ -615,52 +620,8 @@ impl<'c> Cookie<'c> {
     pub fn set_expires(&mut self, time: Tm) {
         self.expires = Some(time);
     }
-}
 
-impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
-    fn eq(&self, other: &Cookie<'b>) -> bool {
-        let so_far_so_good = self.name() == other.name()
-            && self.value() == other.value()
-            && self.http_only() == other.http_only()
-            && self.secure() == other.secure()
-            && self.max_age() == other.max_age()
-            && self.expires() == other.expires();
-
-        if !so_far_so_good {
-            return false;
-        }
-
-        match (self.path(), other.path()) {
-            (Some(a), Some(b)) if a.eq_ignore_ascii_case(b) => {}
-            (None, None) => {}
-            _ => return false,
-        };
-
-        match (self.domain(), other.domain()) {
-            (Some(a), Some(b)) if a.eq_ignore_ascii_case(b) => {}
-            (None, None) => {}
-            _ => return false,
-        };
-
-        true
-    }
-}
-
-impl<'c> fmt::Display for Cookie<'c> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // Percent encode if the percent-encode feature is set.
-        #[cfg(feature = "percent-encode")]
-        let name = percent_encode(self.name().as_bytes(), USERINFO_ENCODE_SET);
-        #[cfg(feature = "percent-encode")]
-        let value = percent_encode(self.value().as_bytes(), USERINFO_ENCODE_SET);
-
-        // Don't percent encode if the feature isn't set.
-        #[cfg(not(feature = "percent-encode"))]
-        let (name, value) = self.name_value();
-
-        // Write out the compile-time determined name and value.
-        write!(f, "{}={}", name, value)?;
-
+    fn fmt_parameters(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.http_only() {
             write!(f, "; HttpOnly")?;
         }
@@ -689,11 +650,80 @@ impl<'c> fmt::Display for Cookie<'c> {
     }
 }
 
+/// Wrapper around `Cookie` whose `Display` implementation percent-encodes the
+/// cookie's name and value.
+///
+/// A value of this type can be obtained via the
+/// [encoded](struct.Cookie.html#method.encoded) method on
+/// [Cookie](struct.Cookie.html). This type should only be used for its
+/// `Display` implementation. This type is only available when the
+/// `percent-encode` feature is enabled.
+///
+/// # Example
+///
+/// ```rust
+/// use cookie::Cookie;
+///
+/// let mut c = Cookie::new("my name", "this; value?");
+/// assert_eq!(&c.encoded().to_string(), "my%20name=this%3B%20value%3F");
+/// ```
+#[cfg(feature = "percent-encode")]
+pub struct EncodedCookie<'a, 'c: 'a>(&'a Cookie<'c>);
+
+#[cfg(feature = "percent-encode")]
+impl<'a, 'c: 'a> fmt::Display for EncodedCookie<'a, 'c> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // Percent-encode the name and value.
+        let name = percent_encode(self.0.name().as_bytes(), USERINFO_ENCODE_SET);
+        let value = percent_encode(self.0.value().as_bytes(), USERINFO_ENCODE_SET);
+
+        // Write out the name/value pair and the cookie's parameters.
+        write!(f, "{}={}", name, value)?;
+        self.0.fmt_parameters(f)
+    }
+}
+
+impl<'c> fmt::Display for Cookie<'c> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}={}", self.name(), self.value())?;
+        self.fmt_parameters(f)
+    }
+}
+
 impl FromStr for Cookie<'static> {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Cookie<'static>, ParseError> {
         Cookie::parse(s).map(|c| c.into_owned())
+    }
+}
+
+impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
+    fn eq(&self, other: &Cookie<'b>) -> bool {
+        let so_far_so_good = self.name() == other.name()
+            && self.value() == other.value()
+            && self.http_only() == other.http_only()
+            && self.secure() == other.secure()
+            && self.max_age() == other.max_age()
+            && self.expires() == other.expires();
+
+        if !so_far_so_good {
+            return false;
+        }
+
+        match (self.path(), other.path()) {
+            (Some(a), Some(b)) if a.eq_ignore_ascii_case(b) => {}
+            (None, None) => {}
+            _ => return false,
+        };
+
+        match (self.domain(), other.domain()) {
+            (Some(a), Some(b)) if a.eq_ignore_ascii_case(b) => {}
+            (None, None) => {}
+            _ => return false,
+        };
+
+        true
     }
 }
 
@@ -739,10 +769,10 @@ mod tests {
     #[cfg(feature = "percent-encode")]
     fn format_encoded() {
         let cookie = Cookie::build("foo !?=", "bar;; a").finish();
-        let cookie_str = cookie.to_string();
+        let cookie_str = cookie.encoded().to_string();
         assert_eq!(&cookie_str, "foo%20!%3F%3D=bar%3B%3B%20a");
 
-        let cookie = Cookie::parse_static(cookie_str).unwrap();
+        let cookie = Cookie::parse_encoded(cookie_str).unwrap();
         assert_eq!(cookie.name_value(), ("foo !?=", "bar;; a"));
     }
 }
