@@ -171,6 +171,9 @@ impl<'a> CookieJar<'a> {
     /// All cookies read from the child jar will require a valid signature and
     /// all cookies written will be signed automatically.
     ///
+    /// This API is only available when the `secure` feature is enabled on this
+    /// crate.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -208,6 +211,9 @@ impl<'a> CookieJar<'a> {
     /// All cookies read from the child jar must be encrypted and signed by a
     /// valid key and all cookies written will be encrypted and signed
     /// automatically.
+    ///
+    /// This API is only available when the `secure` feature is enabled on this
+    /// crate.
     ///
     /// # Example
     ///

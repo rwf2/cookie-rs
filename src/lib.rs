@@ -235,6 +235,9 @@ impl<'c> Cookie<'c> {
     /// the name and value fields are percent-encoded. Percent-decodes the
     /// name/value fields.
     ///
+    /// This API requires the `percent-encode` feature to be enabled on this
+    /// crate.
+    ///
     /// # Example
     ///
     /// ```
@@ -253,8 +256,10 @@ impl<'c> Cookie<'c> {
 
     /// Wraps `self` in an `EncodedCookie`: a cost-free wrapper around `Cookie`
     /// whose `Display` implementation percent-encodes the name and value of the
-    /// wrapped `Cookie`. This method is only available when the
-    /// `percent-encode` feature is enabled.
+    /// wrapped `Cookie`.
+    ///
+    /// This method is only available when the `percent-encode` feature is
+    /// enabled.
     ///
     /// # Example
     ///
@@ -648,8 +653,9 @@ impl<'c> Cookie<'c> {
 /// A value of this type can be obtained via the
 /// [encoded](struct.Cookie.html#method.encoded) method on
 /// [Cookie](struct.Cookie.html). This type should only be used for its
-/// `Display` implementation. This type is only available when the
-/// `percent-encode` feature is enabled.
+/// `Display` implementation.
+///
+/// This type is only available when the `percent-encode` feature is enabled.
 ///
 /// # Example
 ///
