@@ -1,6 +1,3 @@
-// #![deny(missing_docs)]
-// #![cfg_attr(test, deny(warnings))]
-
 //! HTTP Cookie parsing and Cookie Jar management.
 //!
 //! This crates provides the [Cookie](struct.Cookie.html) type, which directly
@@ -55,6 +52,9 @@
 //! [dependencies.cookie]
 //! features = ["secure", "percent-encode"]
 //! ```
+
+#![deny(missing_docs)]
+#![cfg_attr(test, deny(warnings))]
 
 #[cfg(feature = "percent-encode")]
 extern crate url;

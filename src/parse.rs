@@ -29,6 +29,7 @@ pub enum ParseError {
 }
 
 impl ParseError {
+    /// Returns a description of this error as a string
     pub fn as_str(&self) -> &'static str {
         match *self {
             ParseError::MissingPair => "The cookie is missing a name/value pair.",
