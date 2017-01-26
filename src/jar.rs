@@ -68,7 +68,8 @@ pub struct Iter<'a> {
 impl<'a> CookieJar<'a> {
     /// Creates a new empty cookie jar with the given signing key.
     ///
-    /// The given key is used to sign cookies in the signed cookie jar.
+    /// The given key is used to sign cookies in the signed cookie jar. If
+    /// signed cookies aren't used then you can pass an empty array.
     pub fn new(key: &[u8]) -> CookieJar<'static> {
         CookieJar {
             flavor: Flavor::Root(Root {
