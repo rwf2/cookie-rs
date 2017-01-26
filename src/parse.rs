@@ -20,8 +20,6 @@ pub enum ParseError {
     EmptyName,
     /// Decoding the cookie's name or value resulted in invalid UTF-8.
     Utf8Error(Utf8Error),
-    /// Internal error: this should not occur.
-    Internal,
     /// It is discouraged to exhaustively match on this enum as its variants may
     /// grow without a breaking-change bump in version numbers.
     #[doc(hidden)]
@@ -32,13 +30,10 @@ impl ParseError {
     /// Returns a description of this error as a string
     pub fn as_str(&self) -> &'static str {
         match *self {
-            ParseError::MissingPair => "The cookie is missing a name/value pair.",
-            ParseError::EmptyName => "The cookie's name is empty.",
+            ParseError::MissingPair => "the cookie is missing a name/value pair",
+            ParseError::EmptyName => "the cookie's name is empty",
             ParseError::Utf8Error(_) => {
-                "Decoding the cookie's name or value resulted in invalid UTF-8."
-            }
-            ParseError::Internal => {
-                "There was an internal error parsing the cookie. Please report this."
+                "decoding the cookie's name or value resulted in invalid UTF-8"
             }
             ParseError::__Nonexhasutive => unreachable!("__Nonexhasutive ParseError"),
         }
@@ -103,7 +98,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
     let mut attributes = s.split(';');
     let key_value = match attributes.next() {
         Some(s) => s,
-        _ => return Err(ParseError::Internal),
+        _ => panic!(),
     };
 
     // Determine the name = val.
@@ -111,7 +106,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
     let (name, value) = match (splits.next(), splits.next()) {
         (Some(name), Some(val)) => (name.trim(), val.trim()),
         (Some(_), None) => return Err(ParseError::MissingPair),
-        _ => return Err(ParseError::Internal),
+        _ => panic!(),
     };
 
     if name.is_empty() {
