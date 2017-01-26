@@ -89,7 +89,7 @@ enum CookieStr {
 
 impl CookieStr {
     /// Whether this string is derived from indexes or not.
-    pub fn is_indexed(&self) -> bool {
+    fn is_indexed(&self) -> bool {
         match *self {
             CookieStr::Indexed(..) => true,
             CookieStr::Concrete(..) => false,
@@ -103,7 +103,7 @@ impl CookieStr {
     /// # Panics
     ///
     /// Panics if `self` is an indexed string and `string` is None.
-    pub fn to_str<'s>(&'s self, string: Option<&'s Cow<str>>) -> &'s str {
+    fn to_str<'s>(&'s self, string: Option<&'s Cow<str>>) -> &'s str {
         if self.is_indexed() && string.is_none() {
             panic!("Cannot convert indexed str to str without base string!")
         }
