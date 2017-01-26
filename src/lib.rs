@@ -286,24 +286,18 @@ impl<'c> Cookie<'c> {
     /// let owned_cookie = c.into_owned();
     /// assert_eq!(owned_cookie.name_value(), ("a", "b"));
     /// ```
-    #[inline]
-    pub fn into_owned(mut self) -> Cookie<'static> {
-        self.cookie_string = match self.cookie_string {
-            Some(storage) => Some(Cow::Owned(storage.into_owned())),
-            None => None,
-        };
-
-        // We use `unsafe` here to convince Rust that the lifetime of `self` is
-        // in fact `static`. We know that the lifetime is indeed `static`
-        // because the only non-static field in `self`, `cookie_string`, will
-        // contain a `static` item after the assignment above.
-        //
-        // This safety can be violated if any other field aside from
-        // `cookie_string` can possible hold a non-static reference. The safety
-        // invariant can thus be stated as follows: this function is safe iff
-        // `self` has exactly one field, `cookie_string`, with a potentially
-        // non-static lifetime.
-        unsafe { ::std::mem::transmute(self) }
+    pub fn into_owned(self) -> Cookie<'static> {
+        Cookie {
+            cookie_string: self.cookie_string.map(|s| s.into_owned().into()),
+            name: self.name,
+            value: self.value,
+            expires: self.expires,
+            max_age: self.max_age,
+            domain: self.domain,
+            path: self.path,
+            secure: self.secure,
+            http_only: self.http_only,
+        }
     }
 
     /// Returns the name of `self`.
