@@ -102,13 +102,10 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
     };
 
     // Determine the name = val.
-    let (name, value) =
-        if let Some(i) = key_value.find('=') {
-            let (n, v) = key_value.split_at(i);
-            (n.trim(), (&v[1..]).trim())
-        } else {
-            return Err(ParseError::MissingPair)
-        };
+    let (name, value) = match key_value.find('=') {
+        Some(i) => (key_value[..i].trim(), key_value[(i + 1)..].trim()),
+        None => return Err(ParseError::MissingPair)
+    };
 
     if name.is_empty() {
         return Err(ParseError::EmptyName);
