@@ -182,6 +182,33 @@ impl CookieBuilder {
         self
     }
 
+    /// Makes the cookie being built 'permanent' by extending its expiration and
+    /// max age 20 years into the future.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate cookie;
+    /// extern crate time;
+    ///
+    /// use cookie::Cookie;
+    /// use time::Duration;
+    ///
+    /// # fn main() {
+    /// let c = Cookie::build("foo", "bar")
+    ///     .permanent()
+    ///     .finish();
+    ///
+    /// assert_eq!(c.max_age(), Some(Duration::days(365 * 20)));
+    /// # assert!(c.expires().is_some());
+    /// # }
+    /// ```
+    #[inline]
+    pub fn permanent(mut self) -> CookieBuilder {
+        self.cookie.make_permanent();
+        self
+    }
+
     /// Finishes building and returns the built `Cookie`.
     ///
     /// # Example
