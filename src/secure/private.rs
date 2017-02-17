@@ -41,16 +41,16 @@ pub trait Private<'a, 'k> {
     /// jar.private(&key).add(Cookie::new("private", "text"));
     ///
     /// // The cookie's contents are encrypted.
-    /// assert_ne!(jar.find("private").unwrap().value(), "text");
+    /// assert_ne!(jar.get("private").unwrap().value(), "text");
     ///
     /// // They can be decrypted and verified through the child jar.
-    /// assert_eq!(jar.private(&key).find("private").unwrap().value(), "text");
+    /// assert_eq!(jar.private(&key).get("private").unwrap().value(), "text");
     ///
     /// // A tampered with cookie does not validate but still exists.
-    /// let mut cookie = jar.find("private").unwrap().clone();
+    /// let mut cookie = jar.get("private").unwrap().clone();
     /// jar.add(Cookie::new("private", cookie.value().to_string() + "!"));
-    /// assert!(jar.private(&key).find("private").is_none());
-    /// assert!(jar.find("private").is_some());
+    /// assert!(jar.private(&key).get("private").is_none());
+    /// assert!(jar.get("private").is_some());
     /// ```
     fn private(&'a mut self, &'k [u8]) -> PrivateJar<'a, 'k>;
 }
@@ -100,10 +100,10 @@ impl<'a, 'k> PrivateJar<'a, 'k> {
         String::from_utf8(sealed).map_err(|_| "bad unsealed utf8")
     }
 
-    /// Finds a `Cookie` inside the parent jar with the name `name` and
-    /// authenticates and decrypts the cookie's value, returning a `Cookie` with
-    /// the decrypted value. If the cookie cannot be found, or the cookie fails
-    /// to authenticate or decrypt, `None` is returned.
+    /// Returns a reference to the `Cookie` inside this jar with the name `name`
+    /// and authenticates and decrypts the cookie's value, returning a `Cookie`
+    /// with the decrypted value. If the cookie cannot be found, or the cookie
+    /// fails to authenticate or decrypt, `None` is returned.
     ///
     /// # Example
     ///
@@ -113,13 +113,13 @@ impl<'a, 'k> PrivateJar<'a, 'k> {
     /// # let key: Vec<_> = (0..32).collect();
     /// let mut jar = CookieJar::new();
     /// let mut private_jar = jar.private(&key);
-    /// assert!(private_jar.find("name").is_none());
+    /// assert!(private_jar.get("name").is_none());
     ///
     /// private_jar.add(Cookie::new("name", "value"));
-    /// assert_eq!(private_jar.find("name").unwrap().value(), "value");
+    /// assert_eq!(private_jar.get("name").unwrap().value(), "value");
     /// ```
-    pub fn find(&self, name: &str) -> Option<Cookie<'static>> {
-        if let Some(cookie_ref) = self.parent.find(name) {
+    pub fn get(&self, name: &str) -> Option<Cookie<'static>> {
+        if let Some(cookie_ref) = self.parent.get(name) {
             let mut cookie = cookie_ref.clone();
             if cookie.value().len() <= BASE64_NONCE_LEN {
                 return None;
@@ -147,8 +147,8 @@ impl<'a, 'k> PrivateJar<'a, 'k> {
     /// let mut jar = CookieJar::new();
     /// jar.private(&key).add(Cookie::new("name", "value"));
     ///
-    /// assert_ne!(jar.find("name").unwrap().value(), "value");
-    /// assert_eq!(jar.private(&key).find("name").unwrap().value(), "value");
+    /// assert_ne!(jar.get("name").unwrap().value(), "value");
+    /// assert_eq!(jar.private(&key).get("name").unwrap().value(), "value");
     /// ```
     pub fn add(&mut self, mut cookie: Cookie<'static>) {
         // Generate the nonce.
@@ -200,10 +200,10 @@ impl<'a, 'k> PrivateJar<'a, 'k> {
     /// let mut private_jar = jar.private(&key);
     ///
     /// private_jar.add(Cookie::new("name", "value"));
-    /// assert!(private_jar.find("name").is_some());
+    /// assert!(private_jar.get("name").is_some());
     ///
     /// private_jar.remove(Cookie::named("name"));
-    /// assert!(private_jar.find("name").is_none());
+    /// assert!(private_jar.get("name").is_none());
     /// ```
     pub fn remove(&mut self, cookie: Cookie<'static>) {
         self.parent.remove(cookie);

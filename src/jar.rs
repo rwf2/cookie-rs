@@ -27,7 +27,7 @@ use Cookie;
 ///
 /// Cookies can be added via [add](#method.add) and removed via
 /// [remove](#method.remove). Finally, cookies can be looked up via
-/// [find](#method.find):
+/// [get](#method.get):
 ///
 /// ```rust
 /// # use cookie::{Cookie, CookieJar};
@@ -35,11 +35,11 @@ use Cookie;
 /// jar.add(Cookie::new("a", "one"));
 /// jar.add(Cookie::new("b", "two"));
 ///
-/// assert_eq!(jar.find("a").map(|c| c.value()), Some("one"));
-/// assert_eq!(jar.find("b").map(|c| c.value()), Some("two"));
+/// assert_eq!(jar.get("a").map(|c| c.value()), Some("one"));
+/// assert_eq!(jar.get("b").map(|c| c.value()), Some("two"));
 ///
 /// jar.remove(Cookie::named("b"));
-/// assert!(jar.find("b").is_none());
+/// assert!(jar.get("b").is_none());
 /// ```
 ///
 /// # Deltas
@@ -98,8 +98,8 @@ impl CookieJar {
         CookieJar::default()
     }
 
-    /// Finds a `Cookie` inside this jar with the name `name` and returns a
-    /// borrow to the cookie if it is found. Otherwise returns `None`.
+    /// Returns a reference to the `Cookie` inside this jar with the name
+    /// `name`. If no such cookie exists, returns `None`.
     ///
     /// # Example
     ///
@@ -107,12 +107,12 @@ impl CookieJar {
     /// use cookie::{CookieJar, Cookie};
     ///
     /// let mut jar = CookieJar::new();
-    /// assert!(jar.find("name").is_none());
+    /// assert!(jar.get("name").is_none());
     ///
     /// jar.add(Cookie::new("name", "value"));
-    /// assert_eq!(jar.find("name").map(|c| c.value()), Some("value"));
+    /// assert_eq!(jar.get("name").map(|c| c.value()), Some("value"));
     /// ```
-    pub fn find<'a>(&'a self, name: &str) -> Option<&'a Cookie<'static>> {
+    pub fn get(&self, name: &str) -> Option<&Cookie<'static>> {
         self.delta_cookies
             .get(name)
             .or_else(|| self.original_cookies.get(name))
@@ -136,8 +136,8 @@ impl CookieJar {
     /// jar.add_original(Cookie::new("name", "value"));
     /// jar.add_original(Cookie::new("second", "two"));
     ///
-    /// assert_eq!(jar.find("name").map(|c| c.value()), Some("value"));
-    /// assert_eq!(jar.find("second").map(|c| c.value()), Some("two"));
+    /// assert_eq!(jar.get("name").map(|c| c.value()), Some("value"));
+    /// assert_eq!(jar.get("second").map(|c| c.value()), Some("two"));
     /// assert_eq!(jar.iter().count(), 2);
     /// assert_eq!(jar.delta().count(), 0);
     /// ```
@@ -156,8 +156,8 @@ impl CookieJar {
     /// jar.add(Cookie::new("name", "value"));
     /// jar.add(Cookie::new("second", "two"));
     ///
-    /// assert_eq!(jar.find("name").map(|c| c.value()), Some("value"));
-    /// assert_eq!(jar.find("second").map(|c| c.value()), Some("two"));
+    /// assert_eq!(jar.get("name").map(|c| c.value()), Some("value"));
+    /// assert_eq!(jar.get("second").map(|c| c.value()), Some("two"));
     /// assert_eq!(jar.iter().count(), 2);
     /// assert_eq!(jar.delta().count(), 2);
     /// ```
@@ -361,15 +361,15 @@ mod test {
         c.add(Cookie::new("test2", ""));
         c.remove(Cookie::named("test"));
 
-        assert!(c.find("test").is_none());
-        assert!(c.find("test2").is_some());
+        assert!(c.get("test").is_none());
+        assert!(c.get("test2").is_some());
 
         c.add(Cookie::new("test3", ""));
         c.clear();
 
-        assert!(c.find("test").is_none());
-        assert!(c.find("test2").is_none());
-        assert!(c.find("test3").is_none());
+        assert!(c.get("test").is_none());
+        assert!(c.get("test2").is_none());
+        assert!(c.get("test3").is_none());
     }
 
     #[test]
@@ -449,10 +449,10 @@ mod test {
         let mut jar = CookieJar::new();
         jar.add_original(Cookie::new("original_a", "a"));
         jar.add_original(Cookie::new("original_b", "b"));
-        assert_eq!(jar.find("original_a").unwrap().value(), "a");
+        assert_eq!(jar.get("original_a").unwrap().value(), "a");
 
         jar.add(Cookie::new("original_a", "av2"));
-        assert_eq!(jar.find("original_a").unwrap().value(), "av2");
+        assert_eq!(jar.get("original_a").unwrap().value(), "av2");
     }
 
     #[test]

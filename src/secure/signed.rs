@@ -39,17 +39,17 @@ pub trait Signed<'a, 'k> {
     /// jar.signed(&key).add(Cookie::new("signed", "text"));
     ///
     /// // The cookie's contents are signed but still in plaintext.
-    /// assert_ne!(jar.find("signed").unwrap().value(), "text");
-    /// assert!(jar.find("signed").unwrap().value().contains("text"));
+    /// assert_ne!(jar.get("signed").unwrap().value(), "text");
+    /// assert!(jar.get("signed").unwrap().value().contains("text"));
     ///
     /// // They can be verified through the child jar.
-    /// assert_eq!(jar.signed(&key).find("signed").unwrap().value(), "text");
+    /// assert_eq!(jar.signed(&key).get("signed").unwrap().value(), "text");
     ///
     /// // A tampered with cookie does not validate but still exists.
-    /// let mut cookie = jar.find("signed").unwrap().clone();
+    /// let mut cookie = jar.get("signed").unwrap().clone();
     /// jar.add(Cookie::new("signed", cookie.value().to_string() + "!"));
-    /// assert!(jar.signed(&key).find("signed").is_none());
-    /// assert!(jar.find("signed").is_some());
+    /// assert!(jar.signed(&key).get("signed").is_none());
+    /// assert!(jar.get("signed").is_some());
     /// ```
     fn signed(&'a mut self, key: &'k [u8]) -> SignedJar<'a, 'k>;
 }
@@ -96,10 +96,10 @@ impl<'a, 'k> SignedJar<'a, 'k> {
             .map_err(|_| "value did not verify")
     }
 
-    /// Finds a `Cookie` inside the parent jar with the name `name` and verifies
-    /// the authenticity and integrity of the cookie's value, returning a
-    /// `Cookie` with the authenticated value. If the cookie cannot be found, or
-    /// the cookie fails to verify, `None` is returned.
+    /// Returns a reference to the `Cookie` inside this jar with the name `name`
+    /// and verifies the authenticity and integrity of the cookie's value,
+    /// returning a `Cookie` with the authenticated value. If the cookie cannot
+    /// be found, or the cookie fails to verify, `None` is returned.
     ///
     /// # Example
     ///
@@ -109,13 +109,13 @@ impl<'a, 'k> SignedJar<'a, 'k> {
     /// # let key: Vec<_> = (0..64).collect();
     /// let mut jar = CookieJar::new();
     /// let mut signed_jar = jar.signed(&key);
-    /// assert!(signed_jar.find("name").is_none());
+    /// assert!(signed_jar.get("name").is_none());
     ///
     /// signed_jar.add(Cookie::new("name", "value"));
-    /// assert_eq!(signed_jar.find("name").unwrap().value(), "value");
+    /// assert_eq!(signed_jar.get("name").unwrap().value(), "value");
     /// ```
-    pub fn find(&self, name: &str) -> Option<Cookie<'static>> {
-        if let Some(cookie_ref) = self.parent.find(name) {
+    pub fn get(&self, name: &str) -> Option<Cookie<'static>> {
+        if let Some(cookie_ref) = self.parent.get(name) {
             let mut cookie = cookie_ref.clone();
             if cookie.value().len() < BASE64_DIGEST_LEN {
                 return None;
@@ -142,9 +142,9 @@ impl<'a, 'k> SignedJar<'a, 'k> {
     /// let mut jar = CookieJar::new();
     /// jar.signed(&key).add(Cookie::new("name", "value"));
     ///
-    /// assert_ne!(jar.find("name").unwrap().value(), "value");
-    /// assert!(jar.find("name").unwrap().value().contains("value"));
-    /// assert_eq!(jar.signed(&key).find("name").unwrap().value(), "value");
+    /// assert_ne!(jar.get("name").unwrap().value(), "value");
+    /// assert!(jar.get("name").unwrap().value().contains("value"));
+    /// assert_eq!(jar.signed(&key).get("name").unwrap().value(), "value");
     /// ```
     pub fn add(&mut self, mut cookie: Cookie<'static>) {
         let key = SigningKey::new(DIGEST, self.key);
@@ -175,10 +175,10 @@ impl<'a, 'k> SignedJar<'a, 'k> {
     /// let mut signed_jar = jar.signed(&key);
     ///
     /// signed_jar.add(Cookie::new("name", "value"));
-    /// assert!(signed_jar.find("name").is_some());
+    /// assert!(signed_jar.get("name").is_some());
     ///
     /// signed_jar.remove(Cookie::named("name"));
-    /// assert!(signed_jar.find("name").is_none());
+    /// assert!(signed_jar.get("name").is_none());
     /// ```
     pub fn remove(&mut self, cookie: Cookie<'static>) {
         self.parent.remove(cookie);

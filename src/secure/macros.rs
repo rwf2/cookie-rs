@@ -5,8 +5,8 @@ macro_rules! assert_simple_behaviour {
 
         $secure.add(Cookie::new("name", "val"));
         assert_eq!($clear.iter().count(), 1);
-        assert_eq!($secure.find("name").unwrap().value(), "val");
-        assert_ne!($clear.find("name").unwrap().value(), "val");
+        assert_eq!($secure.get("name").unwrap().value(), "val");
+        assert_ne!($clear.get("name").unwrap().value(), "val");
 
         $secure.add(Cookie::new("another", "two"));
         assert_eq!($clear.iter().count(), 2);
@@ -23,19 +23,19 @@ macro_rules! assert_simple_behaviour {
 macro_rules! assert_secure_behaviour {
     ($clear:expr, $secure:expr) => ({
         $secure.add(Cookie::new("secure", "secure"));
-        assert!($clear.find("secure").unwrap().value() != "secure");
-        assert!($secure.find("secure").unwrap().value() == "secure");
+        assert!($clear.get("secure").unwrap().value() != "secure");
+        assert!($secure.get("secure").unwrap().value() == "secure");
 
-        let mut cookie = $clear.find("secure").unwrap().clone();
+        let mut cookie = $clear.get("secure").unwrap().clone();
         let new_val = format!("{}l", cookie.value());
         cookie.set_value(new_val);
         $clear.add(cookie);
-        assert!($secure.find("secure").is_none());
+        assert!($secure.get("secure").is_none());
 
-        let mut cookie = $clear.find("secure").unwrap().clone();
+        let mut cookie = $clear.get("secure").unwrap().clone();
         cookie.set_value("foobar");
         $clear.add(cookie);
-        assert!($secure.find("secure").is_none());
+        assert!($secure.get("secure").is_none());
     })
 }
 
