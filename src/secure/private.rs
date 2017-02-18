@@ -10,7 +10,6 @@ use {Cookie, CookieJar};
 static ALGO: &'static Algorithm = &AES_256_GCM;
 const KEY_LEN: usize = 32;
 const NONCE_LEN: usize = 12;
-const BASE64_NONCE_LEN: usize = 16;
 
 /// Extends `CookieJar` with a `private` method to retrieve a private child jar.
 pub trait Private<'a, 'k> {
@@ -80,24 +79,24 @@ pub struct PrivateJar<'a, 'k> {
 }
 
 impl<'a, 'k> PrivateJar<'a, 'k> {
-    /// Given a sealed value `str` where the nonce is prepended to `value`,
-    /// verifies and decrypts the sealed value and returns it. If there's an
-    /// problem, returns an `Err` with a string describing the issue.
+    /// Given a sealed value `str` where the nonce is prepended to the original
+    /// value and then both are Base64 encoded, verifies and decrypts the sealed
+    /// value and returns it. If there's a problem, returns an `Err` with a
+    /// string describing the issue.
     fn unseal(&self, value: &str) -> Result<String, &'static str> {
-        if value.len() <= BASE64_NONCE_LEN {
-            return Err("length of value is <= BASE64_NONCE_LEN");
+        let mut data = value.from_base64().map_err(|_| "bad base64 value")?;
+        if data.len() <= NONCE_LEN {
+            return Err("length of decoded data is <= NONCE_LEN");
         }
 
-        let (nonce_s, sealed_s) = value.split_at(BASE64_NONCE_LEN);
-        let nonce = nonce_s.from_base64().map_err(|_| "bad nonce base64")?;
-        let mut sealed = sealed_s.from_base64().map_err(|_| "bad sealed base64")?;
         let key = OpeningKey::new(ALGO, self.key).expect("opening key");
-
-        let out_len = open_in_place(&key, &nonce, 0, &mut sealed, &[])
+        let (nonce, sealed) = data.split_at_mut(NONCE_LEN);
+        let out_len = open_in_place(&key, nonce, 0, sealed, &[])
             .map_err(|_| "invalid key/nonce/value: bad seal")?;
 
-        unsafe { sealed.set_len(out_len); }
-        String::from_utf8(sealed).map_err(|_| "bad unsealed utf8")
+        ::std::str::from_utf8(&sealed[..out_len])
+            .map(|s| s.to_string())
+            .map_err(|_| "bad unsealed utf8")
     }
 
     /// Returns a reference to the `Cookie` inside this jar with the name `name`
@@ -147,32 +146,28 @@ impl<'a, 'k> PrivateJar<'a, 'k> {
     /// assert_eq!(jar.private(&key).get("name").unwrap().value(), "value");
     /// ```
     pub fn add(&mut self, mut cookie: Cookie<'static>) {
-        // Generate the nonce.
-        let mut nonce = [0; NONCE_LEN];
-        SystemRandom::new().fill(&mut nonce).expect("couldn't randomly fill nonce");
+        let mut data;
+        let output_len = {
+            // Create the `SealingKey` structure.
+            let key = SealingKey::new(ALGO, self.key).expect("sealing key creation");
 
-        // Create the `SealingKey` structure.
-        let key = SealingKey::new(ALGO, self.key).expect("sealing key creation");
-
-        // Setup the input and output for the sealing operation.
-        let overhead = ALGO.max_overhead_len();
-        let mut in_out = {
+            // Create a vec to hold the [nonce | cookie value | overhead].
+            let overhead = ALGO.max_overhead_len();
             let cookie_val = cookie.value().as_bytes();
-            let mut in_out = vec![0; cookie_val.len() + overhead];
+            data = vec![0; NONCE_LEN + cookie_val.len() + overhead];
+
+            // Randomly generate the nonce, then copy the cookie value as input.
+            let (nonce, in_out) = data.split_at_mut(NONCE_LEN);
+            SystemRandom::new().fill(nonce).expect("couldn't random fill nonce");
             in_out[..cookie_val.len()].copy_from_slice(cookie_val);
-            in_out
+
+            // Perform the actual sealing operation and get the output length.
+            seal_in_place(&key, nonce, in_out, overhead, &[]).expect("in-place seal")
         };
 
-        // Perform the actual operation and get the output.
-        let out_len = seal_in_place(&key, &nonce, &mut in_out, overhead, &[])
-            .expect("sealing failed!");
-        let sealed_output = &in_out[..out_len];
-        let encrypted_value = sealed_output.to_base64(STANDARD);
-
-        // Build the final cookie value, combining output and nonce.
-        let mut new_value = nonce.to_base64(STANDARD);
-        new_value.push_str(&encrypted_value);
-        cookie.set_value(new_value);
+        // Base64 encode the nonce and encrypted value.
+        let sealed_value = data[..(NONCE_LEN + output_len)].to_base64(STANDARD);
+        cookie.set_value(sealed_value);
 
         // Add the sealed cookie to the parent.
         self.parent.add(cookie);
