@@ -11,59 +11,6 @@ static ALGO: &'static Algorithm = &AES_256_GCM;
 const KEY_LEN: usize = 32;
 const NONCE_LEN: usize = 12;
 
-/// Extends `CookieJar` with a `private` method to retrieve a private child jar.
-pub trait Private<'a, 'k> {
-    /// Returns a `PrivateJar` with `self` as its parent jar using the key `key`
-    /// to sign/encrypt and verify/decrypt cookies added/retrieved from the
-    /// child jar. The key must be exactly 32 bytes. For security, the key
-    /// _must_ be cryptographically random.
-    ///
-    /// Any modifications to the child jar will be reflected on the parent jar,
-    /// and any retrievals from the child jar will be made from the parent jar.
-    ///
-    /// This trait is only available when the `secure` feature is enabled.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `key` is not exactly 32 bytes long.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use cookie::{Cookie, CookieJar, Private};
-    ///
-    /// // We use a bogus key for demonstration purposes.
-    /// let key: Vec<_> = (0..32).collect();
-    ///
-    /// // Add a private (signed + encrypted) cookie.
-    /// let mut jar = CookieJar::new();
-    /// jar.private(&key).add(Cookie::new("private", "text"));
-    ///
-    /// // The cookie's contents are encrypted.
-    /// assert_ne!(jar.get("private").unwrap().value(), "text");
-    ///
-    /// // They can be decrypted and verified through the child jar.
-    /// assert_eq!(jar.private(&key).get("private").unwrap().value(), "text");
-    ///
-    /// // A tampered with cookie does not validate but still exists.
-    /// let mut cookie = jar.get("private").unwrap().clone();
-    /// jar.add(Cookie::new("private", cookie.value().to_string() + "!"));
-    /// assert!(jar.private(&key).get("private").is_none());
-    /// assert!(jar.get("private").is_some());
-    /// ```
-    fn private(&'a mut self, &'k [u8]) -> PrivateJar<'a, 'k>;
-}
-
-impl<'a, 'k> Private<'a, 'k> for CookieJar {
-    fn private(&'a mut self, key: &'k [u8]) -> PrivateJar<'a, 'k> {
-        if key.len() != KEY_LEN {
-            panic!("bad key length: expected {} bytes, found {}", KEY_LEN, key.len());
-        }
-
-        PrivateJar { parent: self, key: key }
-    }
-}
-
 /// A child cookie jar that provides authenticated encryption for its cookies.
 ///
 /// A _private_ child jar signs and encrypts all the cookies added to it and
@@ -79,6 +26,22 @@ pub struct PrivateJar<'a, 'k> {
 }
 
 impl<'a, 'k> PrivateJar<'a, 'k> {
+    /// Creates a new child `PrivateJar` with parent `parent` and key `key`.
+    /// This method is typically called indirectly via the `signed` method of
+    /// `CookieJar`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `key` is not exactly 32 bytes long.
+    #[doc(hidden)]
+    pub fn new(parent: &'a mut CookieJar, key: &'k [u8]) -> PrivateJar<'a, 'k> {
+        if key.len() != KEY_LEN {
+            panic!("bad key length: expected {} bytes, found {}", KEY_LEN, key.len());
+        }
+
+        PrivateJar { parent: parent, key: key }
+    }
+
     /// Given a sealed value `str` where the nonce is prepended to the original
     /// value and then both are Base64 encoded, verifies and decrypts the sealed
     /// value and returns it. If there's a problem, returns an `Err` with a
@@ -107,7 +70,7 @@ impl<'a, 'k> PrivateJar<'a, 'k> {
     /// # Example
     ///
     /// ```rust
-    /// use cookie::{CookieJar, Cookie, Private};
+    /// use cookie::{CookieJar, Cookie};
     ///
     /// # let key: Vec<_> = (0..32).collect();
     /// let mut jar = CookieJar::new();
@@ -136,7 +99,7 @@ impl<'a, 'k> PrivateJar<'a, 'k> {
     /// # Example
     ///
     /// ```rust
-    /// use cookie::{CookieJar, Cookie, Private};
+    /// use cookie::{CookieJar, Cookie};
     ///
     /// # let key: Vec<_> = (0..32).collect();
     /// let mut jar = CookieJar::new();
@@ -184,7 +147,7 @@ impl<'a, 'k> PrivateJar<'a, 'k> {
     /// # Example
     ///
     /// ```rust
-    /// use cookie::{CookieJar, Cookie, Private};
+    /// use cookie::{CookieJar, Cookie};
     ///
     /// # let key: Vec<_> = (0..32).collect();
     /// let mut jar = CookieJar::new();
@@ -203,7 +166,6 @@ impl<'a, 'k> PrivateJar<'a, 'k> {
 
 #[cfg(test)]
 mod test {
-    use super::Private;
     use {CookieJar, Cookie};
 
     #[test]

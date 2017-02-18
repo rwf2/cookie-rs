@@ -29,8 +29,9 @@
 //!
 //!   Enables signed and private (signed + encrypted) cookie jars.
 //!
-//!   When this feature is enabled, the [Signed](trait.Signed.html) and
-//!   [Private](trait.Private.html) traits and
+//!   When this feature is enabled, the
+//!   [signed](struct.CookieJar.html#method.signed) and
+//!   [private](struct.CookieJar.html#method.private) method of `CookieJar` and
 //!   [SignedJar](struct.SignedJar.html) and
 //!   [PrivateJar](struct.PrivateJar.html) structures are available. The jars
 //!   act as "children jars", allowing for easy retrieval and addition of signed

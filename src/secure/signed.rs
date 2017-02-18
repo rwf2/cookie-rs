@@ -10,60 +10,6 @@ static DIGEST: &'static Algorithm = &SHA256;
 const BASE64_DIGEST_LEN: usize = 44;
 const KEY_LEN: usize = 64;
 
-/// Extends `CookieJar` with a `signed` method to retrieve a signed child jar.
-pub trait Signed<'a, 'k> {
-    /// Returns a `SignedJar` with `self` as its parent jar using the key `key`
-    /// to sign/verify cookies added/retrieved from the child jar. The key must
-    /// be exactly 64 bytes. For security, the key _must_ be cryptographically
-    /// random.
-    ///
-    /// Any modifications to the child jar will be reflected on the parent jar,
-    /// and any retrievals from the child jar will be made from the parent jar.
-    ///
-    /// This trait is only available when the `secure` feature is enabled.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `key` is not exactly 64 bytes long.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use cookie::{Cookie, CookieJar, Signed};
-    ///
-    /// // We use a bogus key for demonstration purposes.
-    /// let key: Vec<_> = (0..64).collect();
-    ///
-    /// // Add a signed cookie.
-    /// let mut jar = CookieJar::new();
-    /// jar.signed(&key).add(Cookie::new("signed", "text"));
-    ///
-    /// // The cookie's contents are signed but still in plaintext.
-    /// assert_ne!(jar.get("signed").unwrap().value(), "text");
-    /// assert!(jar.get("signed").unwrap().value().contains("text"));
-    ///
-    /// // They can be verified through the child jar.
-    /// assert_eq!(jar.signed(&key).get("signed").unwrap().value(), "text");
-    ///
-    /// // A tampered with cookie does not validate but still exists.
-    /// let mut cookie = jar.get("signed").unwrap().clone();
-    /// jar.add(Cookie::new("signed", cookie.value().to_string() + "!"));
-    /// assert!(jar.signed(&key).get("signed").is_none());
-    /// assert!(jar.get("signed").is_some());
-    /// ```
-    fn signed(&'a mut self, key: &'k [u8]) -> SignedJar<'a, 'k>;
-}
-
-impl<'a, 'k> Signed<'a, 'k> for CookieJar {
-    fn signed(&'a mut self, key: &'k [u8]) -> SignedJar<'a, 'k> {
-        if key.len() != KEY_LEN {
-            panic!("bad key length: expected {} bytes, found {}", KEY_LEN, key.len());
-        }
-
-        SignedJar { parent: self, key: key }
-    }
-}
-
 /// A child cookie jar that authenticates its cookies.
 ///
 /// A _signed_ child jar signs all the cookies added to it and verifies cookies
@@ -79,6 +25,22 @@ pub struct SignedJar<'a, 'k> {
 }
 
 impl<'a, 'k> SignedJar<'a, 'k> {
+    /// Creates a new child `SignedJar` with parent `parent` and key `key`. This
+    /// method is typically called indirectly via the `signed` method of
+    /// `CookieJar`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `key` is not exactly 64 bytes long.
+    #[doc(hidden)]
+    pub fn new(parent: &'a mut CookieJar, key: &'k [u8]) -> SignedJar<'a, 'k> {
+        if key.len() != KEY_LEN {
+            panic!("bad key length: expected {} bytes, found {}", KEY_LEN, key.len());
+        }
+
+        SignedJar { parent: parent, key: key }
+    }
+
     /// Given a signed value `str` where the signature is prepended to `value`,
     /// verifies the signed value and returns it. If there's a problem, returns
     /// an `Err` with a string describing the issue.
@@ -104,7 +66,7 @@ impl<'a, 'k> SignedJar<'a, 'k> {
     /// # Example
     ///
     /// ```rust
-    /// use cookie::{CookieJar, Cookie, Signed};
+    /// use cookie::{CookieJar, Cookie};
     ///
     /// # let key: Vec<_> = (0..64).collect();
     /// let mut jar = CookieJar::new();
@@ -132,7 +94,7 @@ impl<'a, 'k> SignedJar<'a, 'k> {
     /// # Example
     ///
     /// ```rust
-    /// use cookie::{CookieJar, Cookie, Signed};
+    /// use cookie::{CookieJar, Cookie};
     ///
     /// # let key: Vec<_> = (0..64).collect();
     /// let mut jar = CookieJar::new();
@@ -164,7 +126,7 @@ impl<'a, 'k> SignedJar<'a, 'k> {
     /// # Example
     ///
     /// ```rust
-    /// use cookie::{CookieJar, Cookie, Signed};
+    /// use cookie::{CookieJar, Cookie};
     ///
     /// # let key: Vec<_> = (0..64).collect();
     /// let mut jar = CookieJar::new();
@@ -183,7 +145,6 @@ impl<'a, 'k> SignedJar<'a, 'k> {
 
 #[cfg(test)]
 mod test {
-    use super::Signed;
     use {CookieJar, Cookie};
 
     #[test]

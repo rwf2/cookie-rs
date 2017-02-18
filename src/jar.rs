@@ -3,6 +3,8 @@ use std::mem::replace;
 
 use time::{self, Duration};
 
+#[cfg(feature = "secure")]
+use secure::{PrivateJar, SignedJar};
 use delta::DeltaCookie;
 use Cookie;
 
@@ -305,6 +307,93 @@ impl CookieJar {
     pub fn iter(&self) -> Iter {
         Iter { delta_cookies: self.delta_cookies.union(&self.original_cookies) }
     }
+
+    /// Returns a `PrivateJar` with `self` as its parent jar using the key `key`
+    /// to sign/encrypt and verify/decrypt cookies added/retrieved from the
+    /// child jar. The key must be exactly 32 bytes. For security, the key
+    /// _must_ be cryptographically random.
+    ///
+    /// Any modifications to the child jar will be reflected on the parent jar,
+    /// and any retrievals from the child jar will be made from the parent jar.
+    ///
+    /// This method is only available when the `secure` feature is enabled.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `key` is not exactly 32 bytes long.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::{Cookie, CookieJar};
+    ///
+    /// // We use a bogus key for demonstration purposes.
+    /// let key: Vec<_> = (0..32).collect();
+    ///
+    /// // Add a private (signed + encrypted) cookie.
+    /// let mut jar = CookieJar::new();
+    /// jar.private(&key).add(Cookie::new("private", "text"));
+    ///
+    /// // The cookie's contents are encrypted.
+    /// assert_ne!(jar.get("private").unwrap().value(), "text");
+    ///
+    /// // They can be decrypted and verified through the child jar.
+    /// assert_eq!(jar.private(&key).get("private").unwrap().value(), "text");
+    ///
+    /// // A tampered with cookie does not validate but still exists.
+    /// let mut cookie = jar.get("private").unwrap().clone();
+    /// jar.add(Cookie::new("private", cookie.value().to_string() + "!"));
+    /// assert!(jar.private(&key).get("private").is_none());
+    /// assert!(jar.get("private").is_some());
+    /// ```
+    #[cfg(feature = "secure")]
+    pub fn private<'a, 'k>(&'a mut self, key: &'k [u8]) -> PrivateJar<'a, 'k> {
+        PrivateJar::new(self, key)
+    }
+
+    /// Returns a `SignedJar` with `self` as its parent jar using the key `key`
+    /// to sign/verify cookies added/retrieved from the child jar. The key must
+    /// be exactly 64 bytes. For security, the key _must_ be cryptographically
+    /// random.
+    ///
+    /// Any modifications to the child jar will be reflected on the parent jar,
+    /// and any retrievals from the child jar will be made from the parent jar.
+    ///
+    /// This method is only available when the `secure` feature is enabled.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `key` is not exactly 64 bytes long.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::{Cookie, CookieJar};
+    ///
+    /// // We use a bogus key for demonstration purposes.
+    /// let key: Vec<_> = (0..64).collect();
+    ///
+    /// // Add a signed cookie.
+    /// let mut jar = CookieJar::new();
+    /// jar.signed(&key).add(Cookie::new("signed", "text"));
+    ///
+    /// // The cookie's contents are signed but still in plaintext.
+    /// assert_ne!(jar.get("signed").unwrap().value(), "text");
+    /// assert!(jar.get("signed").unwrap().value().contains("text"));
+    ///
+    /// // They can be verified through the child jar.
+    /// assert_eq!(jar.signed(&key).get("signed").unwrap().value(), "text");
+    ///
+    /// // A tampered with cookie does not validate but still exists.
+    /// let mut cookie = jar.get("signed").unwrap().clone();
+    /// jar.add(Cookie::new("signed", cookie.value().to_string() + "!"));
+    /// assert!(jar.signed(&key).get("signed").is_none());
+    /// assert!(jar.get("signed").is_some());
+    /// ```
+    #[cfg(feature = "secure")]
+    pub fn signed<'a, 'k>(&'a mut self, key: &'k [u8]) -> SignedJar<'a, 'k> {
+        SignedJar::new(self, key)
+    }
 }
 
 use std::collections::hash_set::Iter as HashSetIter;
@@ -348,9 +437,6 @@ impl<'a> Iterator for Iter<'a> {
 mod test {
     use super::CookieJar;
     use Cookie;
-
-    #[cfg(feature = "secure")]
-    use secure::{Signed, Private};
 
     #[test]
     #[allow(deprecated)]
