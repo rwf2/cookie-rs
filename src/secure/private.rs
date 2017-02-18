@@ -83,11 +83,11 @@ impl<'a, 'k> PrivateJar<'a, 'k> {
     /// Given a sealed value `str` where the nonce is prepended to `value`,
     /// verifies and decrypts the sealed value and returns it. If there's an
     /// problem, returns an `Err` with a string describing the issue.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `value.len()` < BASE64_NONCE_LEN.
     fn unseal(&self, value: &str) -> Result<String, &'static str> {
+        if value.len() <= BASE64_NONCE_LEN {
+            return Err("length of value is <= BASE64_NONCE_LEN");
+        }
+
         let (nonce_s, sealed_s) = value.split_at(BASE64_NONCE_LEN);
         let nonce = nonce_s.from_base64().map_err(|_| "bad nonce base64")?;
         let mut sealed = sealed_s.from_base64().map_err(|_| "bad sealed base64")?;
@@ -121,10 +121,6 @@ impl<'a, 'k> PrivateJar<'a, 'k> {
     pub fn get(&self, name: &str) -> Option<Cookie<'static>> {
         if let Some(cookie_ref) = self.parent.get(name) {
             let mut cookie = cookie_ref.clone();
-            if cookie.value().len() <= BASE64_NONCE_LEN {
-                return None;
-            }
-
             if let Ok(value) = self.unseal(cookie.value()) {
                 cookie.set_value(value);
                 return Some(cookie);

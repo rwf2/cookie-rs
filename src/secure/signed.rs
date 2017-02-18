@@ -82,11 +82,11 @@ impl<'a, 'k> SignedJar<'a, 'k> {
     /// Given a signed value `str` where the signature is prepended to `value`,
     /// verifies the signed value and returns it. If there's a problem, returns
     /// an `Err` with a string describing the issue.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `value.len()` < BASE64_DIGEST_LEN.
     fn verify(&self, cookie_value: &str) -> Result<String, &'static str> {
+        if cookie_value.len() < BASE64_DIGEST_LEN {
+            return Err("length of value is <= BASE64_DIGEST_LEN");
+        }
+
         let (digest_str, value) = cookie_value.split_at(BASE64_DIGEST_LEN);
         let key = SigningKey::new(DIGEST, self.key);
         let sig = digest_str.from_base64().map_err(|_| "bad base64 digest")?;
@@ -117,10 +117,6 @@ impl<'a, 'k> SignedJar<'a, 'k> {
     pub fn get(&self, name: &str) -> Option<Cookie<'static>> {
         if let Some(cookie_ref) = self.parent.get(name) {
             let mut cookie = cookie_ref.clone();
-            if cookie.value().len() < BASE64_DIGEST_LEN {
-                return None;
-            }
-
             if let Ok(value) = self.verify(cookie.value()) {
                 cookie.set_value(value);
                 return Some(cookie);
