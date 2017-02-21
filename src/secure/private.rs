@@ -56,10 +56,10 @@ impl<'a> PrivateJar<'a> {
 
         let key = OpeningKey::new(ALGO, &self.key).expect("opening key");
         let (nonce, sealed) = data.split_at_mut(NONCE_LEN);
-        let out_len = open_in_place(&key, nonce, 0, sealed, &[])
+        let unsealed = open_in_place(&key, nonce, &[], 0, sealed)
             .map_err(|_| "invalid key/nonce/value: bad seal")?;
 
-        ::std::str::from_utf8(&sealed[..out_len])
+        ::std::str::from_utf8(unsealed)
             .map(|s| s.to_string())
             .map_err(|_| "bad unsealed utf8")
     }
@@ -117,7 +117,7 @@ impl<'a> PrivateJar<'a> {
             let key = SealingKey::new(ALGO, &self.key).expect("sealing key creation");
 
             // Create a vec to hold the [nonce | cookie value | overhead].
-            let overhead = ALGO.max_overhead_len();
+            let overhead = ALGO.tag_len();
             let cookie_val = cookie.value().as_bytes();
             data = vec![0; NONCE_LEN + cookie_val.len() + overhead];
 
@@ -127,7 +127,7 @@ impl<'a> PrivateJar<'a> {
             in_out[..cookie_val.len()].copy_from_slice(cookie_val);
 
             // Perform the actual sealing operation and get the output length.
-            seal_in_place(&key, nonce, in_out, overhead, &[]).expect("in-place seal")
+            seal_in_place(&key, nonce, &[], in_out, overhead).expect("in-place seal")
         };
 
         // Base64 encode the nonce and encrypted value.
