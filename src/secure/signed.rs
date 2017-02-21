@@ -8,7 +8,7 @@ use {Cookie, CookieJar};
 // Keep these three in sync, and keep the key len synced with the `signed` docs.
 static DIGEST: &'static Algorithm = &SHA256;
 const BASE64_DIGEST_LEN: usize = 44;
-const KEY_LEN: usize = 64;
+const KEY_LEN: usize = 32;
 
 /// A child cookie jar that authenticates its cookies.
 ///
@@ -31,7 +31,7 @@ impl<'a> SignedJar<'a> {
     ///
     /// # Panics
     ///
-    /// Panics if `key` is not exactly 64 bytes long.
+    /// Panics if `key` is not exactly 32 bytes long.
     #[doc(hidden)]
     pub fn new(parent: &'a mut CookieJar, key: &[u8]) -> SignedJar<'a> {
         if key.len() != KEY_LEN {
@@ -67,7 +67,7 @@ impl<'a> SignedJar<'a> {
     /// ```rust
     /// use cookie::{CookieJar, Cookie};
     ///
-    /// # let key: Vec<_> = (0..64).collect();
+    /// # let key: Vec<_> = (0..32).collect();
     /// let mut jar = CookieJar::new();
     /// let mut signed_jar = jar.signed(&key);
     /// assert!(signed_jar.get("name").is_none());
@@ -95,7 +95,7 @@ impl<'a> SignedJar<'a> {
     /// ```rust
     /// use cookie::{CookieJar, Cookie};
     ///
-    /// # let key: Vec<_> = (0..64).collect();
+    /// # let key: Vec<_> = (0..32).collect();
     /// let mut jar = CookieJar::new();
     /// jar.signed(&key).add(Cookie::new("name", "value"));
     ///
@@ -125,7 +125,7 @@ impl<'a> SignedJar<'a> {
     /// ```rust
     /// use cookie::{CookieJar, Cookie};
     ///
-    /// # let key: Vec<_> = (0..64).collect();
+    /// # let key: Vec<_> = (0..32).collect();
     /// let mut jar = CookieJar::new();
     /// let mut signed_jar = jar.signed(&key);
     ///

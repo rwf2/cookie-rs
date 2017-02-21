@@ -311,7 +311,8 @@ impl CookieJar {
     /// Returns a `PrivateJar` with `self` as its parent jar using the key `key`
     /// to sign/encrypt and verify/decrypt cookies added/retrieved from the
     /// child jar. The key must be exactly 32 bytes. For security, the key
-    /// _must_ be cryptographically random.
+    /// _must_ be cryptographically random and _different_ from a key used for
+    /// a signed jar, if any.
     ///
     /// Any modifications to the child jar will be reflected on the parent jar,
     /// and any retrievals from the child jar will be made from the parent jar.
@@ -353,8 +354,8 @@ impl CookieJar {
 
     /// Returns a `SignedJar` with `self` as its parent jar using the key `key`
     /// to sign/verify cookies added/retrieved from the child jar. The key must
-    /// be exactly 64 bytes. For security, the key _must_ be cryptographically
-    /// random.
+    /// be exactly 32 bytes. For security, the key _must_ be cryptographically
+    /// random and _different_ from a key used for a private jar, if any.
     ///
     /// Any modifications to the child jar will be reflected on the parent jar,
     /// and any retrievals from the child jar will be made from the parent jar.
@@ -363,7 +364,7 @@ impl CookieJar {
     ///
     /// # Panics
     ///
-    /// Panics if `key` is not exactly 64 bytes long.
+    /// Panics if `key` is not exactly 32 bytes long.
     ///
     /// # Example
     ///
@@ -371,7 +372,7 @@ impl CookieJar {
     /// use cookie::{Cookie, CookieJar};
     ///
     /// // We use a bogus key for demonstration purposes.
-    /// let key: Vec<_> = (0..64).collect();
+    /// let key: Vec<_> = (0..32).collect();
     ///
     /// // Add a signed cookie.
     /// let mut jar = CookieJar::new();
@@ -480,8 +481,8 @@ mod test {
         c.add(Cookie::new("test3", "test3"));
         assert_eq!(c.iter().count(), 4);
 
-        c.signed(&key).add(Cookie::new("signed", "signed"));
-        c.private(&key[..32]).add(Cookie::new("encrypted", "encrypted"));
+        c.signed(&key[..32]).add(Cookie::new("signed", "signed"));
+        c.private(&key[32..]).add(Cookie::new("encrypted", "encrypted"));
         assert_eq!(c.iter().count(), 6);
 
         c.remove(Cookie::named("test"));
