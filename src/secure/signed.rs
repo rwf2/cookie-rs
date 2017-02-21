@@ -19,12 +19,12 @@ const KEY_LEN: usize = 64;
 /// plaintext.
 ///
 /// This type is only available when the `secure` feature is enabled.
-pub struct SignedJar<'a, 'k> {
+pub struct SignedJar<'a> {
     parent: &'a mut CookieJar,
-    key: &'k [u8]
+    key: SigningKey
 }
 
-impl<'a, 'k> SignedJar<'a, 'k> {
+impl<'a> SignedJar<'a> {
     /// Creates a new child `SignedJar` with parent `parent` and key `key`. This
     /// method is typically called indirectly via the `signed` method of
     /// `CookieJar`.
@@ -33,12 +33,12 @@ impl<'a, 'k> SignedJar<'a, 'k> {
     ///
     /// Panics if `key` is not exactly 64 bytes long.
     #[doc(hidden)]
-    pub fn new(parent: &'a mut CookieJar, key: &'k [u8]) -> SignedJar<'a, 'k> {
+    pub fn new(parent: &'a mut CookieJar, key: &[u8]) -> SignedJar<'a> {
         if key.len() != KEY_LEN {
             panic!("bad key length: expected {} bytes, found {}", KEY_LEN, key.len());
         }
 
-        SignedJar { parent: parent, key: key }
+        SignedJar { parent: parent, key: SigningKey::new(DIGEST, key) }
     }
 
     /// Given a signed value `str` where the signature is prepended to `value`,
@@ -50,10 +50,9 @@ impl<'a, 'k> SignedJar<'a, 'k> {
         }
 
         let (digest_str, value) = cookie_value.split_at(BASE64_DIGEST_LEN);
-        let key = SigningKey::new(DIGEST, self.key);
         let sig = digest_str.from_base64().map_err(|_| "bad base64 digest")?;
 
-        verify(&key, value.as_bytes(), &sig)
+        verify(&self.key, value.as_bytes(), &sig)
             .map(|_| value.to_string())
             .map_err(|_| "value did not verify")
     }
@@ -105,9 +104,7 @@ impl<'a, 'k> SignedJar<'a, 'k> {
     /// assert_eq!(jar.signed(&key).get("name").unwrap().value(), "value");
     /// ```
     pub fn add(&mut self, mut cookie: Cookie<'static>) {
-        let key = SigningKey::new(DIGEST, self.key);
-        let digest = sign(&key, cookie.value().as_bytes());
-
+        let digest = sign(&self.key, cookie.value().as_bytes());
         let mut new_value = digest.as_ref().to_base64(STANDARD);
         new_value.push_str(cookie.value());
         cookie.set_value(new_value);

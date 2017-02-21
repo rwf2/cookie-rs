@@ -20,12 +20,12 @@ const NONCE_LEN: usize = 12;
 /// contents of a cookie, nor can they fabricate cookie data.
 ///
 /// This type is only available when the `secure` feature is enabled.
-pub struct PrivateJar<'a, 'k> {
+pub struct PrivateJar<'a> {
     parent: &'a mut CookieJar,
-    key: &'k [u8]
+    key: [u8; KEY_LEN]
 }
 
-impl<'a, 'k> PrivateJar<'a, 'k> {
+impl<'a> PrivateJar<'a> {
     /// Creates a new child `PrivateJar` with parent `parent` and key `key`.
     /// This method is typically called indirectly via the `signed` method of
     /// `CookieJar`.
@@ -34,12 +34,14 @@ impl<'a, 'k> PrivateJar<'a, 'k> {
     ///
     /// Panics if `key` is not exactly 32 bytes long.
     #[doc(hidden)]
-    pub fn new(parent: &'a mut CookieJar, key: &'k [u8]) -> PrivateJar<'a, 'k> {
+    pub fn new(parent: &'a mut CookieJar, key: &[u8]) -> PrivateJar<'a> {
         if key.len() != KEY_LEN {
             panic!("bad key length: expected {} bytes, found {}", KEY_LEN, key.len());
         }
 
-        PrivateJar { parent: parent, key: key }
+        let mut key_array = [0u8; KEY_LEN];
+        key_array.copy_from_slice(key);
+        PrivateJar { parent: parent, key: key_array }
     }
 
     /// Given a sealed value `str` where the nonce is prepended to the original
@@ -52,7 +54,7 @@ impl<'a, 'k> PrivateJar<'a, 'k> {
             return Err("length of decoded data is <= NONCE_LEN");
         }
 
-        let key = OpeningKey::new(ALGO, self.key).expect("opening key");
+        let key = OpeningKey::new(ALGO, &self.key).expect("opening key");
         let (nonce, sealed) = data.split_at_mut(NONCE_LEN);
         let out_len = open_in_place(&key, nonce, 0, sealed, &[])
             .map_err(|_| "invalid key/nonce/value: bad seal")?;
@@ -112,7 +114,7 @@ impl<'a, 'k> PrivateJar<'a, 'k> {
         let mut data;
         let output_len = {
             // Create the `SealingKey` structure.
-            let key = SealingKey::new(ALGO, self.key).expect("sealing key creation");
+            let key = SealingKey::new(ALGO, &self.key).expect("sealing key creation");
 
             // Create a vec to hold the [nonce | cookie value | overhead].
             let overhead = ALGO.max_overhead_len();
