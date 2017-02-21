@@ -6,7 +6,7 @@ use secure::rustc_serialize::base64::{ToBase64, FromBase64, STANDARD};
 use {Cookie, CookieJar};
 
 // Keep these three in sync, and keep the key len synced with the `signed` docs.
-static DIGEST: &'static Algorithm = &SHA256;
+static HMAC_DIGEST: &'static Algorithm = &SHA256;
 const BASE64_DIGEST_LEN: usize = 44;
 const KEY_LEN: usize = 32;
 
@@ -38,7 +38,7 @@ impl<'a> SignedJar<'a> {
             panic!("bad key length: expected {} bytes, found {}", KEY_LEN, key.len());
         }
 
-        SignedJar { parent: parent, key: SigningKey::new(DIGEST, key) }
+        SignedJar { parent: parent, key: SigningKey::new(HMAC_DIGEST, key) }
     }
 
     /// Given a signed value `str` where the signature is prepended to `value`,
