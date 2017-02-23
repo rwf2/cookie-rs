@@ -59,6 +59,8 @@
 
 #[cfg(feature = "percent-encode")]
 extern crate url;
+#[cfg(feature = "serialize-rustc")]
+extern crate rustc_serialize;
 extern crate time;
 
 mod builder;
@@ -80,6 +82,7 @@ pub use parse::ParseError;
 pub use builder::CookieBuilder;
 pub use jar::CookieJar;
 
+#[cfg_attr(feature = "serialize-rustc", derive(RustcEncodable, RustcDecodable))]
 #[derive(Debug, Clone)]
 enum CookieStr {
     /// An string derived from indexes (start, end).
@@ -143,6 +146,7 @@ impl CookieStr {
 ///     .http_only(true)
 ///     .finish();
 /// ```
+#[cfg_attr(feature = "serialize-rustc", derive(RustcEncodable, RustcDecodable))]
 #[derive(Debug, Clone)]
 pub struct Cookie<'c> {
     /// Storage for the cookie string. Only used if this structure was derived
