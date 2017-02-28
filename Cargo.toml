@@ -2,7 +2,7 @@
 
 name = "cookie"
 authors = ["Alex Crichton <alex@alexcrichton.com>", "Sergio Benitez <sb@sergio.bz>"]
-version = "0.6.0"
+version = "0.6.1"
 license = "MIT/Apache-2.0"
 repository = "https://github.com/alexcrichton/cookie-rs"
 documentation = "https://docs.rs/cookie"
