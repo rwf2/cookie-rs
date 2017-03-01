@@ -1,15 +1,17 @@
 use secure::ring::aead::{seal_in_place, open_in_place, Algorithm, AES_256_GCM};
 use secure::ring::aead::{OpeningKey, SealingKey};
 use secure::ring::rand::SystemRandom;
+use secure::Key;
 
 use secure::rustc_serialize::base64::{ToBase64, FromBase64, STANDARD};
 
 use {Cookie, CookieJar};
 
-// Keep these in sync, and keep the key len synced with the `private` docs.
+// Keep these in sync, and keep the key len synced with the `private` docs as
+// well as the `KEYS_INFO` const in secure::Key.
 static ALGO: &'static Algorithm = &AES_256_GCM;
-const KEY_LEN: usize = 32;
 const NONCE_LEN: usize = 12;
+pub const KEY_LEN: usize = 32;
 
 /// A child cookie jar that provides authenticated encryption for its cookies.
 ///
@@ -29,18 +31,10 @@ impl<'a> PrivateJar<'a> {
     /// Creates a new child `PrivateJar` with parent `parent` and key `key`.
     /// This method is typically called indirectly via the `signed` method of
     /// `CookieJar`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `key` is not exactly 32 bytes long.
     #[doc(hidden)]
-    pub fn new(parent: &'a mut CookieJar, key: &[u8]) -> PrivateJar<'a> {
-        if key.len() != KEY_LEN {
-            panic!("bad key length: expected {} bytes, found {}", KEY_LEN, key.len());
-        }
-
+    pub fn new(parent: &'a mut CookieJar, key: &Key) -> PrivateJar<'a> {
         let mut key_array = [0u8; KEY_LEN];
-        key_array.copy_from_slice(key);
+        key_array.copy_from_slice(key.encryption());
         PrivateJar { parent: parent, key: key_array }
     }
 
@@ -72,9 +66,9 @@ impl<'a> PrivateJar<'a> {
     /// # Example
     ///
     /// ```rust
-    /// use cookie::{CookieJar, Cookie};
+    /// use cookie::{CookieJar, Cookie, Key};
     ///
-    /// # let key: Vec<_> = (0..32).collect();
+    /// let key = Key::generate();
     /// let mut jar = CookieJar::new();
     /// let mut private_jar = jar.private(&key);
     /// assert!(private_jar.get("name").is_none());
@@ -101,9 +95,9 @@ impl<'a> PrivateJar<'a> {
     /// # Example
     ///
     /// ```rust
-    /// use cookie::{CookieJar, Cookie};
+    /// use cookie::{CookieJar, Cookie, Key};
     ///
-    /// # let key: Vec<_> = (0..32).collect();
+    /// let key = Key::generate();
     /// let mut jar = CookieJar::new();
     /// jar.private(&key).add(Cookie::new("name", "value"));
     ///
@@ -149,9 +143,9 @@ impl<'a> PrivateJar<'a> {
     /// # Example
     ///
     /// ```rust
-    /// use cookie::{CookieJar, Cookie};
+    /// use cookie::{CookieJar, Cookie, Key};
     ///
-    /// # let key: Vec<_> = (0..32).collect();
+    /// let key = Key::generate();
     /// let mut jar = CookieJar::new();
     /// let mut private_jar = jar.private(&key);
     ///
@@ -168,18 +162,18 @@ impl<'a> PrivateJar<'a> {
 
 #[cfg(test)]
 mod test {
-    use {CookieJar, Cookie};
+    use {CookieJar, Cookie, Key};
 
     #[test]
     fn simple() {
-        let key: Vec<u8> = (0..super::KEY_LEN as u8).collect();
+        let key = Key::generate();
         let mut jar = CookieJar::new();
         assert_simple_behaviour!(jar, jar.private(&key));
     }
 
     #[test]
     fn private() {
-        let key: Vec<u8> = (0..super::KEY_LEN as u8).collect();
+        let key = Key::generate();
         let mut jar = CookieJar::new();
         assert_secure_behaviour!(jar, jar.private(&key));
     }

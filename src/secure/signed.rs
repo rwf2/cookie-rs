@@ -1,14 +1,16 @@
 use secure::ring::digest::{SHA256, Algorithm};
 use secure::ring::hmac::{SigningKey, sign, verify_with_own_key as verify};
+use secure::Key;
 
 use secure::rustc_serialize::base64::{ToBase64, FromBase64, STANDARD};
 
 use {Cookie, CookieJar};
 
-// Keep these three in sync, and keep the key len synced with the `signed` docs.
+// Keep these in sync, and keep the key len synced with the `signed` docs as
+// well as the `KEYS_INFO` const in secure::Key.
 static HMAC_DIGEST: &'static Algorithm = &SHA256;
 const BASE64_DIGEST_LEN: usize = 44;
-const KEY_LEN: usize = 32;
+pub const KEY_LEN: usize = 32;
 
 /// A child cookie jar that authenticates its cookies.
 ///
@@ -28,17 +30,9 @@ impl<'a> SignedJar<'a> {
     /// Creates a new child `SignedJar` with parent `parent` and key `key`. This
     /// method is typically called indirectly via the `signed` method of
     /// `CookieJar`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `key` is not exactly 32 bytes long.
     #[doc(hidden)]
-    pub fn new(parent: &'a mut CookieJar, key: &[u8]) -> SignedJar<'a> {
-        if key.len() != KEY_LEN {
-            panic!("bad key length: expected {} bytes, found {}", KEY_LEN, key.len());
-        }
-
-        SignedJar { parent: parent, key: SigningKey::new(HMAC_DIGEST, key) }
+    pub fn new(parent: &'a mut CookieJar, key: &Key) -> SignedJar<'a> {
+        SignedJar { parent: parent, key: SigningKey::new(HMAC_DIGEST, key.signing()) }
     }
 
     /// Given a signed value `str` where the signature is prepended to `value`,
@@ -65,9 +59,9 @@ impl<'a> SignedJar<'a> {
     /// # Example
     ///
     /// ```rust
-    /// use cookie::{CookieJar, Cookie};
+    /// use cookie::{CookieJar, Cookie, Key};
     ///
-    /// # let key: Vec<_> = (0..32).collect();
+    /// let key = Key::generate();
     /// let mut jar = CookieJar::new();
     /// let mut signed_jar = jar.signed(&key);
     /// assert!(signed_jar.get("name").is_none());
@@ -93,9 +87,9 @@ impl<'a> SignedJar<'a> {
     /// # Example
     ///
     /// ```rust
-    /// use cookie::{CookieJar, Cookie};
+    /// use cookie::{CookieJar, Cookie, Key};
     ///
-    /// # let key: Vec<_> = (0..32).collect();
+    /// let key = Key::generate();
     /// let mut jar = CookieJar::new();
     /// jar.signed(&key).add(Cookie::new("name", "value"));
     ///
@@ -123,9 +117,9 @@ impl<'a> SignedJar<'a> {
     /// # Example
     ///
     /// ```rust
-    /// use cookie::{CookieJar, Cookie};
+    /// use cookie::{CookieJar, Cookie, Key};
     ///
-    /// # let key: Vec<_> = (0..32).collect();
+    /// let key = Key::generate();
     /// let mut jar = CookieJar::new();
     /// let mut signed_jar = jar.signed(&key);
     ///
@@ -142,18 +136,18 @@ impl<'a> SignedJar<'a> {
 
 #[cfg(test)]
 mod test {
-    use {CookieJar, Cookie};
+    use {CookieJar, Cookie, Key};
 
     #[test]
     fn simple() {
-        let key: Vec<u8> = (0..super::KEY_LEN as u8).collect();
+        let key = Key::generate();
         let mut jar = CookieJar::new();
         assert_simple_behaviour!(jar, jar.signed(&key));
     }
 
     #[test]
     fn private() {
-        let key: Vec<u8> = (0..super::KEY_LEN as u8).collect();
+        let key = Key::generate();
         let mut jar = CookieJar::new();
         assert_secure_behaviour!(jar, jar.signed(&key));
     }

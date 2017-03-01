@@ -4,7 +4,7 @@ use std::mem::replace;
 use time::{self, Duration};
 
 #[cfg(feature = "secure")]
-use secure::{PrivateJar, SignedJar};
+use secure::{PrivateJar, SignedJar, Key};
 use delta::DeltaCookie;
 use Cookie;
 
@@ -310,26 +310,20 @@ impl CookieJar {
 
     /// Returns a `PrivateJar` with `self` as its parent jar using the key `key`
     /// to sign/encrypt and verify/decrypt cookies added/retrieved from the
-    /// child jar. The key must be exactly 32 bytes. For security, the key
-    /// _must_ be cryptographically random and _different_ from a key used for
-    /// a signed jar, if any.
+    /// child jar.
     ///
     /// Any modifications to the child jar will be reflected on the parent jar,
     /// and any retrievals from the child jar will be made from the parent jar.
     ///
     /// This method is only available when the `secure` feature is enabled.
     ///
-    /// # Panics
-    ///
-    /// Panics if `key` is not exactly 32 bytes long.
-    ///
     /// # Example
     ///
     /// ```rust
-    /// use cookie::{Cookie, CookieJar};
+    /// use cookie::{Cookie, CookieJar, Key};
     ///
-    /// // We use a bogus key for demonstration purposes.
-    /// let key: Vec<_> = (0..32).collect();
+    /// // Generate a secure key.
+    /// let key = Key::generate();
     ///
     /// // Add a private (signed + encrypted) cookie.
     /// let mut jar = CookieJar::new();
@@ -348,31 +342,25 @@ impl CookieJar {
     /// assert!(jar.get("private").is_some());
     /// ```
     #[cfg(feature = "secure")]
-    pub fn private<'a, 'k>(&'a mut self, key: &[u8]) -> PrivateJar<'a> {
+    pub fn private(&mut self, key: &Key) -> PrivateJar {
         PrivateJar::new(self, key)
     }
 
     /// Returns a `SignedJar` with `self` as its parent jar using the key `key`
-    /// to sign/verify cookies added/retrieved from the child jar. The key must
-    /// be exactly 32 bytes. For security, the key _must_ be cryptographically
-    /// random and _different_ from a key used for a private jar, if any.
+    /// to sign/verify cookies added/retrieved from the child jar.
     ///
     /// Any modifications to the child jar will be reflected on the parent jar,
     /// and any retrievals from the child jar will be made from the parent jar.
     ///
     /// This method is only available when the `secure` feature is enabled.
     ///
-    /// # Panics
-    ///
-    /// Panics if `key` is not exactly 32 bytes long.
-    ///
     /// # Example
     ///
     /// ```rust
-    /// use cookie::{Cookie, CookieJar};
+    /// use cookie::{Cookie, CookieJar, Key};
     ///
-    /// // We use a bogus key for demonstration purposes.
-    /// let key: Vec<_> = (0..32).collect();
+    /// // Generate a secure key.
+    /// let key = Key::generate();
     ///
     /// // Add a signed cookie.
     /// let mut jar = CookieJar::new();
@@ -392,7 +380,7 @@ impl CookieJar {
     /// assert!(jar.get("signed").is_some());
     /// ```
     #[cfg(feature = "secure")]
-    pub fn signed<'a>(&'a mut self, key: &[u8]) -> SignedJar<'a> {
+    pub fn signed(&mut self, key: &Key) -> SignedJar {
         SignedJar::new(self, key)
     }
 }
@@ -471,7 +459,7 @@ mod test {
     #[test]
     #[cfg(feature = "secure")]
     fn iter() {
-        let key: Vec<u8> = (0..64).collect();
+        let key = ::Key::generate();
         let mut c = CookieJar::new();
 
         c.add_original(Cookie::new("original", "original"));
@@ -481,8 +469,8 @@ mod test {
         c.add(Cookie::new("test3", "test3"));
         assert_eq!(c.iter().count(), 4);
 
-        c.signed(&key[..32]).add(Cookie::new("signed", "signed"));
-        c.private(&key[32..]).add(Cookie::new("encrypted", "encrypted"));
+        c.signed(&key).add(Cookie::new("signed", "signed"));
+        c.private(&key).add(Cookie::new("encrypted", "encrypted"));
         assert_eq!(c.iter().count(), 6);
 
         c.remove(Cookie::named("test"));
