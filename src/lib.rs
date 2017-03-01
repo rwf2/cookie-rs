@@ -1,4 +1,4 @@
-//! HTTP Cookie parsing and Cookie Jar management.
+//! HTTP cookie parsing and cookie jar management.
 //!
 //! This crates provides the [Cookie](struct.Cookie.html) type, which directly
 //! maps to an HTTP cookie, and the [CookieJar](struct.CookieJar.html) type,
@@ -10,7 +10,7 @@
 //! Add the following to the `[dependencies]` section of your `Cargo.toml`:
 //!
 //! ```ignore
-//! cookie = "0.6"
+//! cookie = "0.7"
 //! ```
 //!
 //! Then add the following line to your crate root:
@@ -25,13 +25,18 @@
 //! features:
 //!
 //!
-//! * **secure** (enabled by default)
+//! * **secure** (disabled by default)
 //!
-//!   Enables signing and encryption of cookies.
+//!   Enables signed and private (signed + encrypted) cookie jars.
 //!
-//!   When this feature is enabled, signed and encrypted cookies jars will
-//!   encrypt and/or sign any cookies added to them. When this feature is
-//!   disabled, those cookies will be added in plaintext.
+//!   When this feature is enabled, the
+//!   [signed](struct.CookieJar.html#method.signed) and
+//!   [private](struct.CookieJar.html#method.private) method of `CookieJar` and
+//!   [SignedJar](struct.SignedJar.html) and
+//!   [PrivateJar](struct.PrivateJar.html) structures are available. The jars
+//!   act as "children jars", allowing for easy retrieval and addition of signed
+//!   and/or encrypted cookies to a cookie jar. When this feature is disabled,
+//!   none of the types are available.
 //!
 //! * **percent-encode** (disabled by default)
 //!
@@ -53,17 +58,19 @@
 //! features = ["secure", "percent-encode"]
 //! ```
 
-#![doc(html_root_url = "https://docs.rs/cookie/0.6")]
+#![doc(html_root_url = "https://docs.rs/cookie/0.7")]
 #![deny(missing_docs)]
-#![cfg_attr(test, deny(warnings))]
 
-#[cfg(feature = "percent-encode")]
-extern crate url;
+#[cfg(feature = "percent-encode")] extern crate url;
 extern crate time;
 
 mod builder;
-mod jar;
 mod parse;
+mod jar;
+mod delta;
+
+#[cfg(feature = "secure")] #[macro_use] mod secure;
+#[cfg(feature = "secure")] pub use secure::*;
 
 use std::borrow::Cow;
 use std::ascii::AsciiExt;
@@ -78,7 +85,7 @@ use parse::parse_cookie;
 pub use parse::ParseError;
 
 pub use builder::CookieBuilder;
-pub use jar::CookieJar;
+pub use jar::{CookieJar, Delta, Iter};
 
 #[derive(Debug, Clone)]
 enum CookieStr {
@@ -192,6 +199,23 @@ impl Cookie<'static> {
             secure: false,
             http_only: false,
         }
+    }
+
+    /// Creates a new `Cookie` with the given name and an empty value.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::Cookie;
+    ///
+    /// let cookie = Cookie::named("name");
+    /// assert_eq!(cookie.name(), "name");
+    /// assert!(cookie.value().is_empty());
+    /// ```
+    pub fn named<N>(name: N) -> Cookie<'static>
+        where N: Into<Cow<'static, str>>
+    {
+        Cookie::new(name, "")
     }
 
     /// Creates a new `CookieBuilder` instance from the given key and value
@@ -613,6 +637,34 @@ impl<'c> Cookie<'c> {
         self.expires = Some(time);
     }
 
+    /// Makes `self` a "permanent" cookie by extending its expiration and max
+    /// age 20 years into the future.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate cookie;
+    /// extern crate time;
+    ///
+    /// use cookie::Cookie;
+    /// use time::Duration;
+    ///
+    /// # fn main() {
+    /// let mut c = Cookie::new("foo", "bar");
+    /// assert!(c.expires().is_none());
+    /// assert!(c.max_age().is_none());
+    ///
+    /// c.make_permanent();
+    /// assert!(c.expires().is_some());
+    /// assert_eq!(c.max_age(), Some(Duration::days(365 * 20)));
+    /// # }
+    /// ```
+    pub fn make_permanent(&mut self) {
+        let twenty_years = Duration::days(365 * 20);
+        self.set_max_age(twenty_years);
+        self.set_expires(time::now() + twenty_years);
+    }
+
     fn fmt_parameters(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.http_only() {
             write!(f, "; HttpOnly")?;
@@ -677,6 +729,19 @@ impl<'a, 'c: 'a> fmt::Display for EncodedCookie<'a, 'c> {
 }
 
 impl<'c> fmt::Display for Cookie<'c> {
+    /// Formats the cookie `self` as a `Set-Cookie` header value.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::Cookie;
+    ///
+    /// let mut cookie = Cookie::build("foo", "bar")
+    ///     .path("/")
+    ///     .finish();
+    ///
+    /// assert_eq!(&cookie.to_string(), "foo=bar; Path=/");
+    /// ```
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}={}", self.name(), self.value())?;
         self.fmt_parameters(f)

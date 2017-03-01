@@ -9,7 +9,7 @@ A library for parsing HTTP cookies and managing cookie jars
 ```toml
 # Cargo.toml
 [dependencies]
-cookie = "0.6"
+cookie = "0.7"
 ```
 
 # License
