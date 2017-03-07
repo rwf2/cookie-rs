@@ -1,5 +1,5 @@
 extern crate ring;
-extern crate rustc_serialize;
+extern crate base64;
 
 #[macro_use]
 mod macros;

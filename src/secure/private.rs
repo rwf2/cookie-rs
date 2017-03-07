@@ -1,9 +1,7 @@
 use secure::ring::aead::{seal_in_place, open_in_place, Algorithm, AES_256_GCM};
 use secure::ring::aead::{OpeningKey, SealingKey};
 use secure::ring::rand::SystemRandom;
-use secure::Key;
-
-use secure::rustc_serialize::base64::{ToBase64, FromBase64, STANDARD};
+use secure::{base64, Key};
 
 use {Cookie, CookieJar};
 
@@ -43,7 +41,7 @@ impl<'a> PrivateJar<'a> {
     /// value and returns it. If there's a problem, returns an `Err` with a
     /// string describing the issue.
     fn unseal(&self, value: &str) -> Result<String, &'static str> {
-        let mut data = value.from_base64().map_err(|_| "bad base64 value")?;
+        let mut data = base64::decode(value).map_err(|_| "bad base64 value")?;
         if data.len() <= NONCE_LEN {
             return Err("length of decoded data is <= NONCE_LEN");
         }
@@ -125,7 +123,7 @@ impl<'a> PrivateJar<'a> {
         };
 
         // Base64 encode the nonce and encrypted value.
-        let sealed_value = data[..(NONCE_LEN + output_len)].to_base64(STANDARD);
+        let sealed_value = base64::encode(&data[..(NONCE_LEN + output_len)]);
         cookie.set_value(sealed_value);
 
         // Add the sealed cookie to the parent.

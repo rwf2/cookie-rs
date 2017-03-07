@@ -1,8 +1,6 @@
 use secure::ring::digest::{SHA256, Algorithm};
 use secure::ring::hmac::{SigningKey, sign, verify_with_own_key as verify};
-use secure::Key;
-
-use secure::rustc_serialize::base64::{ToBase64, FromBase64, STANDARD};
+use secure::{base64, Key};
 
 use {Cookie, CookieJar};
 
@@ -44,7 +42,7 @@ impl<'a> SignedJar<'a> {
         }
 
         let (digest_str, value) = cookie_value.split_at(BASE64_DIGEST_LEN);
-        let sig = digest_str.from_base64().map_err(|_| "bad base64 digest")?;
+        let sig = base64::decode(digest_str).map_err(|_| "bad base64 digest")?;
 
         verify(&self.key, value.as_bytes(), &sig)
             .map(|_| value.to_string())
@@ -99,7 +97,7 @@ impl<'a> SignedJar<'a> {
     /// ```
     pub fn add(&mut self, mut cookie: Cookie<'static>) {
         let digest = sign(&self.key, cookie.value().as_bytes());
-        let mut new_value = digest.as_ref().to_base64(STANDARD);
+        let mut new_value = base64::encode(digest.as_ref());
         new_value.push_str(cookie.value());
         cookie.set_value(new_value);
 
