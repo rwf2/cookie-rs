@@ -96,14 +96,6 @@ enum CookieStr {
 }
 
 impl CookieStr {
-    /// Whether this string is derived from indexes or not.
-    fn is_indexed(&self) -> bool {
-        match *self {
-            CookieStr::Indexed(..) => true,
-            CookieStr::Concrete(..) => false,
-        }
-    }
-
     /// Retrieves the string `self` corresponds to. If `self` is derived from
     /// indexes, the corresponding subslice of `string` is returned. Otherwise,
     /// the concrete string is returned.
@@ -112,13 +104,25 @@ impl CookieStr {
     ///
     /// Panics if `self` is an indexed string and `string` is None.
     fn to_str<'s>(&'s self, string: Option<&'s Cow<str>>) -> &'s str {
-        if self.is_indexed() && string.is_none() {
-            panic!("Cannot convert indexed str to str without base string!")
-        }
-
         match *self {
-            CookieStr::Indexed(i, j) => &string.unwrap()[i..j],
+            CookieStr::Indexed(i, j) => {
+                let s = string.expect("`Some` base string must exist when \
+                    converting indexed str to str! (This is a module invariant.)");
+                &s[i..j]
+            },
             CookieStr::Concrete(ref cstr) => &*cstr,
+        }
+    }
+
+    fn to_raw_str<'s, 'c: 's>(&'s self, string: &'s Cow<'c, str>) -> Option<&'c str> {
+        match *self {
+            CookieStr::Indexed(i, j) => {
+                match *string {
+                    Cow::Borrowed(s) => Some(&s[i..j]),
+                    Cow::Owned(_) => None,
+                }
+            },
+            CookieStr::Concrete(_) => None,
         }
     }
 }
@@ -692,6 +696,134 @@ impl<'c> Cookie<'c> {
 
         Ok(())
     }
+
+    /// Returns the name of `self` as a string slice of the raw string `self`
+    /// was originally parsed from. If `self` was not originally parsed from a
+    /// raw string, returns `None`.
+    ///
+    /// This method differs from [name](#method.name) in that it returns a
+    /// string with the same lifetime as the originally parsed string. This
+    /// lifetime may outlive `self`. If a longer lifetime is not required, or
+    /// you're unsure if you need a longer lifetime, use [name](#method.name).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::Cookie;
+    ///
+    /// let cookie_string = format!("{}={}", "foo", "bar");
+    ///
+    /// // `c` will be dropped at the end of the scope, but `name` will live on
+    /// let name = {
+    ///     let c = Cookie::parse(cookie_string.as_str()).unwrap();
+    ///     c.name_raw()
+    /// };
+    ///
+    /// assert_eq!(name, Some("foo"));
+    /// ```
+    #[inline]
+    pub fn name_raw(&self) -> Option<&'c str> {
+        self.cookie_string.as_ref()
+            .and_then(|s| self.name.to_raw_str(s))
+    }
+
+    /// Returns the value of `self` as a string slice of the raw string `self`
+    /// was originally parsed from. If `self` was not originally parsed from a
+    /// raw string, returns `None`.
+    ///
+    /// This method differs from [value](#method.value) in that it returns a
+    /// string with the same lifetime as the originally parsed string. This
+    /// lifetime may outlive `self`. If a longer lifetime is not required, or
+    /// you're unsure if you need a longer lifetime, use [value](#method.value).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::Cookie;
+    ///
+    /// let cookie_string = format!("{}={}", "foo", "bar");
+    ///
+    /// // `c` will be dropped at the end of the scope, but `value` will live on
+    /// let value = {
+    ///     let c = Cookie::parse(cookie_string.as_str()).unwrap();
+    ///     c.value_raw()
+    /// };
+    ///
+    /// assert_eq!(value, Some("bar"));
+    /// ```
+    #[inline]
+    pub fn value_raw(&self) -> Option<&'c str> {
+        self.cookie_string.as_ref()
+            .and_then(|s| self.value.to_raw_str(s))
+    }
+
+    /// Returns the `Path` of `self` as a string slice of the raw string `self`
+    /// was originally parsed from. If `self` was not originally parsed from a
+    /// raw string, or if `self` doesn't contain a `Path`, or if the `Path` has
+    /// changed since parsing, returns `None`.
+    ///
+    /// This method differs from [path](#method.path) in that it returns a
+    /// string with the same lifetime as the originally parsed string. This
+    /// lifetime may outlive `self`. If a longer lifetime is not required, or
+    /// you're unsure if you need a longer lifetime, use [path](#method.path).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::Cookie;
+    ///
+    /// let cookie_string = format!("{}={}; Path=/", "foo", "bar");
+    ///
+    /// // `c` will be dropped at the end of the scope, but `path` will live on
+    /// let path = {
+    ///     let c = Cookie::parse(cookie_string.as_str()).unwrap();
+    ///     c.path_raw()
+    /// };
+    ///
+    /// assert_eq!(path, Some("/"));
+    /// ```
+    #[inline]
+    pub fn path_raw(&self) -> Option<&'c str> {
+        match (self.path.as_ref(), self.cookie_string.as_ref()) {
+            (Some(path), Some(string)) => path.to_raw_str(string),
+            _ => None,
+        }
+    }
+
+    /// Returns the `Domain` of `self` as a string slice of the raw string
+    /// `self` was originally parsed from. If `self` was not originally parsed
+    /// from a raw string, or if `self` doesn't contain a `Domain`, or if the
+    /// `Domain` has changed since parsing, returns `None`.
+    ///
+    /// This method differs from [domain](#method.domain) in that it returns a
+    /// string with the same lifetime as the originally parsed string. This
+    /// lifetime may outlive `self` struct. If a longer lifetime is not
+    /// required, or you're unsure if you need a longer lifetime, use
+    /// [domain](#method.domain).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::Cookie;
+    ///
+    /// let cookie_string = format!("{}={}; Domain=crates.io", "foo", "bar");
+    ///
+    /// //`c` will be dropped at the end of the scope, but `domain` will live on
+    /// let domain = {
+    ///     let c = Cookie::parse(cookie_string.as_str()).unwrap();
+    ///     c.domain_raw()
+    /// };
+    ///
+    /// assert_eq!(domain, Some("crates.io"));
+    /// ```
+    #[inline]
+    pub fn domain_raw(&self) -> Option<&'c str> {
+        match (self.domain.as_ref(), self.cookie_string.as_ref()) {
+            (Some(domain), Some(string)) => domain.to_raw_str(string),
+            _ => None,
+        }
+    }
+
 }
 
 /// Wrapper around `Cookie` whose `Display` implementation percent-encodes the
@@ -821,6 +953,52 @@ mod tests {
             .expires(expires).finish();
         assert_eq!(&cookie.to_string(),
                    "foo=bar; Expires=Wed, 21 Oct 2015 07:28:00 GMT");
+    }
+
+    #[test]
+    fn cookie_string_long_lifetimes() {
+        let cookie_string = "bar=baz; Path=/subdir; HttpOnly; Domain=crates.io".to_owned();
+        let (name, value, path, domain) = {
+            // Create a cookie passing a slice
+            let c = Cookie::parse(cookie_string.as_str()).unwrap();
+            (c.name_raw(), c.value_raw(), c.path_raw(), c.domain_raw())
+        };
+
+        assert_eq!(name, Some("bar"));
+        assert_eq!(value, Some("baz"));
+        assert_eq!(path, Some("/subdir"));
+        assert_eq!(domain, Some("crates.io"));
+    }
+
+    #[test]
+    fn owned_cookie_string() {
+        let cookie_string = "bar=baz; Path=/subdir; HttpOnly; Domain=crates.io".to_owned();
+        let (name, value, path, domain) = {
+            // Create a cookie passing an owned string
+            let c = Cookie::parse(cookie_string).unwrap();
+            (c.name_raw(), c.value_raw(), c.path_raw(), c.domain_raw())
+        };
+
+        assert_eq!(name, None);
+        assert_eq!(value, None);
+        assert_eq!(path, None);
+        assert_eq!(domain, None);
+    }
+
+    #[test]
+    fn owned_cookie_struct() {
+        let cookie_string = "bar=baz; Path=/subdir; HttpOnly; Domain=crates.io";
+        let (name, value, path, domain) = {
+            // Create an owned cookie
+            let c = Cookie::parse(cookie_string).unwrap().into_owned();
+
+            (c.name_raw(), c.value_raw(), c.path_raw(), c.domain_raw())
+        };
+
+        assert_eq!(name, None);
+        assert_eq!(value, None);
+        assert_eq!(path, None);
+        assert_eq!(domain, None);
     }
 
     #[test]
