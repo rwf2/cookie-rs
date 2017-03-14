@@ -1,7 +1,7 @@
 //! HTTP cookie parsing and cookie jar management.
 //!
-//! This crates provides the [Cookie](struct.Cookie.html) type, which directly
-//! maps to an HTTP cookie, and the [CookieJar](struct.CookieJar.html) type,
+//! This crates provides the [`Cookie`](struct.Cookie.html) type, which directly
+//! maps to an HTTP cookie, and the [`CookieJar`](struct.CookieJar.html) type,
 //! which allows for simple management of many cookies as well as encryption and
 //! signing of cookies for session management.
 //!
@@ -32,8 +32,8 @@
 //!   When this feature is enabled, the
 //!   [signed](struct.CookieJar.html#method.signed) and
 //!   [private](struct.CookieJar.html#method.private) method of `CookieJar` and
-//!   [SignedJar](struct.SignedJar.html) and
-//!   [PrivateJar](struct.PrivateJar.html) structures are available. The jars
+//!   [`SignedJar`](struct.SignedJar.html) and
+//!   [`PrivateJar`](struct.PrivateJar.html) structures are available. The jars
 //!   act as "children jars", allowing for easy retrieval and addition of signed
 //!   and/or encrypted cookies to a cookie jar. When this feature is disabled,
 //!   none of the types are available.
@@ -44,7 +44,7 @@
 //!
 //!   When this feature is enabled, the
 //!   [encoded](struct.Cookie.html#method.encoded) and
-//!   [parse_encoded](struct.Cookie.html#method.parse_encoded) methods of
+//!   [`parse_encoded`](struct.Cookie.html#method.parse_encoded) methods of
 //!   `Cookie` become available. The `encoded` method returns a wrapper around a
 //!   `Cookie` whose `Display` implementation percent-encodes the name and value
 //!   of the cookie. The `parse_encoded` method percent-decodes the name and
@@ -142,7 +142,7 @@ impl CookieStr {
 /// ```
 ///
 /// To construct more elaborate cookies, use the [build](#method.build) method
-/// and [CookieBuilder](struct.CookieBuilder.html) methods:
+/// and [`CookieBuilder`](struct.CookieBuilder.html) methods:
 ///
 /// ```rust
 /// use cookie::Cookie;
