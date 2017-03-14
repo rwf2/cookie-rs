@@ -17,7 +17,7 @@ use Cookie;
 /// # Usage
 ///
 /// A jar's life begins via [new](#method.new) and calls to
-/// [add_original](#method.add_original):
+/// [`add_original`](#method.add_original):
 ///
 /// ```rust
 /// use cookie::{Cookie, CookieJar};

@@ -8,7 +8,7 @@ use ::Cookie;
 ///
 /// To construct a cookie:
 ///
-///   1. Call [Cookie::build](struct.Cookie.html#method.build) to start building.
+///   1. Call [`Cookie::build`](struct.Cookie.html#method.build) to start building.
 ///   2. Use any of the builder methods to set fields in the cookie.
 ///   3. Call [finish](#method.finish) to retrieve the built cookie.
 ///
