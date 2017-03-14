@@ -116,8 +116,8 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
     let (name, value) = if decode {
         name_val_decoded(name, value)?
     } else {
-        let name_indexes = indexes_of(name, &s).expect("name sub");
-        let value_indexes = indexes_of(value, &s).expect("value sub");
+        let name_indexes = indexes_of(name, s).expect("name sub");
+        let value_indexes = indexes_of(value, s).expect("value sub");
         let name = CookieStr::Indexed(name_indexes.0, name_indexes.1);
         let value = CookieStr::Indexed(value_indexes.0, value_indexes.1);
 
@@ -161,11 +161,11 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                     false => v,
                 };
 
-                let (i, j) = indexes_of(domain, &s).expect("domain sub");
+                let (i, j) = indexes_of(domain, s).expect("domain sub");
                 cookie.domain = Some(CookieStr::Indexed(i, j));
             }
             ("path", Some(v)) => {
-                let (i, j) = indexes_of(v, &s).expect("path sub");
+                let (i, j) = indexes_of(v, s).expect("path sub");
                 cookie.path = Some(CookieStr::Indexed(i, j));
             }
             ("expires", Some(v)) => {
