@@ -177,7 +177,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                     .or_else(|_| time::strptime(v, "%a, %d-%b-%Y %H:%M:%S %Z"))
                     .or_else(|_| time::strptime(v, "%a %b %d %H:%M:%S %Y"));
 
-                if let Some(time) = tm.ok() {
+                if let Ok(time) = tm {
                     cookie.expires = Some(time)
                 }
             }
