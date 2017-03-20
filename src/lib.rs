@@ -68,6 +68,7 @@ mod builder;
 mod parse;
 mod jar;
 mod delta;
+mod draft;
 
 #[cfg(feature = "secure")] #[macro_use] mod secure;
 #[cfg(feature = "secure")] pub use secure::*;
@@ -83,9 +84,9 @@ use time::{Tm, Duration};
 
 use parse::parse_cookie;
 pub use parse::ParseError;
-
 pub use builder::CookieBuilder;
 pub use jar::{CookieJar, Delta, Iter};
+pub use draft::*;
 
 #[derive(Debug, Clone)]
 enum CookieStr {
@@ -175,6 +176,8 @@ pub struct Cookie<'c> {
     secure: bool,
     /// Whether this cookie was marked httponly.
     http_only: bool,
+    /// The draft `SameSite` attribute.
+    same_site: Option<SameSite>,
 }
 
 impl Cookie<'static> {
@@ -202,6 +205,7 @@ impl Cookie<'static> {
             path: None,
             secure: false,
             http_only: false,
+            same_site: None,
         }
     }
 
@@ -326,6 +330,7 @@ impl<'c> Cookie<'c> {
             path: self.path,
             secure: self.secure,
             http_only: self.http_only,
+            same_site: self.same_site,
         }
     }
 
@@ -402,6 +407,21 @@ impl<'c> Cookie<'c> {
     #[inline]
     pub fn secure(&self) -> bool {
         self.secure
+    }
+
+    /// Returns the `SameSite` attribute of this cookie if one was specified.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::{Cookie, SameSite};
+    ///
+    /// let c = Cookie::parse("name=value; SameSite=Lax").unwrap();
+    /// assert_eq!(c.same_site(), Some(SameSite::Lax));
+    /// ```
+    #[inline]
+    pub fn same_site(&self) -> Option<SameSite> {
+        self.same_site
     }
 
     /// Returns the specified max-age of the cookie if one was specified.
@@ -557,6 +577,24 @@ impl<'c> Cookie<'c> {
         self.secure = value;
     }
 
+    /// Sets the value of `same_site` in `self` to `value`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::{Cookie, SameSite};
+    ///
+    /// let mut c = Cookie::new("name", "value");
+    /// assert!(c.same_site().is_none());
+    ///
+    /// c.set_same_site(SameSite::Strict);
+    /// assert_eq!(c.same_site(), Some(SameSite::Strict));
+    /// ```
+    #[inline]
+    pub fn set_same_site(&mut self, value: SameSite) {
+        self.same_site = Some(value);
+    }
+
     /// Sets the value of `max_age` in `self` to `value`.
     ///
     /// # Example
@@ -676,6 +714,10 @@ impl<'c> Cookie<'c> {
 
         if self.secure() {
             write!(f, "; Secure")?;
+        }
+
+        if let Some(same_site) = self.same_site() {
+            write!(f, "; SameSite={}", same_site)?;
         }
 
         if let Some(path) = self.path() {
@@ -823,7 +865,6 @@ impl<'c> Cookie<'c> {
             _ => None,
         }
     }
-
 }
 
 /// Wrapper around `Cookie` whose `Display` implementation percent-encodes the
@@ -919,7 +960,7 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
 
 #[cfg(test)]
 mod tests {
-    use ::Cookie;
+    use ::{Cookie, SameSite};
     use ::time::{strptime, Duration};
 
     #[test]
@@ -953,6 +994,14 @@ mod tests {
             .expires(expires).finish();
         assert_eq!(&cookie.to_string(),
                    "foo=bar; Expires=Wed, 21 Oct 2015 07:28:00 GMT");
+
+        let cookie = Cookie::build("foo", "bar")
+            .same_site(SameSite::Strict).finish();
+        assert_eq!(&cookie.to_string(), "foo=bar; SameSite=Strict");
+
+        let cookie = Cookie::build("foo", "bar")
+            .same_site(SameSite::Lax).finish();
+        assert_eq!(&cookie.to_string(), "foo=bar; SameSite=Lax");
     }
 
     #[test]

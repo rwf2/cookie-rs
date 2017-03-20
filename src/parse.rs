@@ -9,7 +9,7 @@ use std::convert::From;
 use url::percent_encoding::percent_decode;
 use time::{self, Duration};
 
-use ::{Cookie, CookieStr};
+use ::{Cookie, SameSite, CookieStr};
 
 /// Enum corresponding to a parsing error.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -134,6 +134,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
         path: None,
         secure: false,
         http_only: false,
+        same_site: None
     };
 
     for attr in attributes {
@@ -167,6 +168,19 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
             ("path", Some(v)) => {
                 let (i, j) = indexes_of(v, s).expect("path sub");
                 cookie.path = Some(CookieStr::Indexed(i, j));
+            }
+            ("samesite", Some(v)) => {
+                if v.eq_ignore_ascii_case("strict") {
+                    cookie.same_site = Some(SameSite::Strict);
+                } else if v.eq_ignore_ascii_case("lax") {
+                    cookie.same_site = Some(SameSite::Lax);
+                } else {
+                    // We do nothing here, for now. When/if the `SameSite`
+                    // attribute becomes standard, the spec says that we should
+                    // ignore this cookie, i.e, fail to parse it, when an
+                    // invalid value is passed in. The draft is at
+                    // http://httpwg.org/http-extensions/draft-ietf-httpbis-cookie-same-site.html.
+                }
             }
             ("expires", Some(v)) => {
                 // Try strptime with three date formats according to
@@ -204,7 +218,7 @@ pub fn parse_cookie<'c, S>(cow: S, decode: bool) -> Result<Cookie<'c>, ParseErro
 
 #[cfg(test)]
 mod tests {
-    use ::Cookie;
+    use ::{Cookie, SameSite};
     use ::time::{strptime, Duration};
 
     macro_rules! assert_eq_parse {
@@ -227,6 +241,29 @@ mod tests {
 
             assert_ne!(cookie, $expected);
         )
+    }
+
+    #[test]
+    fn parse_same_site() {
+        let expected = Cookie::build("foo", "bar")
+            .same_site(SameSite::Lax)
+            .finish();
+
+        assert_eq_parse!("foo=bar; SameSite=Lax", expected);
+        assert_eq_parse!("foo=bar; SameSite=lax", expected);
+        assert_eq_parse!("foo=bar; SameSite=LAX", expected);
+        assert_eq_parse!("foo=bar; samesite=Lax", expected);
+        assert_eq_parse!("foo=bar; SAMESITE=Lax", expected);
+
+        let expected = Cookie::build("foo", "bar")
+            .same_site(SameSite::Strict)
+            .finish();
+
+        assert_eq_parse!("foo=bar; SameSite=Strict", expected);
+        assert_eq_parse!("foo=bar; SameSITE=Strict", expected);
+        assert_eq_parse!("foo=bar; SameSite=strict", expected);
+        assert_eq_parse!("foo=bar; SameSite=STrICT", expected);
+        assert_eq_parse!("foo=bar; SameSite=STRICT", expected);
     }
 
     #[test]

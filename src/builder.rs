@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use time::{Tm, Duration};
 
-use ::Cookie;
+use ::{Cookie, SameSite};
 
 /// Structure that follows the builder pattern for building `Cookie` structs.
 ///
@@ -31,7 +31,6 @@ use ::Cookie;
 ///     .finish();
 /// # }
 /// ```
-///
 #[derive(Debug, Clone)]
 pub struct CookieBuilder {
     /// The cookie being built.
@@ -179,6 +178,25 @@ impl CookieBuilder {
     #[inline]
     pub fn http_only(mut self, value: bool) -> CookieBuilder {
         self.cookie.set_http_only(value);
+        self
+    }
+
+    /// Sets the `same_site` field in the cookie being built.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::{Cookie, SameSite};
+    ///
+    /// let c = Cookie::build("foo", "bar")
+    ///     .same_site(SameSite::Strict)
+    ///     .finish();
+    ///
+    /// assert_eq!(c.same_site(), Some(SameSite::Strict));
+    /// ```
+    #[inline]
+    pub fn same_site(mut self, value: SameSite) -> CookieBuilder {
+        self.cookie.set_same_site(value);
         self
     }
 
