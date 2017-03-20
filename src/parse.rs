@@ -156,11 +156,10 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                     Err(_) => continue,
                 };
             }
-            ("domain", Some(v)) if !v.is_empty() => {
-                let domain = match v.starts_with('.') {
-                    true => &v[1..],
-                    false => v,
-                };
+            ("domain", Some(mut domain)) if !domain.is_empty() => {
+                if domain.starts_with('.') {
+                    domain = &domain[1..];
+                }
 
                 let (i, j) = indexes_of(domain, s).expect("domain sub");
                 cookie.domain = Some(CookieStr::Indexed(i, j));

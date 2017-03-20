@@ -412,7 +412,7 @@ impl<'a> Iterator for Iter<'a> {
     type Item = &'a Cookie<'static>;
 
     fn next(&mut self) -> Option<&'a Cookie<'static>> {
-        while let Some(cookie) = self.delta_cookies.next() {
+        for cookie in self.delta_cookies.by_ref() {
             if !cookie.removed {
                 return Some(&*cookie);
             }
