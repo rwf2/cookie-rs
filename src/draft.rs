@@ -48,9 +48,9 @@ impl SameSite {
     /// ```rust
     /// use cookie::SameSite;
     ///
-    /// let strict = SameSite::Lax;
-    /// assert!(strict.is_lax());
-    /// assert!(!strict.is_strict());
+    /// let lax = SameSite::Lax;
+    /// assert!(lax.is_lax());
+    /// assert!(!lax.is_strict());
     /// ```
     #[inline]
     pub fn is_lax(&self) -> bool {
