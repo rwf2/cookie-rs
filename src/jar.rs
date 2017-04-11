@@ -516,7 +516,6 @@ mod test {
         assert!(names.get("test3").unwrap().is_none());
         assert!(names.get("test4").unwrap().is_none());
         assert_eq!(names.get("original").unwrap(), &Some(Duration::seconds(0)));
-
     }
 
     #[test]
