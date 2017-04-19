@@ -19,6 +19,7 @@ const KEYS_INFO: &'static str = "COOKIE;SIGNED:HMAC-SHA256;PRIVATE:AEAD-AES-256-
 /// both a `PrivateJar` and a `SignedJar`.
 ///
 /// This type is only available when the `secure` feature is enabled.
+#[derive(Clone)]
 pub struct Key {
     signing_key: [u8; SIGNED_KEY_LEN],
     encryption_key: [u8; PRIVATE_KEY_LEN]
