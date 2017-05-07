@@ -54,6 +54,7 @@
 //! ```
 
 #![doc(html_root_url = "https://docs.rs/cookie/0.6")]
+#![allow(deprecated)]
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
 
