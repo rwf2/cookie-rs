@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::cmp;
 use std::error::Error;
 use std::ascii::AsciiExt;
 use std::str::Utf8Error;
@@ -151,7 +152,12 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                 // max age as 0 seconds.
                 cookie.max_age = match v.parse() {
                     Ok(val) if val <= 0 => Some(Duration::zero()),
-                    Ok(val) => Some(Duration::seconds(val)),
+                    Ok(val) => {
+                        // Don't panic if the max age seconds is greater than what's supported by
+                        // `Duration`.
+                        let val = cmp::min(val, Duration::max_value().num_seconds());
+                        Some(Duration::seconds(val))
+                    }
                     Err(_) => continue,
                 };
             }
@@ -355,5 +361,14 @@ mod tests {
         };
 
         assert_eq!(cookie, expected);
+    }
+
+    #[test]
+    fn do_not_panic_on_large_max_ages() {
+        let max_seconds = Duration::max_value().num_seconds();
+        let expected = Cookie::build("foo", "bar")
+            .max_age(Duration::seconds(max_seconds))
+            .finish();
+        assert_eq_parse!(format!(" foo=bar; Max-Age={:?}", max_seconds + 1), expected);
     }
 }
