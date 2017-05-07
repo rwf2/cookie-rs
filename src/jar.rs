@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::mem::replace;
 
-use time::{self, Duration};
+use chrono::{self, Duration};
 
 #[cfg(feature = "secure")]
 use secure::{PrivateJar, SignedJar, Key};
@@ -182,11 +182,11 @@ impl CookieJar {
     /// Removing an _original_ cookie results in a _removal_ cookie:
     ///
     /// ```rust
+    /// extern crate chrono;
     /// # extern crate cookie;
-    /// extern crate time;
     ///
     /// use cookie::{CookieJar, Cookie};
-    /// use time::Duration;
+    /// use chrono::Duration;
     ///
     /// # fn main() {
     /// let mut jar = CookieJar::new();
@@ -221,7 +221,7 @@ impl CookieJar {
         fn make_removal_cookie(mut cookie: Cookie<'static>) -> DeltaCookie {
             cookie.set_value("");
             cookie.set_max_age(Duration::seconds(0));
-            cookie.set_expires(time::now() - Duration::days(365));
+            cookie.set_expires(chrono::UTC::now() - Duration::days(365));
             DeltaCookie::removed(cookie)
         }
 
@@ -491,7 +491,7 @@ mod test {
     #[cfg(feature = "secure")]
     fn delta() {
         use std::collections::HashMap;
-        use time::Duration;
+        use chrono::Duration;
 
         let mut c = CookieJar::new();
 

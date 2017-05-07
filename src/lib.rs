@@ -62,7 +62,7 @@
 #![deny(missing_docs)]
 
 #[cfg(feature = "percent-encode")] extern crate url;
-extern crate time;
+extern crate chrono;
 
 mod builder;
 mod parse;
@@ -80,7 +80,7 @@ use std::str::FromStr;
 
 #[cfg(feature = "percent-encode")]
 use url::percent_encoding::{USERINFO_ENCODE_SET, percent_encode};
-use time::{Tm, Duration};
+use chrono::{DateTime, Duration, UTC};
 
 use parse::parse_cookie;
 pub use parse::ParseError;
@@ -165,7 +165,7 @@ pub struct Cookie<'c> {
     /// The cookie's value.
     value: CookieStr,
     /// The cookie's experiation, if any.
-    expires: Option<Tm>,
+    expires: Option<DateTime<UTC>>,
     /// The cookie's maximum age, if any.
     max_age: Option<Duration>,
     /// The cookie's domain, if any.
@@ -486,24 +486,29 @@ impl<'c> Cookie<'c> {
             None => None,
         }
     }
-
     /// Returns the `Expires` time of the cookie if one was specified.
     ///
     /// # Example
     ///
     /// ```
-    /// use cookie::Cookie;
+    /// extern crate chrono;
+    /// # extern crate cookie;
     ///
+    /// use cookie::Cookie;
+    /// use chrono::Datelike;
+    ///
+    /// # fn main() {
     /// let c = Cookie::parse("name=value").unwrap();
     /// assert_eq!(c.expires(), None);
     ///
-    /// let expire_time = "Wed, 21 Oct 2017 07:28:00 GMT";
+    /// let expire_time = "Wed, 21 Oct 2015 07:28:00 GMT";
     /// let cookie_str = format!("name=value; Expires={}", expire_time);
     /// let c = Cookie::parse(cookie_str).unwrap();
-    /// assert_eq!(c.expires().map(|t| t.tm_year), Some(117));
+    /// assert_eq!(c.expires().map(|t| t.year()), Some(2015));
+    /// # }
     /// ```
     #[inline]
-    pub fn expires(&self) -> Option<Tm> {
+    pub fn expires(&self) -> Option<DateTime<UTC>> {
         self.expires
     }
 
@@ -600,11 +605,11 @@ impl<'c> Cookie<'c> {
     /// # Example
     ///
     /// ```
+    /// extern crate chrono;
     /// # extern crate cookie;
-    /// extern crate time;
     ///
     /// use cookie::Cookie;
-    /// use time::Duration;
+    /// use chrono::Duration;
     ///
     /// # fn main() {
     /// let mut c = Cookie::new("name", "value");
@@ -658,24 +663,25 @@ impl<'c> Cookie<'c> {
     /// # Example
     ///
     /// ```
+    /// extern crate chrono;
     /// # extern crate cookie;
-    /// extern crate time;
     ///
+    /// use chrono::prelude::*;
     /// use cookie::Cookie;
     ///
     /// # fn main() {
     /// let mut c = Cookie::new("name", "value");
     /// assert_eq!(c.expires(), None);
     ///
-    /// let mut now = time::now();
-    /// now.tm_year += 1;
+    /// let mut now = chrono::UTC::now();
+    /// now = now + chrono::Duration::days(365);
     ///
     /// c.set_expires(now);
     /// assert!(c.expires().is_some())
     /// # }
     /// ```
     #[inline]
-    pub fn set_expires(&mut self, time: Tm) {
+    pub fn set_expires(&mut self, time: DateTime<UTC>) {
         self.expires = Some(time);
     }
 
@@ -685,11 +691,11 @@ impl<'c> Cookie<'c> {
     /// # Example
     ///
     /// ```rust
+    /// extern crate chrono;
     /// # extern crate cookie;
-    /// extern crate time;
     ///
     /// use cookie::Cookie;
-    /// use time::Duration;
+    /// use chrono::Duration;
     ///
     /// # fn main() {
     /// let mut c = Cookie::new("foo", "bar");
@@ -704,7 +710,7 @@ impl<'c> Cookie<'c> {
     pub fn make_permanent(&mut self) {
         let twenty_years = Duration::days(365 * 20);
         self.set_max_age(twenty_years);
-        self.set_expires(time::now() + twenty_years);
+        self.set_expires(chrono::UTC::now() + twenty_years);
     }
 
     fn fmt_parameters(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -733,7 +739,7 @@ impl<'c> Cookie<'c> {
         }
 
         if let Some(time) = self.expires() {
-            write!(f, "; Expires={}", time.rfc822())?;
+            write!(f, "; Expires={}", time.format("%a, %d %b %Y %H:%M:%S GMT"))?;
         }
 
         Ok(())
@@ -961,7 +967,7 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
 #[cfg(test)]
 mod tests {
     use ::{Cookie, SameSite};
-    use ::time::{strptime, Duration};
+    use chrono::{Duration, TimeZone, UTC};
 
     #[test]
     fn format() {
@@ -989,7 +995,7 @@ mod tests {
         assert_eq!(&cookie.to_string(), "foo=bar; Domain=www.rust-lang.org");
 
         let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
-        let expires = strptime(time_str, "%a, %d %b %Y %H:%M:%S %Z").unwrap();
+        let expires = UTC.datetime_from_str(time_str, "%a, %d %b %Y %H:%M:%S GMT").unwrap();
         let cookie = Cookie::build("foo", "bar")
             .expires(expires).finish();
         assert_eq!(&cookie.to_string(),

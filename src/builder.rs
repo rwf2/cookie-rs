@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use time::{Tm, Duration};
+use chrono::{DateTime, Duration, UTC};
 
 use ::{Cookie, SameSite};
 
@@ -15,11 +15,11 @@ use ::{Cookie, SameSite};
 /// # Example
 ///
 /// ```rust
+/// extern crate chrono;
 /// # extern crate cookie;
-/// extern crate time;
 ///
 /// use cookie::Cookie;
-/// use time::Duration;
+/// use chrono::Duration;
 ///
 /// # fn main() {
 /// let cookie: Cookie = Cookie::build("name", "value")
@@ -64,20 +64,20 @@ impl CookieBuilder {
     ///
     /// ```rust
     /// # extern crate cookie;
-    /// extern crate time;
+    /// extern crate chrono;
     ///
     /// use cookie::Cookie;
     ///
     /// # fn main() {
     /// let c = Cookie::build("foo", "bar")
-    ///     .expires(time::now())
+    ///     .expires(chrono::UTC::now())
     ///     .finish();
     ///
     /// assert!(c.expires().is_some());
     /// # }
     /// ```
     #[inline]
-    pub fn expires(mut self, when: Tm) -> CookieBuilder {
+    pub fn expires(mut self, when: DateTime<UTC>) -> CookieBuilder {
         self.cookie.set_expires(when);
         self
     }
@@ -87,10 +87,10 @@ impl CookieBuilder {
     /// # Example
     ///
     /// ```rust
+    /// extern crate chrono;
     /// # extern crate cookie;
-    /// extern crate time;
-    /// use time::Duration;
     ///
+    /// use chrono::Duration;
     /// use cookie::Cookie;
     ///
     /// # fn main() {
@@ -206,11 +206,11 @@ impl CookieBuilder {
     /// # Example
     ///
     /// ```rust
+    /// extern crate chrono;
     /// # extern crate cookie;
-    /// extern crate time;
     ///
+    /// use chrono::Duration;
     /// use cookie::Cookie;
-    /// use time::Duration;
     ///
     /// # fn main() {
     /// let c = Cookie::build("foo", "bar")
