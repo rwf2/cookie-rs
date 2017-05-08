@@ -1,7 +1,7 @@
 use secure::ring::hkdf::expand;
 use secure::ring::digest::{SHA256, Algorithm};
 use secure::ring::hmac::SigningKey;
-use secure::ring::rand::SystemRandom;
+use secure::ring::rand::{SecureRandom, SystemRandom};
 
 use secure::private::KEY_LEN as PRIVATE_KEY_LEN;
 use secure::signed::KEY_LEN as SIGNED_KEY_LEN;
