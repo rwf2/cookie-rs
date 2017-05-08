@@ -1,6 +1,6 @@
 use secure::ring::aead::{seal_in_place, open_in_place, Algorithm, AES_256_GCM};
 use secure::ring::aead::{OpeningKey, SealingKey};
-use secure::ring::rand::SystemRandom;
+use secure::ring::rand::{SecureRandom, SystemRandom};
 use secure::{base64, Key};
 
 use {Cookie, CookieJar};
