@@ -8,7 +8,7 @@ use std::convert::From;
 
 #[cfg(feature = "percent-encode")]
 use url::percent_encoding::percent_decode;
-use time::{self, Duration};
+use chrono::{Duration, TimeZone, UTC};
 
 use ::{Cookie, SameSite, CookieStr};
 
@@ -191,12 +191,12 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                 // Try strptime with three date formats according to
                 // http://tools.ietf.org/html/rfc2616#section-3.3.1. Try
                 // additional ones as encountered in the real world.
-                let tm = time::strptime(v, "%a, %d %b %Y %H:%M:%S %Z")
-                    .or_else(|_| time::strptime(v, "%A, %d-%b-%y %H:%M:%S %Z"))
-                    .or_else(|_| time::strptime(v, "%a, %d-%b-%Y %H:%M:%S %Z"))
-                    .or_else(|_| time::strptime(v, "%a %b %d %H:%M:%S %Y"));
+                let time = UTC.datetime_from_str(v, "%a, %d %b %Y %H:%M:%S GMT")
+                    .or_else(|_| UTC.datetime_from_str(v, "%A, %d-%b-%y %H:%M:%S GMT"))
+                    .or_else(|_| UTC.datetime_from_str(v, "%a, %d-%b-%Y %H:%M:%S GMT"))
+                    .or_else(|_| UTC.datetime_from_str(v, "%a %b %d %H:%M:%S %Y"));
 
-                if let Ok(time) = tm {
+                if let Ok(time) = time {
                     cookie.expires = Some(time)
                 }
             }
@@ -224,7 +224,7 @@ pub fn parse_cookie<'c, S>(cow: S, decode: bool) -> Result<Cookie<'c>, ParseErro
 #[cfg(test)]
 mod tests {
     use ::{Cookie, SameSite};
-    use ::time::{strptime, Duration};
+    use chrono::{Duration, TimeZone, UTC};
 
     macro_rules! assert_eq_parse {
         ($string:expr, $expected:expr) => (
@@ -369,13 +369,13 @@ mod tests {
             Domain=FOO.COM", unexpected);
 
         let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
-        let expires = strptime(time_str, "%a, %d %b %Y %H:%M:%S %Z").unwrap();
+        let expires = UTC.datetime_from_str(time_str, "%a, %d %b %Y %H:%M:%S GMT").unwrap();
         expected.set_expires(expires);
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
             Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", expected);
 
         unexpected.set_domain("foo.com");
-        let bad_expires = strptime(time_str, "%a, %d %b %Y %H:%S:%M %Z").unwrap();
+        let bad_expires = UTC.datetime_from_str(time_str, "%a, %d %b %Y %H:%S:%M GMT").unwrap();
         expected.set_expires(bad_expires);
         assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
             Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", unexpected);
