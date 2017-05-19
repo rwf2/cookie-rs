@@ -201,7 +201,7 @@ impl CookieJar {
     /// let delta: Vec<_> = jar.delta().collect();
     /// assert_eq!(delta.len(), 1);
     /// assert_eq!(delta[0].name(), "name");
-    /// assert_eq!(delta[0].max_age(), Some(Duration::seconds(0)));
+    /// assert_eq!(delta[0].max_age(), Some(0));
     /// # }
     /// ```
     ///
@@ -220,7 +220,7 @@ impl CookieJar {
     pub fn remove(&mut self, cookie: Cookie<'static>) {
         fn make_removal_cookie(mut cookie: Cookie<'static>) -> DeltaCookie {
             cookie.set_value("");
-            cookie.set_max_age(Duration::seconds(0));
+            cookie.set_max_age(0);
             cookie.set_expires(time::now() - Duration::days(365));
             DeltaCookie::removed(cookie)
         }
@@ -491,7 +491,6 @@ mod test {
     #[cfg(feature = "secure")]
     fn delta() {
         use std::collections::HashMap;
-        use time::Duration;
 
         let mut c = CookieJar::new();
 
@@ -515,7 +514,7 @@ mod test {
         assert!(names.get("test2").unwrap().is_none());
         assert!(names.get("test3").unwrap().is_none());
         assert!(names.get("test4").unwrap().is_none());
-        assert_eq!(names.get("original").unwrap(), &Some(Duration::seconds(0)));
+        assert_eq!(names.get("original").unwrap(), &Some(0));
     }
 
     #[test]

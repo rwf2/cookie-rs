@@ -166,8 +166,8 @@ pub struct Cookie<'c> {
     value: CookieStr,
     /// The cookie's experiation, if any.
     expires: Option<Tm>,
-    /// The cookie's maximum age, if any.
-    max_age: Option<Duration>,
+    /// The cookie's maximum age in seconds, if any.
+    max_age: Option<u64>,
     /// The cookie's domain, if any.
     domain: Option<CookieStr>,
     /// The cookie's path domain, if any.
@@ -435,10 +435,10 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.max_age(), None);
     ///
     /// let c = Cookie::parse("name=value; Max-Age=3600").unwrap();
-    /// assert_eq!(c.max_age().map(|age| age.num_hours()), Some(1));
+    /// assert_eq!(c.max_age(), Some(3600));
     /// ```
     #[inline]
-    pub fn max_age(&self) -> Option<Duration> {
+    pub fn max_age(&self) -> Option<u64> {
         self.max_age
     }
 
@@ -610,12 +610,13 @@ impl<'c> Cookie<'c> {
     /// let mut c = Cookie::new("name", "value");
     /// assert_eq!(c.max_age(), None);
     ///
-    /// c.set_max_age(Duration::hours(10));
-    /// assert_eq!(c.max_age(), Some(Duration::hours(10)));
+    /// let ten_hours = 60 * 60 * 10;
+    /// c.set_max_age(ten_hours);
+    /// assert_eq!(c.max_age(), Some(ten_hours));
     /// # }
     /// ```
     #[inline]
-    pub fn set_max_age(&mut self, value: Duration) {
+    pub fn set_max_age(&mut self, value: u64) {
         self.max_age = Some(value);
     }
 
@@ -697,14 +698,16 @@ impl<'c> Cookie<'c> {
     /// assert!(c.max_age().is_none());
     ///
     /// c.make_permanent();
+    ///
+    /// let twenty_years = 60 * 60 * 24 * 365 * 20;
     /// assert!(c.expires().is_some());
-    /// assert_eq!(c.max_age(), Some(Duration::days(365 * 20)));
+    /// assert_eq!(c.max_age(), Some(60 * 60 * 24 * 365 * 20));
     /// # }
     /// ```
     pub fn make_permanent(&mut self) {
-        let twenty_years = Duration::days(365 * 20);
+        let twenty_years = 60 * 60 * 24 * 365 * 20;
         self.set_max_age(twenty_years);
-        self.set_expires(time::now() + twenty_years);
+        self.set_expires(time::now() + Duration::seconds(twenty_years as i64));
     }
 
     fn fmt_parameters(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -729,7 +732,7 @@ impl<'c> Cookie<'c> {
         }
 
         if let Some(max_age) = self.max_age() {
-            write!(f, "; Max-Age={}", max_age.num_seconds())?;
+            write!(f, "; Max-Age={}", max_age)?;
         }
 
         if let Some(time) = self.expires() {
@@ -961,7 +964,7 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
 #[cfg(test)]
 mod tests {
     use ::{Cookie, SameSite};
-    use ::time::{strptime, Duration};
+    use ::time::strptime;
 
     #[test]
     fn format() {
@@ -973,7 +976,7 @@ mod tests {
         assert_eq!(&cookie.to_string(), "foo=bar; HttpOnly");
 
         let cookie = Cookie::build("foo", "bar")
-            .max_age(Duration::seconds(10)).finish();
+            .max_age(10).finish();
         assert_eq!(&cookie.to_string(), "foo=bar; Max-Age=10");
 
         let cookie = Cookie::build("foo", "bar")
