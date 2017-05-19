@@ -679,6 +679,85 @@ impl<'c> Cookie<'c> {
         self.expires = Some(time);
     }
 
+    /// Clears the value of `same_site` in `self`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::{Cookie, SameSite};
+    ///
+    /// let mut c = Cookie::new("name", "value");
+    /// c.set_same_site(SameSite::Strict);
+    /// assert_eq!(c.same_site(), Some(SameSite::Strict));
+    ///
+    /// c.clear_same_site();
+    /// assert_eq!(c.same_site(), None);
+    /// ```
+    pub fn clear_same_site(&mut self) {
+        self.same_site = None;
+    }
+
+    /// Clears the value of `max_age` in `self`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # extern crate cookie;
+    /// extern crate time;
+    ///
+    /// use cookie::Cookie;
+    /// use time::Duration;
+    ///
+    /// # fn main() {
+    /// let mut c = Cookie::new("name", "value");
+    ///
+    /// c.set_max_age(Duration::hours(10));
+    /// assert_eq!(c.max_age(), Some(Duration::hours(10)));
+    ///
+    /// c.clear_max_age();
+    /// assert_eq!(c.max_age(), None);
+    /// # }
+    /// ```
+    pub fn clear_max_age(&mut self) {
+        self.max_age = None;
+    }
+
+    /// Clears the value of `path` in `self`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::Cookie;
+    ///
+    /// let mut c = Cookie::new("name", "value");
+    /// c.set_path("/");
+    /// assert_eq!(c.path(), Some("/"));
+    ///
+    /// c.clear_path();
+    /// assert_eq!(c.path(), None);
+    /// ```
+    pub fn clear_path(&mut self) {
+        self.path = None;
+    }
+
+    /// Clears the `domain` of `self`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::Cookie;
+    ///
+    /// let mut c = Cookie::new("name", "value");
+    /// c.set_domain("rust-lang.org");
+    /// assert_eq!(c.domain(), Some("rust-lang.org"));
+    ///
+    /// c.clear_domain();
+    /// assert_eq!(c.domain(), None);
+    /// ```
+    pub fn clear_domain(&mut self) {
+        self.domain = None;
+    }
+
     /// Makes `self` a "permanent" cookie by extending its expiration and max
     /// age 20 years into the future.
     ///
