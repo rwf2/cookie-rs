@@ -713,7 +713,10 @@ impl<'c> Cookie<'c> {
     /// # }
     /// ```
     #[inline]
-    pub fn set_expires(&mut self, time: Tm) {
+    pub fn set_expires(&mut self, mut time: Tm) {
+        // RFC 6265 requires dates not to exceed 9999 years. A `Tm.tm_year` of
+        // `0` represents year 1900, so `9999 - 1900` is year 9999.
+        time.tm_year = ::std::cmp::min(9999 - 1900, time.tm_year);
         self.expires = Some(time);
     }
 
@@ -1021,7 +1024,7 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
 #[cfg(test)]
 mod tests {
     use crate::{Cookie, SameSite};
-    use time::{Duration, strptime};
+    use time::{empty_tm, Duration, strptime};
 
     #[test]
     fn format() {
@@ -1054,6 +1057,12 @@ mod tests {
             .expires(expires).finish();
         assert_eq!(&cookie.to_string(),
                    "foo=bar; Expires=Wed, 21 Oct 2015 07:28:00 GMT");
+
+        let expires = empty_tm() + Duration::max_value();
+        let cookie = Cookie::build("foo", "bar")
+            .expires(expires).finish();
+        assert_eq!(&cookie.to_string(),
+                   "foo=bar; Expires=Wed, 16 Aug 9999 07:12:55 GMT");
 
         let cookie = Cookie::build("foo", "bar")
             .same_site(SameSite::Strict).finish();
