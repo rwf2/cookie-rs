@@ -675,7 +675,12 @@ impl<'c> Cookie<'c> {
     /// # }
     /// ```
     #[inline]
-    pub fn set_expires(&mut self, time: Tm) {
+    pub fn set_expires(&mut self, mut time: Tm) {
+        // According to https://tools.ietf.org/html/rfc6265#section-5.1.1, cookie expires needs 
+        // to be less than or equal to 9999 years. Note that Tm.tm_year starts at 1900, so shift
+        // our value back to get the correct time.
+        if time.tm_year > 9999 - 1900 { time.tm_year = 9999 - 1900; }
+
         self.expires = Some(time);
     }
 
@@ -961,7 +966,7 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
 #[cfg(test)]
 mod tests {
     use ::{Cookie, SameSite};
-    use ::time::{strptime, Duration};
+    use ::time::{empty_tm, strptime, Duration};
 
     #[test]
     fn format() {
@@ -994,6 +999,12 @@ mod tests {
             .expires(expires).finish();
         assert_eq!(&cookie.to_string(),
                    "foo=bar; Expires=Wed, 21 Oct 2015 07:28:00 GMT");
+
+        let expires = empty_tm() + Duration::max_value();
+        let cookie = Cookie::build("foo", "bar")
+            .expires(expires).finish();
+        assert_eq!(&cookie.to_string(),
+                   "foo=bar; Expires=Sun, 17 Aug 9999 07:12:54 GMT");
 
         let cookie = Cookie::build("foo", "bar")
             .same_site(SameSite::Strict).finish();
