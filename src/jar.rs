@@ -217,18 +217,12 @@ impl CookieJar {
     /// jar.remove(Cookie::named("name"));
     /// assert_eq!(jar.delta().count(), 0);
     /// ```
-    pub fn remove(&mut self, cookie: Cookie<'static>) {
-        fn make_removal_cookie(mut cookie: Cookie<'static>) -> DeltaCookie {
+    pub fn remove(&mut self, mut cookie: Cookie<'static>) {
+        if self.original_cookies.contains(cookie.name()) {
             cookie.set_value("");
             cookie.set_max_age(Duration::seconds(0));
             cookie.set_expires(time::now() - Duration::days(365));
-            DeltaCookie::removed(cookie)
-        }
-
-        if self.original_cookies.contains(cookie.name()) {
-            let delta_cookie = make_removal_cookie(cookie);
-            let original = self.original_cookies.replace(delta_cookie).unwrap();
-            self.delta_cookies.replace(make_removal_cookie(original.cookie));
+            self.delta_cookies.replace(DeltaCookie::removed(cookie));
         } else {
             self.delta_cookies.remove(cookie.name());
         }
@@ -591,5 +585,20 @@ mod test {
 
         jar.remove(Cookie::named("name"));
         assert_eq!(jar.delta().filter(|c| c.value().is_empty()).count(), 1);
+    }
+
+    #[test]
+    fn remove_with_path() {
+        let mut jar = CookieJar::new();
+        jar.add_original(Cookie::build("name", "val").finish());
+        assert_eq!(jar.iter().count(), 1);
+        assert_eq!(jar.delta().count(), 0);
+        assert_eq!(jar.iter().filter(|c| c.path().is_none()).count(), 1);
+
+        jar.remove(Cookie::build("name", "").path("/").finish());
+        assert_eq!(jar.iter().count(), 0);
+        assert_eq!(jar.delta().count(), 1);
+        assert_eq!(jar.delta().filter(|c| c.value().is_empty()).count(), 1);
+        assert_eq!(jar.delta().filter(|c| c.path() == Some("/")).count(), 1);
     }
 }
