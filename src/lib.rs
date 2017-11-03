@@ -741,6 +741,33 @@ impl<'c> Cookie<'c> {
         self.set_expires(time::now() + twenty_years);
     }
 
+    /// Makes `self` to expire 1 year in the past.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate cookie;
+    /// extern crate time;
+    ///
+    /// use cookie::Cookie;
+    /// use time::Duration;
+    ///
+    /// # fn main() {
+    /// let mut c = Cookie::new("foo", "bar");
+    /// assert!(c.expires().is_none());
+    /// assert!(c.max_age().is_none());
+    ///
+    /// c.make_expire_now();
+    /// assert!(c.expires().is_some());
+    /// assert_eq!(c.max_age(), Some(Duration::days(365 * -1)));
+    /// # }
+    /// ```
+    pub fn make_expire_now(&mut self) {
+        let previous_year = Duration::days(365 * 1);
+        self.set_max_age(-previous_year);
+        self.set_expires(time::now() - previous_year);
+    }
+
     fn fmt_parameters(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(true) = self.http_only() {
             write!(f, "; HttpOnly")?;
