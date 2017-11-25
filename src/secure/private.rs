@@ -104,6 +104,23 @@ impl<'a> PrivateJar<'a> {
     /// assert_eq!(jar.private(&key).get("name").unwrap().value(), "value");
     /// ```
     pub fn add(&mut self, mut cookie: Cookie<'static>) {
+        self.encrypt_cookie(&mut cookie);
+
+        // Add the sealed cookie to the parent.
+        self.parent.add(cookie);
+    }
+
+    /// Same as add, but adds original `cookie`
+    pub fn add_original(&mut self, mut cookie: Cookie<'static>) {
+        self.encrypt_cookie(&mut cookie);
+
+        // Add the sealed cookie to the parent.
+        self.parent.add_original(cookie);
+    }
+
+    /// Encrypts the cookie's value with
+    /// authenticated encryption assuring confidentiality, integrity, and authenticity.
+    fn encrypt_cookie(&self, cookie: &mut Cookie) {
         let mut data;
         let output_len = {
             // Create the `SealingKey` structure.
@@ -129,9 +146,6 @@ impl<'a> PrivateJar<'a> {
         // Base64 encode the nonce and encrypted value.
         let sealed_value = base64::encode(&data[..(NONCE_LEN + output_len)]);
         cookie.set_value(sealed_value);
-
-        // Add the sealed cookie to the parent.
-        self.parent.add(cookie);
     }
 
     /// Removes `cookie` from the parent jar.

@@ -96,12 +96,22 @@ impl<'a> SignedJar<'a> {
     /// assert_eq!(jar.signed(&key).get("name").unwrap().value(), "value");
     /// ```
     pub fn add(&mut self, mut cookie: Cookie<'static>) {
+        self.sign_cookie(&mut cookie);
+        self.parent.add(cookie);
+    }
+
+    /// Same as add, but add cookie as original to parent jar
+    pub fn add_original(&mut self, mut cookie: Cookie<'static>) {
+        self.sign_cookie(&mut cookie);
+        self.parent.add_original(cookie);
+    }
+
+    /// Signs the cookie's value assuring integrity and authenticity.
+    fn sign_cookie(&self, cookie: &mut Cookie) {
         let digest = sign(&self.key, cookie.value().as_bytes());
         let mut new_value = base64::encode(digest.as_ref());
         new_value.push_str(cookie.value());
         cookie.set_value(new_value);
-
-        self.parent.add(cookie);
     }
 
     /// Removes `cookie` from the parent jar.
