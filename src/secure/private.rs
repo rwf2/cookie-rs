@@ -110,7 +110,20 @@ impl<'a> PrivateJar<'a> {
         self.parent.add(cookie);
     }
 
-    /// Same as add, but adds original `cookie`
+    /// Adds an "original" `cookie` to this jar.
+    /// 
+    /// # Example
+    /// 
+    /// ```rust
+    /// use cookie::{CookieJar, Cookie, Key};
+    ///
+    /// let key = Key::generate();
+    /// let mut jar = CookieJar::new();
+    /// jar.private(&key).add_original(Cookie::new("name", "value"));
+    ///
+    /// assert_eq!(jar.iter().count(), 1);
+    /// assert_eq!(jar.delta().count(), 0);
+    /// ```
     pub fn add_original(&mut self, mut cookie: Cookie<'static>) {
         self.encrypt_cookie(&mut cookie);
 
