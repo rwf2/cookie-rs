@@ -110,7 +110,16 @@ impl<'a> PrivateJar<'a> {
         self.parent.add(cookie);
     }
 
-    /// Adds an "original" `cookie` to this jar.
+    /// Adds an "original" `cookie` to parent jar.
+    /// The cookie's value is encrypted with authenticated encryption
+    /// assuring confidentiality, integrity, and authenticity.
+    /// Adding an original cookie does not affect the
+    /// [CookieJar::delta](struct.CookieJar.html#method.delta) computation.
+    /// This method is intended to be used to seed the cookie jar
+    /// with cookies received from a client's HTTP message.
+    ///
+    /// For accurate `delta` computations, this method should not be called
+    /// after calling `remove`.
     /// 
     /// # Example
     /// 
