@@ -74,9 +74,11 @@ mod draft;
 #[cfg(feature = "secure")] pub use secure::*;
 
 use std::borrow::Cow;
-use std::ascii::AsciiExt;
 use std::fmt;
 use std::str::FromStr;
+
+#[allow(unused_imports)]
+use std::ascii::AsciiExt;
 
 #[cfg(feature = "percent-encode")]
 use url::percent_encoding::{USERINFO_ENCODE_SET, percent_encode};

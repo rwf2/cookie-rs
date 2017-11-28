@@ -1,10 +1,12 @@
 use std::borrow::Cow;
 use std::cmp;
 use std::error::Error;
-use std::ascii::AsciiExt;
 use std::str::Utf8Error;
 use std::fmt;
 use std::convert::From;
+
+#[allow(unused_imports)]
+use std::ascii::AsciiExt;
 
 #[cfg(feature = "percent-encode")]
 use url::percent_encoding::percent_decode;
