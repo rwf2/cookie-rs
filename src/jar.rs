@@ -264,7 +264,7 @@ impl CookieJar {
     /// assert_eq!(jar.iter().count(), 0);
     /// # }
     /// ```
-    pub fn force_remove(&mut self, cookie: Cookie<'static>) {
+    pub fn force_remove<'a>(&mut self, cookie: Cookie<'a>) {
         self.original_cookies.remove(cookie.name());
         self.delta_cookies.remove(cookie.name());
     }
