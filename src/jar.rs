@@ -121,10 +121,13 @@ impl CookieJar {
             .and_then(|c| if !c.removed { Some(&c.cookie) } else { None })
     }
 
-    /// Adds an "original" `cookie` to this jar. Adding an original cookie does
-    /// not affect the [delta](#method.delta) computation. This method is
-    /// intended to be used to seed the cookie jar with cookies received from a
-    /// client's HTTP message.
+    /// Adds an "original" `cookie` to this jar. If an original cookie with the
+    /// same name already exists, it is replaced with `cookie`. Cookies added
+    /// with `add` take precedence and are not replaced by this method.
+    ///
+    /// Adding an original cookie does not affect the [delta](#method.delta)
+    /// computation. This method is intended to be used to seed the cookie jar
+    /// with cookies received from a client's HTTP message.
     ///
     /// For accurate `delta` computations, this method should not be called
     /// after calling `remove`.
@@ -147,7 +150,8 @@ impl CookieJar {
         self.original_cookies.replace(DeltaCookie::added(cookie));
     }
 
-    /// Adds `cookie` to this jar.
+    /// Adds `cookie` to this jar. If a cookie with the same name already
+    /// exists, it is replaced with `cookie`.
     ///
     /// # Example
     ///
