@@ -77,7 +77,7 @@ use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
 
-#[allow(unused_imports)]
+#[allow(unused_imports, deprecated)]
 use std::ascii::AsciiExt;
 
 #[cfg(feature = "percent-encode")]

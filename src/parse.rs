@@ -5,7 +5,7 @@ use std::str::Utf8Error;
 use std::fmt;
 use std::convert::From;
 
-#[allow(unused_imports)]
+#[allow(unused_imports, deprecated)]
 use std::ascii::AsciiExt;
 
 #[cfg(feature = "percent-encode")]
