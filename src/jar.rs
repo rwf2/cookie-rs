@@ -6,7 +6,7 @@ use time::{self, Duration};
 #[cfg(feature = "secure")]
 use secure::{PrivateJar, SignedJar, Key};
 use delta::DeltaCookie;
-use Cookie;
+use {Cookie, ParseError};
 
 /// A collection of cookies that tracks its modifications.
 ///
@@ -98,6 +98,20 @@ impl CookieJar {
     /// ```
     pub fn new() -> CookieJar {
         CookieJar::default()
+    }
+
+    /// Parses a cookie jar from a semicolon delimited list of `name=value` pairs commonly
+    /// found in the HTTP Cookie header.
+    pub fn parse_from_header(s: &str) -> Result<CookieJar, ParseError> {
+        let mut jar = CookieJar::new();
+
+        s.split(';').try_for_each(|s| -> Result<_, ParseError> {
+            jar.add(Cookie::parse(s.trim().to_owned())?);
+
+            Ok(())
+        })?;
+
+        Ok(jar)
     }
 
     /// Returns a reference to the `Cookie` inside this jar with the name
