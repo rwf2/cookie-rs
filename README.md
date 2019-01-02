@@ -1,6 +1,6 @@
 # cookie-rs
 
-[![Build Status](https://travis-ci.org/alexcrichton/cookie-rs.svg?branch=master)](https://travis-ci.org/alexcrichton/cookie-rs)
+[![Build Status](https://travis-ci.com/alexcrichton/cookie-rs.svg?branch=master)](https://travis-ci.com/alexcrichton/cookie-rs)
 [![Current Crates.io Version](https://img.shields.io/crates/v/cookie.svg)](https://crates.io/crates/cookie)
 
 A library for parsing HTTP cookies and managing cookie jars.
