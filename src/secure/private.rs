@@ -1,4 +1,4 @@
-use secure::ring::aead::{seal_in_place, open_in_place, Algorithm, AES_256_GCM};
+use secure::ring::aead::{seal_in_place, open_in_place, Algorithm, AES_256_GCM, Nonce, Aad};
 use secure::ring::aead::{OpeningKey, SealingKey};
 use secure::ring::rand::{SecureRandom, SystemRandom};
 use secure::{base64, Key};
@@ -49,7 +49,8 @@ impl<'a> PrivateJar<'a> {
         let ad = name.as_bytes();
         let key = OpeningKey::new(ALGO, &self.key).expect("opening key");
         let (nonce, sealed) = data.split_at_mut(NONCE_LEN);
-        let unsealed = open_in_place(&key, nonce, ad, 0, sealed)
+        let nonce = Nonce::try_assume_unique_for_key(nonce).unwrap();
+        let unsealed = open_in_place(&key, nonce, Aad::from(ad), 0, sealed)
             .map_err(|_| "invalid key/nonce/value: bad seal")?;
 
         ::std::str::from_utf8(unsealed)
@@ -155,13 +156,14 @@ impl<'a> PrivateJar<'a> {
             // Randomly generate the nonce, then copy the cookie value as input.
             let (nonce, in_out) = data.split_at_mut(NONCE_LEN);
             SystemRandom::new().fill(nonce).expect("couldn't random fill nonce");
+            let nonce = Nonce::try_assume_unique_for_key(nonce).unwrap();
             in_out[..cookie_val.len()].copy_from_slice(cookie_val);
 
             // Use cookie's name as associated data to prevent value swapping.
             let ad = cookie.name().as_bytes();
 
             // Perform the actual sealing operation and get the output length.
-            seal_in_place(&key, nonce, ad, in_out, overhead).expect("in-place seal")
+            seal_in_place(&key, nonce, Aad::from(ad), in_out, overhead).expect("in-place seal")
         };
 
         // Base64 encode the nonce and encrypted value.
