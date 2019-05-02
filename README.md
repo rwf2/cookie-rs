@@ -11,7 +11,7 @@ Add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-cookie = "0.11"
+cookie = "0.12"
 ```
 
 See the [documentation](http://docs.rs/cookie) for detailed usage information.
