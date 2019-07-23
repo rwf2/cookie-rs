@@ -41,7 +41,7 @@ impl<'a> PrivateJar<'a> {
     /// verifies and decrypts the sealed value and returns it. If there's a
     /// problem, returns an `Err` with a string describing the issue.
     fn unseal(&self, name: &str, value: &str) -> Result<String, &'static str> {
-        let mut data = base64::decode(value).map_err(|_| "bad base64 value")?;
+        let mut data = base64.decode(value).map_err(|_| "bad base64 value")?;
         if data.len() <= NONCE_LEN {
             return Err("length of decoded data is <= NONCE_LEN");
         }
@@ -169,7 +169,7 @@ impl<'a> PrivateJar<'a> {
         };
 
         // Base64 encode the nonce and encrypted value.
-        let sealed_value = base64::encode(&data[..(NONCE_LEN + output_len)]);
+        let sealed_value = base64.encode(&data[..(NONCE_LEN + output_len)]);
         cookie.set_value(sealed_value);
     }
 

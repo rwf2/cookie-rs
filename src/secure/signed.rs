@@ -42,7 +42,7 @@ impl<'a> SignedJar<'a> {
         }
 
         let (digest_str, value) = cookie_value.split_at(BASE64_DIGEST_LEN);
-        let sig = base64::decode(digest_str).map_err(|_| "bad base64 digest")?;
+        let sig = base64.decode(digest_str).map_err(|_| "bad base64 digest")?;
 
         verify(&self.key, value.as_bytes(), &sig)
             .map(|_| value.to_string())
@@ -129,7 +129,7 @@ impl<'a> SignedJar<'a> {
     /// Signs the cookie's value assuring integrity and authenticity.
     fn sign_cookie(&self, cookie: &mut Cookie) {
         let digest = sign(&self.key, cookie.value().as_bytes());
-        let mut new_value = base64::encode(digest.as_ref());
+        let mut new_value = base64.encode(digest.as_ref());
         new_value.push_str(cookie.value());
         cookie.set_value(new_value);
     }

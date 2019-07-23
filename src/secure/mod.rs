@@ -1,5 +1,5 @@
 extern crate ring;
-extern crate base64;
+extern crate radix64;
 
 #[macro_use]
 mod macros;
@@ -10,3 +10,5 @@ mod key;
 pub use self::private::*;
 pub use self::signed::*;
 pub use self::key::*;
+
+use self::radix64::STD as base64;
