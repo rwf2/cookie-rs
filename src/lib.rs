@@ -61,7 +61,7 @@
 #![doc(html_root_url = "https://docs.rs/cookie/0.12")]
 #![deny(missing_docs)]
 
-#[cfg(feature = "percent-encode")] extern crate url;
+#[cfg(feature = "percent-encode")] extern crate percent_encoding;
 extern crate time;
 
 mod builder;
@@ -81,7 +81,7 @@ use std::str::FromStr;
 use std::ascii::AsciiExt;
 
 #[cfg(feature = "percent-encode")]
-use url::percent_encoding::{USERINFO_ENCODE_SET, percent_encode};
+use percent_encoding::{AsciiSet, percent_encode};
 use time::{Tm, Duration};
 
 use parse::parse_cookie;
@@ -904,6 +904,28 @@ impl<'c> Cookie<'c> {
         }
     }
 }
+
+/// https://url.spec.whatwg.org/#fragment-percent-encode-set
+#[cfg(feature = "percent-encode")]
+const FRAGMENT_ENCODE_SET: &AsciiSet = &percent_encoding::CONTROLS.add(b' ').add(b'"').add(b'<').add(b'>').add(b'`');
+
+/// https://url.spec.whatwg.org/#path-percent-encode-set
+#[cfg(feature = "percent-encode")]
+const PATH_ENCODE_SET: &AsciiSet = &FRAGMENT_ENCODE_SET.add(b'#').add(b'?').add(b'{').add(b'}');
+
+/// https://url.spec.whatwg.org/#userinfo-percent-encode-set
+#[cfg(feature = "percent-encode")]
+const USERINFO_ENCODE_SET: &AsciiSet = &PATH_ENCODE_SET
+    .add(b'/')
+    .add(b':')
+    .add(b';')
+    .add(b'=')
+    .add(b'@')
+    .add(b'[')
+    .add(b'\\')
+    .add(b']')
+    .add(b'^')
+    .add(b'|');
 
 /// Wrapper around `Cookie` whose `Display` implementation percent-encodes the
 /// cookie's name and value.
