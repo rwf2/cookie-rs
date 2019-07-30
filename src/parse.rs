@@ -9,7 +9,7 @@ use std::convert::From;
 use std::ascii::AsciiExt;
 
 #[cfg(feature = "percent-encode")]
-use url::percent_encoding::percent_decode;
+use percent_encoding::percent_decode;
 use time::{self, Duration};
 
 use ::{Cookie, SameSite, CookieStr};
