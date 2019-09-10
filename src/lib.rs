@@ -91,14 +91,14 @@ pub use jar::{CookieJar, Delta, Iter};
 pub use draft::*;
 
 #[derive(Debug, Clone)]
-enum CookieStr {
+enum CookieStr<'c> {
     /// An string derived from indexes (start, end).
     Indexed(usize, usize),
     /// A string derived from a concrete string.
-    Concrete(Cow<'static, str>),
+    Concrete(Cow<'c, str>),
 }
 
-impl CookieStr {
+impl<'c> CookieStr<'c> {
     /// Retrieves the string `self` corresponds to. If `self` is derived from
     /// indexes, the corresponding subslice of `string` is returned. Otherwise,
     /// the concrete string is returned.
@@ -117,7 +117,7 @@ impl CookieStr {
         }
     }
 
-    fn to_raw_str<'s, 'c: 's>(&'s self, string: &'s Cow<'c, str>) -> Option<&'c str> {
+    fn to_raw_str<'s, 'b: 's>(&'s self, string: &'s Cow<'b, str>) -> Option<&'b str> {
         match *self {
             CookieStr::Indexed(i, j) => {
                 match *string {
@@ -126,6 +126,16 @@ impl CookieStr {
                 }
             },
             CookieStr::Concrete(_) => None,
+        }
+    }
+
+    fn into_owned(self) -> CookieStr<'static> {
+        use CookieStr::*;
+
+        match self {
+            Indexed(a, b) => Indexed(a, b),
+            Concrete(Cow::Owned(c)) => Concrete(Cow::Owned(c)),
+            Concrete(Cow::Borrowed(c)) => Concrete(Cow::Owned(c.into())),
         }
     }
 }
@@ -163,17 +173,17 @@ pub struct Cookie<'c> {
     /// from a string that was subsequently parsed.
     cookie_string: Option<Cow<'c, str>>,
     /// The cookie's name.
-    name: CookieStr,
+    name: CookieStr<'c>,
     /// The cookie's value.
-    value: CookieStr,
+    value: CookieStr<'c>,
     /// The cookie's expiration, if any.
     expires: Option<Tm>,
     /// The cookie's maximum age, if any.
     max_age: Option<Duration>,
     /// The cookie's domain, if any.
-    domain: Option<CookieStr>,
+    domain: Option<CookieStr<'c>>,
     /// The cookie's path domain, if any.
-    path: Option<CookieStr>,
+    path: Option<CookieStr<'c>>,
     /// Whether this cookie was marked Secure.
     secure: Option<bool>,
     /// Whether this cookie was marked HttpOnly.
@@ -182,7 +192,7 @@ pub struct Cookie<'c> {
     same_site: Option<SameSite>,
 }
 
-impl Cookie<'static> {
+impl<'c> Cookie<'c> {
     /// Creates a new `Cookie` with the given name and value.
     ///
     /// # Example
@@ -193,9 +203,9 @@ impl Cookie<'static> {
     /// let cookie = Cookie::new("name", "value");
     /// assert_eq!(cookie.name_value(), ("name", "value"));
     /// ```
-    pub fn new<N, V>(name: N, value: V) -> Cookie<'static>
-        where N: Into<Cow<'static, str>>,
-              V: Into<Cow<'static, str>>
+    pub fn new<N, V>(name: N, value: V) -> Self
+        where N: Into<Cow<'c, str>>,
+              V: Into<Cow<'c, str>>
     {
         Cookie {
             cookie_string: None,
@@ -222,8 +232,8 @@ impl Cookie<'static> {
     /// assert_eq!(cookie.name(), "name");
     /// assert!(cookie.value().is_empty());
     /// ```
-    pub fn named<N>(name: N) -> Cookie<'static>
-        where N: Into<Cow<'static, str>>
+    pub fn named<N>(name: N) -> Cookie<'c>
+        where N: Into<Cow<'c, str>>
     {
         Cookie::new(name, "")
     }
@@ -239,15 +249,13 @@ impl Cookie<'static> {
     /// let c = Cookie::build("foo", "bar").finish();
     /// assert_eq!(c.name_value(), ("foo", "bar"));
     /// ```
-    pub fn build<N, V>(name: N, value: V) -> CookieBuilder
-        where N: Into<Cow<'static, str>>,
-              V: Into<Cow<'static, str>>
+    pub fn build<N, V>(name: N, value: V) -> CookieBuilder<'c>
+        where N: Into<Cow<'c, str>>,
+              V: Into<Cow<'c, str>>
     {
         CookieBuilder::new(name, value)
     }
-}
 
-impl<'c> Cookie<'c> {
     /// Parses a `Cookie` from the given HTTP cookie header value string. Does
     /// not perform any percent-decoding.
     ///
@@ -309,8 +317,8 @@ impl<'c> Cookie<'c> {
         EncodedCookie(self)
     }
 
-    /// Converts `self` into a `Cookie` with a static lifetime. This method
-    /// results in at most one allocation.
+    /// Converts `self` into a `Cookie` with a static lifetime with as few
+    /// allocations as possible.
     ///
     /// # Example
     ///
@@ -324,12 +332,12 @@ impl<'c> Cookie<'c> {
     pub fn into_owned(self) -> Cookie<'static> {
         Cookie {
             cookie_string: self.cookie_string.map(|s| s.into_owned().into()),
-            name: self.name,
-            value: self.value,
+            name: self.name.into_owned(),
+            value: self.value.into_owned(),
             expires: self.expires,
             max_age: self.max_age,
-            domain: self.domain,
-            path: self.path,
+            domain: self.domain.map(|s| s.into_owned()),
+            path: self.path.map(|s| s.into_owned()),
             secure: self.secure,
             http_only: self.http_only,
             same_site: self.same_site,
@@ -556,7 +564,7 @@ impl<'c> Cookie<'c> {
     /// c.set_name("foo");
     /// assert_eq!(c.name(), "foo");
     /// ```
-    pub fn set_name<N: Into<Cow<'static, str>>>(&mut self, name: N) {
+    pub fn set_name<N: Into<Cow<'c, str>>>(&mut self, name: N) {
         self.name = CookieStr::Concrete(name.into())
     }
 
@@ -573,7 +581,7 @@ impl<'c> Cookie<'c> {
     /// c.set_value("bar");
     /// assert_eq!(c.value(), "bar");
     /// ```
-    pub fn set_value<V: Into<Cow<'static, str>>>(&mut self, value: V) {
+    pub fn set_value<V: Into<Cow<'c, str>>>(&mut self, value: V) {
         self.value = CookieStr::Concrete(value.into())
     }
 
@@ -668,7 +676,7 @@ impl<'c> Cookie<'c> {
     /// c.set_path("/");
     /// assert_eq!(c.path(), Some("/"));
     /// ```
-    pub fn set_path<P: Into<Cow<'static, str>>>(&mut self, path: P) {
+    pub fn set_path<P: Into<Cow<'c, str>>>(&mut self, path: P) {
         self.path = Some(CookieStr::Concrete(path.into()));
     }
 
@@ -685,7 +693,7 @@ impl<'c> Cookie<'c> {
     /// c.set_domain("rust-lang.org");
     /// assert_eq!(c.domain(), Some("rust-lang.org"));
     /// ```
-    pub fn set_domain<D: Into<Cow<'static, str>>>(&mut self, domain: D) {
+    pub fn set_domain<D: Into<Cow<'c, str>>>(&mut self, domain: D) {
         self.domain = Some(CookieStr::Concrete(domain.into()));
     }
 

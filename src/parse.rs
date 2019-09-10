@@ -79,18 +79,28 @@ fn indexes_of(needle: &str, haystack: &str) -> Option<(usize, usize)> {
 }
 
 #[cfg(feature = "percent-encode")]
-fn name_val_decoded(name: &str, val: &str) -> Result<(CookieStr, CookieStr), ParseError> {
+fn name_val_decoded(
+    name: &str,
+    val: &str
+) -> Result<Option<(CookieStr<'static>, CookieStr<'static>)>, ParseError> {
     let decoded_name = percent_decode(name.as_bytes()).decode_utf8()?;
     let decoded_value = percent_decode(val.as_bytes()).decode_utf8()?;
-    let name = CookieStr::Concrete(Cow::Owned(decoded_name.into_owned()));
-    let val = CookieStr::Concrete(Cow::Owned(decoded_value.into_owned()));
 
-    Ok((name, val))
+    if let (&Cow::Borrowed(_), &Cow::Borrowed(_)) = (&decoded_name, &decoded_value) {
+         Ok(None)
+    } else {
+        let name = CookieStr::Concrete(Cow::Owned(decoded_name.into()));
+        let val = CookieStr::Concrete(Cow::Owned(decoded_value.into()));
+        Ok(Some((name, val)))
+    }
 }
 
 #[cfg(not(feature = "percent-encode"))]
-fn name_val_decoded(_: &str, _: &str) -> Result<(CookieStr, CookieStr), ParseError> {
-    unreachable!("This function should never be called when the feature is disabled!")
+fn name_val_decoded(
+    _: &str,
+    _: &str
+) -> Result<Option<(CookieStr<'static>, CookieStr<'static>)>, ParseError> {
+    unreachable!("This function should never be called with 'percent-encode' disabled!")
 }
 
 // This function does the real parsing but _does not_ set the `cookie_string` in
@@ -99,12 +109,9 @@ fn name_val_decoded(_: &str, _: &str) -> Result<(CookieStr, CookieStr), ParseErr
 // set in the outer `parse` function.
 fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
     let mut attributes = s.split(';');
-    let key_value = match attributes.next() {
-        Some(s) => s,
-        _ => panic!(),
-    };
 
     // Determine the name = val.
+    let key_value = attributes.next().expect("first str::split().next() returns Some");
     let (name, value) = match key_value.find('=') {
         Some(i) => (key_value[..i].trim(), key_value[(i + 1)..].trim()),
         None => return Err(ParseError::MissingPair)
@@ -114,20 +121,27 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
         return Err(ParseError::EmptyName);
     }
 
-    // Create a cookie with all of the defaults. We'll fill things in while we
-    // iterate through the parameters below.
-    let (name, value) = if decode {
-        name_val_decoded(name, value)?
-    } else {
+    // If there is nothing to decode, or we're not decoding, use indexes.
+    let indexed_names = |s, name, value| {
         let name_indexes = indexes_of(name, s).expect("name sub");
         let value_indexes = indexes_of(value, s).expect("value sub");
         let name = CookieStr::Indexed(name_indexes.0, name_indexes.1);
         let value = CookieStr::Indexed(value_indexes.0, value_indexes.1);
-
         (name, value)
     };
 
-    let mut cookie = Cookie {
+    // Create a cookie with all of the defaults. We'll fill things in while we
+    // iterate through the parameters below.
+    let (name, value) = if decode {
+        match name_val_decoded(name, value)? {
+            Some((name, value)) => (name, value),
+            None => indexed_names(s, name, value)
+        }
+    } else {
+        indexed_names(s, name, value)
+    };
+
+    let mut cookie: Cookie<'c> = Cookie {
         cookie_string: None,
         name: name,
         value: value,
@@ -156,8 +170,8 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                 cookie.max_age = match v.parse() {
                     Ok(val) if val <= 0 => Some(Duration::zero()),
                     Ok(val) => {
-                        // Don't panic if the max age seconds is greater than what's supported by
-                        // `Duration`.
+                        // Don't panic if the max age seconds is greater than
+                        // what's supported by `Duration`.
                         let val = cmp::min(val, Duration::max_value().num_seconds());
                         Some(Duration::seconds(val))
                     }
