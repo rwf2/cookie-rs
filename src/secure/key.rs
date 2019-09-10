@@ -23,6 +23,13 @@ pub struct Key {
     encryption_key: [u8; PRIVATE_KEY_LEN]
 }
 
+impl KeyType for &Key {
+    #[inline(always)]
+    fn len(&self) -> usize {
+        SIGNED_KEY_LEN + PRIVATE_KEY_LEN
+    }
+}
+
 impl Key {
     /// Derives new signing/encryption keys from a master key.
     ///
@@ -46,35 +53,27 @@ impl Key {
     ///
     /// let key = Key::from_master(master_key);
     /// ```
-    pub fn from_master(key: &[u8]) -> Key {
-        if key.len() < 32 {
-            panic!("bad master key length: expected at least 32 bytes, found {}", key.len());
+    pub fn from_master(master_key: &[u8]) -> Key {
+        if master_key.len() < 32 {
+            panic!("bad master key length: expected >= 32 bytes, found {}", master_key.len());
         }
 
-        struct BothKeys;
-        impl KeyType for BothKeys {
-            fn len(&self) -> usize {
-                SIGNED_KEY_LEN + PRIVATE_KEY_LEN
-            }
-        }
+        // An empty `Key` structure; will be filled in with HKDF derived keys.
+        let mut output_key = Key {
+            signing_key: [0; SIGNED_KEY_LEN],
+            encryption_key: [0; PRIVATE_KEY_LEN]
+        };
 
-        // Expand the user's key into two.
-        let prk = Prk::new_less_safe(HKDF_DIGEST, key);
+        // Expand the master key into two HKDF generated keys.
         let mut both_keys = [0; SIGNED_KEY_LEN + PRIVATE_KEY_LEN];
-
-        let okm = prk.expand(KEYS_INFO, BothKeys).expect("expand to okm");
+        let prk = Prk::new_less_safe(HKDF_DIGEST, master_key);
+        let okm = prk.expand(KEYS_INFO, &output_key).expect("okm expand");
         okm.fill(&mut both_keys).expect("fill keys");
 
-        // Copy the keys into their respective arrays.
-        let mut signing_key = [0; SIGNED_KEY_LEN];
-        let mut encryption_key = [0; PRIVATE_KEY_LEN];
-        signing_key.copy_from_slice(&both_keys[..SIGNED_KEY_LEN]);
-        encryption_key.copy_from_slice(&both_keys[SIGNED_KEY_LEN..]);
-
-        Key {
-            signing_key: signing_key,
-            encryption_key: encryption_key
-        }
+        // Copy the key parts into their respective fields.
+        output_key.signing_key.copy_from_slice(&both_keys[..SIGNED_KEY_LEN]);
+        output_key.encryption_key.copy_from_slice(&both_keys[SIGNED_KEY_LEN..]);
+        output_key
     }
 
     /// Generates signing/encryption keys from a secure, random source. Keys are

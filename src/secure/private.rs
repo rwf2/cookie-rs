@@ -141,38 +141,38 @@ impl<'a> PrivateJar<'a> {
         self.parent.add_original(cookie);
     }
 
-    /// Encrypts the cookie's value with
-    /// authenticated encryption assuring confidentiality, integrity, and authenticity.
+    /// Encrypts the cookie's value with authenticated encryption assuring
+    /// confidentiality, integrity, and authenticity.
     fn encrypt_cookie(&self, cookie: &mut Cookie) {
-        // Create the `LessSafeKey` structure
-        let key = LessSafeKey::new(UnboundKey::new(&ALGO, &self.key).expect("matching key length"));
+        // Create the `LessSafeKey` structure.
+        let unbound = UnboundKey::new(&ALGO, &self.key).expect("matching key length");
+        let key = LessSafeKey::new(unbound);
 
-        // Create a vec to hold the data, copying the cookie value as input.
-        let overhead = ALGO.tag_len();
+        // Create a vec to hold the [nonce | cookie value | tag].
         let cookie_val = cookie.value().as_bytes();
-        let mut inout = Vec::with_capacity(cookie_val.len() + overhead);
-        inout.extend(cookie_val);
+        let mut data = vec![0; NONCE_LEN + cookie_val.len() + ALGO.tag_len()];
 
-        // Randomly generate the nonce
-        let mut nonce_bytes = [0; NONCE_LEN];
-        SystemRandom::new().fill(&mut nonce_bytes).expect("couldn't random fill nonce");
-        let nonce = Nonce::try_assume_unique_for_key(&nonce_bytes)
-            .expect("invalid length of `nonce`");
+        // Split data into three: nonce, input/output, tag. Copy input.
+        let (nonce, in_out) = data.split_at_mut(NONCE_LEN);
+        let (in_out, tag) = in_out.split_at_mut(cookie_val.len());
+        in_out.copy_from_slice(cookie_val);
 
-        // Use cookie's name as associated data to prevent value swapping.
+        // Randomly generate the nonce into the nonce piece.
+        SystemRandom::new().fill(nonce).expect("couldn't random fill nonce");
+        let nonce = Nonce::try_assume_unique_for_key(nonce)
+            .expect("invalid `nonce` length");
+
+        // Perform the actual sealing operation, using the cookie's name as
+        // associated data to prevent value swapping.
         let ad = Aad::from(cookie.name().as_bytes());
+        let ad_tag = key.seal_in_place_separate_tag(nonce, ad, in_out)
+            .expect("in-place seal");
 
-        // Perform the actual sealing operation and get the output length.
-        key.seal_in_place_append_tag(nonce, ad, &mut inout).expect("in-place seal");
+        // Copy the tag into the tag piece.
+        tag.copy_from_slice(ad_tag.as_ref());
 
-
-        let mut data = Vec::with_capacity(nonce_bytes.len() + inout.len());
-        data.extend(&nonce_bytes);
-        data.extend(inout);
-
-        // Base64 encode the encrypted value.
-        let sealed_value = base64::encode(&data);
-        cookie.set_value(sealed_value);
+        // Base64 encode [none | encrypted value | tag].
+        cookie.set_value(base64::encode(&data));
     }
 
     /// Removes `cookie` from the parent jar.
@@ -219,5 +219,29 @@ mod test {
         let key = Key::generate();
         let mut jar = CookieJar::new();
         assert_secure_behaviour!(jar, jar.private(&key));
+    }
+
+#[test]
+    fn roundtrip_tests() {
+        use ::{Cookie, CookieJar};
+
+        // Secret is 'Super secret!' passed through sha256
+        let secret = b"\x1b\x1c\x6f\x1b\x31\x99\x82\x77\x0e\x05\xb6\x05\x54\x0b\xd9\xea\
+            \x54\x9f\x9a\x56\xf4\x0f\x97\xdc\x6e\xf2\x89\x86\x91\xe0\xa5\x79";
+        let key = Key::from_master(secret);
+
+        let mut jar = CookieJar::new();
+        jar.add(Cookie::new("signed_with_ring014", "3tdHXEQ2kf6fxC7dWzBGmpSLMtJenXLKrZ9cHkSsl1w=Tamper-proof"));
+        jar.add(Cookie::new("encrypted_with_ring014", "lObeZJorGVyeSWUA8khTO/8UCzFVBY9g0MGU6/J3NN1R5x11dn2JIA=="));
+        jar.add(Cookie::new("signed_with_ring016", "3tdHXEQ2kf6fxC7dWzBGmpSLMtJenXLKrZ9cHkSsl1w=Tamper-proof"));
+        jar.add(Cookie::new("encrypted_with_ring016", "SU1ujceILyMBg3fReqRmA9HUtAIoSPZceOM/CUpObROHEujXIjonkA=="));
+
+        let signed = jar.signed(&key);
+        assert_eq!(signed.get("signed_with_ring014").unwrap().value(), "Tamper-proof");
+        assert_eq!(signed.get("signed_with_ring016").unwrap().value(), "Tamper-proof");
+
+        let private = jar.private(&key);
+        assert_eq!(private.get("encrypted_with_ring014").unwrap().value(), "Tamper-proof");
+        assert_eq!(private.get("encrypted_with_ring016").unwrap().value(), "Tamper-proof");
     }
 }
