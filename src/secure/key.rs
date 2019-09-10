@@ -5,7 +5,7 @@ use secure::private::KEY_LEN as PRIVATE_KEY_LEN;
 use secure::signed::KEY_LEN as SIGNED_KEY_LEN;
 
 static HKDF_DIGEST: Algorithm = HKDF_SHA256;
-const KEYS_INFO: &[&[u8]] = &[b"COOKIE", b"SIGNED:HMAC-SHA256", b"PRIVATE:AEAD-AES-256-GCM"];
+const KEYS_INFO: &[&[u8]] = &[b"COOKIE;SIGNED:HMAC-SHA256;PRIVATE:AEAD-AES-256-GCM"];
 
 /// A cryptographic master key for use with `Signed` and/or `Private` jars.
 ///
