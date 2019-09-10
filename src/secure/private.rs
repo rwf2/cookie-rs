@@ -1,5 +1,5 @@
-use secure::ring::aead::{seal_in_place, open_in_place, Aad, Algorithm, Nonce, AES_256_GCM};
-use secure::ring::aead::{OpeningKey, SealingKey};
+use secure::ring::aead::{Aad, Algorithm, Nonce, AES_256_GCM};
+use secure::ring::aead::{LessSafeKey, UnboundKey};
 use secure::ring::rand::{SecureRandom, SystemRandom};
 use secure::{base64, Key};
 
@@ -47,11 +47,11 @@ impl<'a> PrivateJar<'a> {
         }
 
         let ad = Aad::from(name.as_bytes());
-        let key = OpeningKey::new(ALGO, &self.key).expect("opening key");
-        let (nonce, sealed) = data.split_at_mut(NONCE_LEN);
+        let key = LessSafeKey::new(UnboundKey::new(&ALGO, &self.key).expect("matching key length"));
+        let (nonce, mut sealed) = data.split_at_mut(NONCE_LEN);
         let nonce = Nonce::try_assume_unique_for_key(nonce)
             .expect("invalid length of `nonce`");
-        let unsealed = open_in_place(&key, nonce, ad, 0, sealed)
+        let unsealed = key.open_in_place(nonce, ad, &mut sealed)
             .map_err(|_| "invalid key/nonce/value: bad seal")?;
 
         ::std::str::from_utf8(unsealed)
@@ -144,32 +144,34 @@ impl<'a> PrivateJar<'a> {
     /// Encrypts the cookie's value with
     /// authenticated encryption assuring confidentiality, integrity, and authenticity.
     fn encrypt_cookie(&self, cookie: &mut Cookie) {
-        let mut data;
-        let output_len = {
-            // Create the `SealingKey` structure.
-            let key = SealingKey::new(ALGO, &self.key).expect("sealing key creation");
+        // Create the `LessSafeKey` structure
+        let key = LessSafeKey::new(UnboundKey::new(&ALGO, &self.key).expect("matching key length"));
 
-            // Create a vec to hold the [nonce | cookie value | overhead].
-            let overhead = ALGO.tag_len();
-            let cookie_val = cookie.value().as_bytes();
-            data = vec![0; NONCE_LEN + cookie_val.len() + overhead];
+        // Create a vec to hold the data, copying the cookie value as input.
+        let overhead = ALGO.tag_len();
+        let cookie_val = cookie.value().as_bytes();
+        let mut inout = Vec::with_capacity(cookie_val.len() + overhead);
+        inout.extend(cookie_val);
 
-            // Randomly generate the nonce, then copy the cookie value as input.
-            let (nonce, in_out) = data.split_at_mut(NONCE_LEN);
-            SystemRandom::new().fill(nonce).expect("couldn't random fill nonce");
-            in_out[..cookie_val.len()].copy_from_slice(cookie_val);
-            let nonce = Nonce::try_assume_unique_for_key(nonce)
-                .expect("invalid length of `nonce`");
+        // Randomly generate the nonce
+        let mut nonce_bytes = [0; NONCE_LEN];
+        SystemRandom::new().fill(&mut nonce_bytes).expect("couldn't random fill nonce");
+        let nonce = Nonce::try_assume_unique_for_key(&nonce_bytes)
+            .expect("invalid length of `nonce`");
 
-            // Use cookie's name as associated data to prevent value swapping.
-            let ad = Aad::from(cookie.name().as_bytes());
+        // Use cookie's name as associated data to prevent value swapping.
+        let ad = Aad::from(cookie.name().as_bytes());
 
-            // Perform the actual sealing operation and get the output length.
-            seal_in_place(&key, nonce, ad, in_out, overhead).expect("in-place seal")
-        };
+        // Perform the actual sealing operation and get the output length.
+        key.seal_in_place_append_tag(nonce, ad, &mut inout).expect("in-place seal");
 
-        // Base64 encode the nonce and encrypted value.
-        let sealed_value = base64::encode(&data[..(NONCE_LEN + output_len)]);
+
+        let mut data = Vec::with_capacity(nonce_bytes.len() + inout.len());
+        data.extend(&nonce_bytes);
+        data.extend(inout);
+
+        // Base64 encode the encrypted value.
+        let sealed_value = base64::encode(&data);
         cookie.set_value(sealed_value);
     }
 

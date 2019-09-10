@@ -1,12 +1,11 @@
-use secure::ring::digest::{SHA256, Algorithm};
-use secure::ring::hmac::{SigningKey, sign, verify_with_own_key as verify};
+use secure::ring::hmac::{self, sign, verify, Algorithm, HMAC_SHA256};
 use secure::{base64, Key};
 
 use {Cookie, CookieJar};
 
 // Keep these in sync, and keep the key len synced with the `signed` docs as
 // well as the `KEYS_INFO` const in secure::Key.
-static HMAC_DIGEST: &'static Algorithm = &SHA256;
+static HMAC_DIGEST: Algorithm = HMAC_SHA256;
 const BASE64_DIGEST_LEN: usize = 44;
 pub const KEY_LEN: usize = 32;
 
@@ -21,7 +20,7 @@ pub const KEY_LEN: usize = 32;
 /// This type is only available when the `secure` feature is enabled.
 pub struct SignedJar<'a> {
     parent: &'a mut CookieJar,
-    key: SigningKey
+    key: hmac::Key,
 }
 
 impl<'a> SignedJar<'a> {
@@ -30,7 +29,7 @@ impl<'a> SignedJar<'a> {
     /// `CookieJar`.
     #[doc(hidden)]
     pub fn new(parent: &'a mut CookieJar, key: &Key) -> SignedJar<'a> {
-        SignedJar { parent: parent, key: SigningKey::new(HMAC_DIGEST, key.signing()) }
+        SignedJar { parent: parent, key: hmac::Key::new(HMAC_DIGEST, key.signing()) }
     }
 
     /// Given a signed value `str` where the signature is prepended to `value`,

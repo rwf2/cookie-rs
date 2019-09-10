@@ -1,13 +1,11 @@
-use secure::ring::hkdf::expand;
-use secure::ring::digest::{SHA256, Algorithm};
-use secure::ring::hmac::SigningKey;
+use secure::ring::hkdf::{HKDF_SHA256, Algorithm, Prk, KeyType};
 use secure::ring::rand::{SecureRandom, SystemRandom};
 
 use secure::private::KEY_LEN as PRIVATE_KEY_LEN;
 use secure::signed::KEY_LEN as SIGNED_KEY_LEN;
 
-static HKDF_DIGEST: &'static Algorithm = &SHA256;
-const KEYS_INFO: &'static str = "COOKIE;SIGNED:HMAC-SHA256;PRIVATE:AEAD-AES-256-GCM";
+static HKDF_DIGEST: Algorithm = HKDF_SHA256;
+const KEYS_INFO: &[&[u8]] = &[b"COOKIE;SIGNED:HMAC-SHA256;PRIVATE:AEAD-AES-256-GCM"];
 
 /// A cryptographic master key for use with `Signed` and/or `Private` jars.
 ///
@@ -53,10 +51,19 @@ impl Key {
             panic!("bad master key length: expected at least 32 bytes, found {}", key.len());
         }
 
+        struct BothKeys;
+        impl KeyType for BothKeys {
+            fn len(&self) -> usize {
+                SIGNED_KEY_LEN + PRIVATE_KEY_LEN
+            }
+        }
+
         // Expand the user's key into two.
-        let prk = SigningKey::new(HKDF_DIGEST, key);
+        let prk = Prk::new_less_safe(HKDF_DIGEST, key);
         let mut both_keys = [0; SIGNED_KEY_LEN + PRIVATE_KEY_LEN];
-        expand(&prk, KEYS_INFO.as_bytes(), &mut both_keys);
+
+        let okm = prk.expand(KEYS_INFO, BothKeys).expect("expand to okm");
+        okm.fill(&mut both_keys).expect("fill keys");
 
         // Copy the keys into their respective arrays.
         let mut signing_key = [0; SIGNED_KEY_LEN];
