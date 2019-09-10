@@ -22,10 +22,14 @@ fn roundtrip_tests() {
     let mut jar = CookieJar::new();
     jar.add(Cookie::new("signed_with_ring014", "3tdHXEQ2kf6fxC7dWzBGmpSLMtJenXLKrZ9cHkSsl1w=Tamper-proof"));
     jar.add(Cookie::new("encrypted_with_ring014", "lObeZJorGVyeSWUA8khTO/8UCzFVBY9g0MGU6/J3NN1R5x11dn2JIA=="));
+    jar.add(Cookie::new("signed_with_ring016", "3tdHXEQ2kf6fxC7dWzBGmpSLMtJenXLKrZ9cHkSsl1w=Tamper-proof"));
+    jar.add(Cookie::new("encrypted_with_ring016", "SU1ujceILyMBg3fReqRmA9HUtAIoSPZceOM/CUpObROHEujXIjonkA=="));
 
     let signed = jar.signed(&key);
     assert_eq!(signed.get("signed_with_ring014").unwrap().value(), "Tamper-proof");
+    assert_eq!(signed.get("signed_with_ring016").unwrap().value(), "Tamper-proof");
 
     let private = jar.private(&key);
     assert_eq!(private.get("encrypted_with_ring014").unwrap().value(), "Tamper-proof");
+    assert_eq!(private.get("encrypted_with_ring016").unwrap().value(), "Tamper-proof");
 }
