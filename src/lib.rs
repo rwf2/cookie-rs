@@ -639,7 +639,8 @@ impl<'c> Cookie<'c> {
         self.same_site = Some(value);
     }
 
-    /// Sets the value of `max_age` in `self` to `value`.
+    /// Sets the value of `max_age` in `self` to `value`. If `value` is `None`,
+    /// the field is unset.
     ///
     /// # Example
     ///
@@ -656,11 +657,14 @@ impl<'c> Cookie<'c> {
     ///
     /// c.set_max_age(Duration::hours(10));
     /// assert_eq!(c.max_age(), Some(Duration::hours(10)));
+    ///
+    /// c.set_max_age(None);
+    /// assert!(c.max_age().is_none());
     /// # }
     /// ```
     #[inline]
-    pub fn set_max_age(&mut self, value: Duration) {
-        self.max_age = Some(value);
+    pub fn set_max_age<D: Into<Option<Duration>>>(&mut self, value: D) {
+        self.max_age = value.into();
     }
 
     /// Sets the `path` of `self` to `path`.
@@ -697,7 +701,8 @@ impl<'c> Cookie<'c> {
         self.domain = Some(CookieStr::Concrete(domain.into()));
     }
 
-    /// Sets the expires field of `self` to `time`.
+    /// Sets the expires field of `self` to `time`. If `time` is `None`, the
+    /// field is unset.
     ///
     /// # Example
     ///
@@ -715,12 +720,15 @@ impl<'c> Cookie<'c> {
     /// now.tm_year += 1;
     ///
     /// c.set_expires(now);
-    /// assert!(c.expires().is_some())
+    /// assert!(c.expires().is_some());
+    ///
+    /// c.set_expires(None);
+    /// assert!(c.expires().is_none());
     /// # }
     /// ```
     #[inline]
-    pub fn set_expires(&mut self, time: Tm) {
-        self.expires = Some(time);
+    pub fn set_expires<T: Into<Option<Tm>>>(&mut self, time: T) {
+        self.expires = time.into();
     }
 
     /// Makes `self` a "permanent" cookie by extending its expiration and max
