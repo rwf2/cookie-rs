@@ -1,12 +1,12 @@
-extern crate ring;
 extern crate base64;
+extern crate ring;
 
 #[macro_use]
 mod macros;
+mod key;
 mod private;
 mod signed;
-mod key;
 
+pub use self::key::*;
 pub use self::private::*;
 pub use self::signed::*;
-pub use self::key::*;
