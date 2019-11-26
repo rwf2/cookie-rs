@@ -769,7 +769,7 @@ impl<'c> Cookie<'c> {
         }
 
         if let Some(same_site) = self.same_site() {
-            if !same_site.is_none() {
+            if !same_site.is_unset() {
                 write!(f, "; SameSite={}", same_site)?;
             }
         }
@@ -1081,6 +1081,10 @@ mod tests {
 
         let cookie = Cookie::build("foo", "bar")
             .same_site(SameSite::None).finish();
+        assert_eq!(&cookie.to_string(), "foo=bar; SameSite=None");
+
+        let cookie = Cookie::build("foo", "bar")
+            .same_site(SameSite::Unset).finish();
         assert_eq!(&cookie.to_string(), "foo=bar");
     }
 

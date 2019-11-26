@@ -21,8 +21,10 @@ pub enum SameSite {
     Strict,
     /// The "Lax" `SameSite` attribute.
     Lax,
-    /// No `SameSite` attribute.
-    None
+    /// The "None" `SameSite` attribute.
+    None,
+    /// No `SameSite` attribute
+    Unset,
 }
 
 impl SameSite {
@@ -37,12 +39,13 @@ impl SameSite {
     /// assert!(strict.is_strict());
     /// assert!(!strict.is_lax());
     /// assert!(!strict.is_none());
+    /// assert!(!strict.is_unset());
     /// ```
     #[inline]
     pub fn is_strict(&self) -> bool {
         match *self {
             SameSite::Strict => true,
-            SameSite::Lax | SameSite::None => false,
+            SameSite::Lax | SameSite::None | SameSite::Unset => false,
         }
     }
 
@@ -57,12 +60,13 @@ impl SameSite {
     /// assert!(lax.is_lax());
     /// assert!(!lax.is_strict());
     /// assert!(!lax.is_none());
+    /// assert!(!lax.is_unset());
     /// ```
     #[inline]
     pub fn is_lax(&self) -> bool {
         match *self {
             SameSite::Lax => true,
-            SameSite::Strict | SameSite::None => false,
+            SameSite::Strict | SameSite::None | SameSite::Unset => false,
         }
     }
 
@@ -77,12 +81,34 @@ impl SameSite {
     /// assert!(none.is_none());
     /// assert!(!none.is_lax());
     /// assert!(!none.is_strict());
+    /// assert!(!none.is_unset());
     /// ```
     #[inline]
     pub fn is_none(&self) -> bool {
         match *self {
             SameSite::None => true,
-            SameSite::Lax | SameSite::Strict => false
+            SameSite::Lax | SameSite::Strict | SameSite::Unset => false
+        }
+    }
+
+    /// Returns `true` if `self` is `SameSite::Unset` and `false` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::SameSite;
+    ///
+    /// let unset = SameSite::Unset;
+    /// assert!(unset.is_unset());
+    /// assert!(!unset.is_lax());
+    /// assert!(!unset.is_strict());
+    /// assert!(!unset.is_none());
+    /// ```
+    #[inline]
+    pub fn is_unset(&self) -> bool {
+        match *self {
+            SameSite::Unset => true,
+            SameSite::Lax | SameSite::Strict | SameSite::None => false
         }
     }
 }
@@ -92,7 +118,8 @@ impl fmt::Display for SameSite {
         match *self {
             SameSite::Strict => write!(f, "Strict"),
             SameSite::Lax => write!(f, "Lax"),
-            SameSite::None => Ok(()),
+            SameSite::None => write!(f, "None"),
+            SameSite::Unset => Ok(()),
         }
     }
 }
