@@ -61,8 +61,27 @@
 #![doc(html_root_url = "https://docs.rs/cookie/0.12")]
 #![deny(missing_docs)]
 
-#[cfg(feature = "percent-encode")] extern crate percent_encoding;
+#[cfg(feature = "percent-encode")]
+extern crate percent_encoding;
 extern crate time;
+
+#[allow(unused_imports, deprecated)]
+use std::ascii::AsciiExt;
+use std::borrow::Cow;
+use std::fmt;
+use std::str::FromStr;
+
+#[cfg(feature = "percent-encode")]
+use percent_encoding::{AsciiSet, percent_encode};
+use time::{Duration, Tm};
+
+pub use builder::CookieBuilder;
+pub use draft::*;
+pub use jar::{CookieJar, Delta, Iter};
+use parse::parse_cookie;
+pub use parse::ParseError;
+#[cfg(feature = "secure")]
+pub use secure::*;
 
 mod builder;
 mod parse;
@@ -70,25 +89,9 @@ mod jar;
 mod delta;
 mod draft;
 
-#[cfg(feature = "secure")] #[macro_use] mod secure;
-#[cfg(feature = "secure")] pub use secure::*;
-
-use std::borrow::Cow;
-use std::fmt;
-use std::str::FromStr;
-
-#[allow(unused_imports, deprecated)]
-use std::ascii::AsciiExt;
-
-#[cfg(feature = "percent-encode")]
-use percent_encoding::{AsciiSet, percent_encode};
-use time::{Tm, Duration};
-
-use parse::parse_cookie;
-pub use parse::ParseError;
-pub use builder::CookieBuilder;
-pub use jar::{CookieJar, Delta, Iter};
-pub use draft::*;
+#[cfg(feature = "secure")]
+#[macro_use]
+mod secure;
 
 #[derive(Debug, Clone)]
 enum CookieStr<'c> {
@@ -112,7 +115,7 @@ impl<'c> CookieStr<'c> {
                 let s = string.expect("`Some` base string must exist when \
                     converting indexed str to str! (This is a module invariant.)");
                 &s[i..j]
-            },
+            }
             CookieStr::Concrete(ref cstr) => &*cstr,
         }
     }
@@ -124,7 +127,7 @@ impl<'c> CookieStr<'c> {
                     Cow::Borrowed(s) => Some(&s[i..j]),
                     Cow::Owned(_) => None,
                 }
-            },
+            }
             CookieStr::Concrete(_) => None,
         }
     }
@@ -769,9 +772,7 @@ impl<'c> Cookie<'c> {
         }
 
         if let Some(same_site) = self.same_site() {
-            if !same_site.is_none() {
-                write!(f, "; SameSite={}", same_site)?;
-            }
+            write!(f, "; SameSite={}", same_site)?;
         }
 
         if let Some(path) = self.path() {
@@ -1036,8 +1037,9 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
 
 #[cfg(test)]
 mod tests {
+    use ::time::{Duration, strptime};
+
     use ::{Cookie, SameSite};
-    use ::time::{strptime, Duration};
 
     #[test]
     fn format() {
@@ -1081,7 +1083,7 @@ mod tests {
 
         let cookie = Cookie::build("foo", "bar")
             .same_site(SameSite::None).finish();
-        assert_eq!(&cookie.to_string(), "foo=bar");
+        assert_eq!(&cookie.to_string(), "foo=bar; SameSite=None");
     }
 
     #[test]

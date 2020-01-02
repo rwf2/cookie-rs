@@ -1,9 +1,8 @@
 # cookie-rs
 
-[![Build Status](https://travis-ci.com/SergioBenitez/cookie-rs.svg?branch=master)](https://travis-ci.com/SergioBenitez/cookie-rs)
-[![Current Crates.io Version](https://img.shields.io/crates/v/cookie.svg)](https://crates.io/crates/cookie)
-
 A library for parsing HTTP cookies and managing cookie jars.
+
+**Forked from [SergioBenitez/cookie-rs](https://github.com/SergioBenitez/cookie-rs)**
 
 # Usage
 
@@ -11,7 +10,7 @@ Add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-cookie = "0.12"
+cookie = {git = "https://github.com/richerarc/cookie-rs"}
 ```
 
 See the [documentation](http://docs.rs/cookie) for detailed usage information.
