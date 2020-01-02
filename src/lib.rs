@@ -737,6 +737,14 @@ impl<'c> Cookie<'c> {
     #[inline]
     pub fn set_expires<T: Into<Option<Tm>>>(&mut self, time: T) {
         self.expires = time.into();
+        // According to https://tools.ietf.org/html/rfc6265#section-5.1.1, cookie expires needs
+        // to be less than or equal to 9999 years. Note that Tm.tm_year starts at 1900, so shift
+        // our value back to get the correct time.
+        self.expires.as_mut().map(|tm| {
+            if tm.tm_year > 9999 - 1900 {
+                tm.tm_year = 9999 - 1900;
+            }
+        });
     }
 
     /// Makes `self` a "permanent" cookie by extending its expiration and max
