@@ -232,7 +232,7 @@ impl CookieJar {
     /// let delta: Vec<_> = jar.delta().collect();
     /// assert_eq!(delta.len(), 1);
     /// assert_eq!(delta[0].name(), "name");
-    /// assert_eq!(delta[0].max_age(), Some(Duration::seconds(0)));
+    /// assert_eq!(delta[0].max_age(), Some(0));
     /// # }
     /// ```
     ///
@@ -251,7 +251,7 @@ impl CookieJar {
     pub fn remove(&mut self, mut cookie: Cookie<'static>) {
         if self.original_cookies.contains(cookie.name()) {
             cookie.set_value("");
-            cookie.set_max_age(Duration::seconds(0));
+            cookie.set_max_age(0);
             cookie.set_expires(time::now() - Duration::days(365));
             self.delta_cookies.replace(DeltaCookie::removed(cookie));
         } else {

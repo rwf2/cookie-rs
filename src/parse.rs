@@ -9,7 +9,7 @@ use std::str::Utf8Error;
 
 #[cfg(feature = "percent-encode")]
 use percent_encoding::percent_decode;
-use time::{self, Duration};
+use time;
 
 use {Cookie, CookieStr, SameSite};
 
@@ -169,12 +169,12 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                 // earliest possible expiration time should be used, so set the
                 // max age as 0 seconds.
                 cookie.max_age = match v.parse() {
-                    Ok(val) if val <= 0 => Some(Duration::zero()),
+                    Ok(val) if val <= 0 => Some(0),
                     Ok(val) => {
                         // Don't panic if the max age seconds is greater than
                         // what's supported by `Duration`.
-                        let val = cmp::min(val, Duration::max_value().num_seconds());
-                        Some(Duration::seconds(val))
+                        let val = cmp::min(val, std::i64::MAX / 1000) as u64;
+                        Some(val)
                     }
                     Err(_) => continue,
                 };
@@ -335,22 +335,22 @@ mod tests {
         assert_ne_parse!(" foo=bar ;HttpOnly; secure", unexpected);
         assert_ne_parse!(" foo=bar ;HttpOnly; secure", unexpected);
 
-        expected.set_max_age(Duration::zero());
+        expected.set_max_age(0);
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=0", expected);
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age = 0 ", expected);
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=-1", expected);
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age = -1 ", expected);
 
-        expected.set_max_age(Duration::minutes(1));
+        expected.set_max_age(60);
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=60", expected);
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age =   60 ", expected);
 
-        expected.set_max_age(Duration::seconds(4));
+        expected.set_max_age(4);
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4", expected);
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age = 4 ", expected);
 
         unexpected.set_secure(true);
-        unexpected.set_max_age(Duration::minutes(1));
+        unexpected.set_max_age(60);
         assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=122", unexpected);
         assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age = 38 ", unexpected);
         assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=51", unexpected);
@@ -367,7 +367,7 @@ mod tests {
         assert_eq_parse!("foo=bar;HttpOnly; Secure; Max-Age=4;path=/foo", expected);
         assert_eq_parse!("foo=bar;HttpOnly; Secure; Max-Age=4;path = /foo", expected);
 
-        unexpected.set_max_age(Duration::seconds(4));
+        unexpected.set_max_age(4);
         unexpected.set_path("/bar");
         assert_ne_parse!("foo=bar;HttpOnly; Secure; Max-Age=4; Path=/foo", unexpected);
         assert_ne_parse!("foo=bar;HttpOnly; Secure; Max-Age=4;Path=/baz", unexpected);
@@ -445,7 +445,7 @@ mod tests {
     fn do_not_panic_on_large_max_ages() {
         let max_seconds = Duration::max_value().num_seconds();
         let expected = Cookie::build("foo", "bar")
-            .max_age(Duration::seconds(max_seconds))
+            .max_age(max_seconds as u64)
             .finish();
         assert_eq_parse!(format!(" foo=bar; Max-Age={:?}", max_seconds + 1), expected);
     }

@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use time::{Duration, Tm};
+use time::Tm;
 
 use {Cookie, SameSite};
 
@@ -27,7 +27,7 @@ use {Cookie, SameSite};
 ///     .path("/")
 ///     .secure(true)
 ///     .http_only(true)
-///     .max_age(Duration::days(1))
+///     .max_age(60 * 60 * 24)
 ///     .finish();
 /// # }
 /// ```
@@ -98,14 +98,14 @@ impl<'c> CookieBuilder<'c> {
     ///
     /// # fn main() {
     /// let c = Cookie::build("foo", "bar")
-    ///     .max_age(Duration::minutes(30))
+    ///     .max_age(60 * 30) // 30 minutes
     ///     .finish();
     ///
-    /// assert_eq!(c.max_age(), Some(Duration::seconds(30 * 60)));
+    /// assert_eq!(c.max_age(), Some(60 * 30));
     /// # }
     /// ```
     #[inline]
-    pub fn max_age(mut self, value: Duration) -> Self {
+    pub fn max_age(mut self, value: u64) -> Self {
         self.cookie.set_max_age(value);
         self
     }
@@ -220,7 +220,8 @@ impl<'c> CookieBuilder<'c> {
     ///     .permanent()
     ///     .finish();
     ///
-    /// assert_eq!(c.max_age(), Some(Duration::days(365 * 20)));
+    /// let twenty_years = 60 * 60 * 24 * 365 * 20;
+    /// assert_eq!(c.max_age(), Some(twenty_years));
     /// # assert!(c.expires().is_some());
     /// # }
     /// ```
