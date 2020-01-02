@@ -1,12 +1,11 @@
+#[allow(unused_imports, deprecated)]
+use std::ascii::AsciiExt;
 use std::borrow::Cow;
 use std::cmp;
 use std::convert::From;
 use std::error::Error;
 use std::fmt;
 use std::str::Utf8Error;
-
-#[allow(unused_imports, deprecated)]
-use std::ascii::AsciiExt;
 
 #[cfg(feature = "percent-encode")]
 use percent_encoding::percent_decode;
@@ -197,6 +196,8 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                     cookie.same_site = Some(SameSite::Strict);
                 } else if v.eq_ignore_ascii_case("lax") {
                     cookie.same_site = Some(SameSite::Lax);
+                } else if v.eq_ignore_ascii_case("none") {
+                    cookie.same_site = Some(SameSite::None);
                 } else {
                     // We do nothing here, for now. When/if the `SameSite`
                     // attribute becomes standard, the spec says that we should
@@ -231,8 +232,8 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
 }
 
 pub fn parse_cookie<'c, S>(cow: S, decode: bool) -> Result<Cookie<'c>, ParseError>
-where
-    S: Into<Cow<'c, str>>,
+    where
+        S: Into<Cow<'c, str>>,
 {
     let s = cow.into();
     let mut cookie = parse_inner(&s, decode)?;
@@ -242,7 +243,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use time::{strptime, Duration};
+    use time::{Duration, strptime};
+
     use {Cookie, SameSite};
 
     macro_rules! assert_eq_parse {

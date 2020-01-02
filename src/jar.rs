@@ -1,12 +1,16 @@
+use std::collections::hash_map::RandomState;
+use std::collections::hash_set::Difference;
+use std::collections::hash_set::Iter as HashSetIter;
 use std::collections::HashSet;
+use std::iter::Chain;
 use std::mem::replace;
 
 use time::{self, Duration};
 
+use ::{Cookie, ParseError};
 use delta::DeltaCookie;
 #[cfg(feature = "secure")]
 use secure::{Key, PrivateJar, SignedJar};
-use Cookie;
 
 /// A collection of cookies that tracks its modifications.
 ///
@@ -98,6 +102,29 @@ impl CookieJar {
     /// ```
     pub fn new() -> CookieJar {
         CookieJar::default()
+    }
+
+    /// Parses a cookie jar from a semicolon delimited list of `name=value` pairs commonly
+    /// found in the HTTP Cookie header.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::CookieJar;
+    /// let jar = CookieJar::from_header_str("yummy_cookie=choco; tasty_cookie=strawberry").unwrap();
+    /// assert!(jar.get("yummy_cookie").is_some());
+    /// assert_eq!(jar.get("tasty_cookie").map(|c| c.value()), Some("strawberry"));
+    ///  ```
+    pub fn from_header_str(s: &str) -> Result<CookieJar, ParseError> {
+        let mut jar = CookieJar::new();
+
+        s.trim_start_matches("Cookie: ").split(';').try_for_each(|s| -> Result<_, ParseError> {
+            jar.add(Cookie::parse(s.trim().to_owned())?);
+
+            Ok(())
+        })?;
+
+        Ok(jar)
     }
 
     /// Returns a reference to the `Cookie` inside this jar with the name
@@ -275,8 +302,8 @@ impl CookieJar {
 
     /// Removes all cookies from this cookie jar.
     #[deprecated(
-        since = "0.7.0",
-        note = "calling this method may not remove \
+    since = "0.7.0",
+    note = "calling this method may not remove \
                 all cookies since the path and domain are not specified; use \
                 `remove` instead"
     )]
@@ -434,8 +461,6 @@ impl CookieJar {
     }
 }
 
-use std::collections::hash_set::Iter as HashSetIter;
-
 /// Iterator over the changes to a cookie jar.
 pub struct Delta<'a> {
     iter: HashSetIter<'a, DeltaCookie>,
@@ -448,10 +473,6 @@ impl<'a> Iterator for Delta<'a> {
         self.iter.next().map(|c| &c.cookie)
     }
 }
-
-use std::collections::hash_map::RandomState;
-use std::collections::hash_set::Difference;
-use std::iter::Chain;
 
 /// Iterator over all of the cookies in a jar.
 pub struct Iter<'a> {
@@ -474,8 +495,9 @@ impl<'a> Iterator for Iter<'a> {
 
 #[cfg(test)]
 mod test {
-    use super::CookieJar;
     use Cookie;
+
+    use super::CookieJar;
 
     #[test]
     #[allow(deprecated)]
