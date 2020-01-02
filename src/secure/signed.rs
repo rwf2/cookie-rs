@@ -29,7 +29,10 @@ impl<'a> SignedJar<'a> {
     /// `CookieJar`.
     #[doc(hidden)]
     pub fn new(parent: &'a mut CookieJar, key: &Key) -> SignedJar<'a> {
-        SignedJar { parent: parent, key: hmac::Key::new(HMAC_DIGEST, key.signing()) }
+        SignedJar {
+            parent: parent,
+            key: hmac::Key::new(HMAC_DIGEST, key.signing()),
+        }
     }
 
     /// Given a signed value `str` where the signature is prepended to `value`,
@@ -163,7 +166,7 @@ impl<'a> SignedJar<'a> {
 
 #[cfg(test)]
 mod test {
-    use {CookieJar, Cookie, Key};
+    use {Cookie, CookieJar, Key};
 
     #[test]
     fn simple() {

@@ -1,6 +1,6 @@
-use std::ops::{Deref, DerefMut};
-use std::hash::{Hash, Hasher};
 use std::borrow::Borrow;
+use std::hash::{Hash, Hasher};
+use std::ops::{Deref, DerefMut};
 
 use Cookie;
 

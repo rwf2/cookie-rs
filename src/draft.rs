@@ -82,7 +82,7 @@ impl SameSite {
     pub fn is_none(&self) -> bool {
         match *self {
             SameSite::None => true,
-            SameSite::Lax | SameSite::Strict => false
+            SameSite::Lax | SameSite::Strict => false,
         }
     }
 }
