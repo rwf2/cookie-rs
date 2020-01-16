@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::mem::replace;
 
-use time::{self, Duration};
+use time::{Duration, OffsetDateTime};
 
 #[cfg(feature = "secure")]
 use secure::{PrivateJar, SignedJar, Key};
@@ -225,7 +225,7 @@ impl CookieJar {
         if self.original_cookies.contains(cookie.name()) {
             cookie.set_value("");
             cookie.set_max_age(Duration::seconds(0));
-            cookie.set_expires(time::now() - Duration::days(365));
+            cookie.set_expires(OffsetDateTime::now() - Duration::days(365));
             self.delta_cookies.replace(DeltaCookie::removed(cookie));
         } else {
             self.delta_cookies.remove(cookie.name());
