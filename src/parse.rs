@@ -10,7 +10,7 @@ use std::ascii::AsciiExt;
 
 #[cfg(feature = "percent-encode")]
 use percent_encoding::percent_decode;
-use time::{self, Duration};
+use time::{Duration, OffsetDateTime};
 
 use ::{Cookie, SameSite, CookieStr};
 
@@ -172,7 +172,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                     Ok(val) => {
                         // Don't panic if the max age seconds is greater than
                         // what's supported by `Duration`.
-                        let val = cmp::min(val, Duration::max_value().num_seconds());
+                        let val = cmp::min(val, Duration::max_value().whole_seconds());
                         Some(Duration::seconds(val))
                     }
                     Err(_) => continue,
@@ -209,10 +209,10 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                 // Try strptime with three date formats according to
                 // http://tools.ietf.org/html/rfc2616#section-3.3.1. Try
                 // additional ones as encountered in the real world.
-                let tm = time::strptime(v, "%a, %d %b %Y %H:%M:%S %Z")
-                    .or_else(|_| time::strptime(v, "%A, %d-%b-%y %H:%M:%S %Z"))
-                    .or_else(|_| time::strptime(v, "%a, %d-%b-%Y %H:%M:%S %Z"))
-                    .or_else(|_| time::strptime(v, "%a %b %d %H:%M:%S %Y"));
+                let tm = parse_gmt_date(v, "%a, %d %b %Y %H:%M:%S GMT")
+                    .or_else(|_| parse_gmt_date(v, "%A, %d-%b-%y %H:%M:%S GMT"))
+                    .or_else(|_| parse_gmt_date(v, "%a, %d-%b-%Y %H:%M:%S GMT"))
+                    .or_else(|_| parse_gmt_date(v, "%a %b %d %H:%M:%S %Y"));
 
                 if let Ok(time) = tm {
                     cookie.expires = Some(time)
@@ -239,10 +239,16 @@ pub fn parse_cookie<'c, S>(cow: S, decode: bool) -> Result<Cookie<'c>, ParseErro
     Ok(cookie)
 }
 
+pub(crate) fn parse_gmt_date(s: &str, format: &str) -> Result<OffsetDateTime, time::ParseError> {
+    let primitive = time::PrimitiveDateTime::parse(s, format)?;
+    Ok(primitive.using_offset(time::UtcOffset::UTC))
+}
+
 #[cfg(test)]
 mod tests {
     use ::{Cookie, SameSite};
-    use ::time::{strptime, Duration};
+    use super::parse_gmt_date;
+    use ::time::Duration;
 
     macro_rules! assert_eq_parse {
         ($string:expr, $expected:expr) => (
@@ -396,13 +402,13 @@ mod tests {
             Domain=FOO.COM", unexpected);
 
         let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
-        let expires = strptime(time_str, "%a, %d %b %Y %H:%M:%S %Z").unwrap();
+        let expires = parse_gmt_date(time_str, "%a, %d %b %Y %H:%M:%S GMT").unwrap();
         expected.set_expires(expires);
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
             Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", expected);
 
         unexpected.set_domain("foo.com");
-        let bad_expires = strptime(time_str, "%a, %d %b %Y %H:%S:%M %Z").unwrap();
+        let bad_expires = parse_gmt_date(time_str, "%a, %d %b %Y %H:%S:%M GMT").unwrap();
         expected.set_expires(bad_expires);
         assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
             Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", unexpected);
@@ -428,10 +434,10 @@ mod tests {
 
     #[test]
     fn do_not_panic_on_large_max_ages() {
-        let max_seconds = Duration::max_value().num_seconds();
+        let max_seconds = Duration::max_value().whole_seconds();
         let expected = Cookie::build("foo", "bar")
             .max_age(Duration::seconds(max_seconds))
             .finish();
-        assert_eq_parse!(format!(" foo=bar; Max-Age={:?}", max_seconds + 1), expected);
+        assert_eq_parse!(format!(" foo=bar; Max-Age={:?}", max_seconds), expected);
     }
 }

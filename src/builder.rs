@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use time::{Tm, Duration};
+use time::{Duration, OffsetDateTime};
 
 use ::{Cookie, SameSite};
 
@@ -65,19 +65,20 @@ impl<'c> CookieBuilder<'c> {
     /// ```rust
     /// # extern crate cookie;
     /// extern crate time;
+    /// use time::OffsetDateTime;
     ///
     /// use cookie::Cookie;
     ///
     /// # fn main() {
     /// let c = Cookie::build("foo", "bar")
-    ///     .expires(time::now())
+    ///     .expires(OffsetDateTime::now())
     ///     .finish();
     ///
     /// assert!(c.expires().is_some());
     /// # }
     /// ```
     #[inline]
-    pub fn expires(mut self, when: Tm) -> Self {
+    pub fn expires(mut self, when: OffsetDateTime) -> Self {
         self.cookie.set_expires(when);
         self
     }
