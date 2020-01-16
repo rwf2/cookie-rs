@@ -925,7 +925,8 @@ const USERINFO_ENCODE_SET: &AsciiSet = &PATH_ENCODE_SET
     .add(b'\\')
     .add(b']')
     .add(b'^')
-    .add(b'|');
+    .add(b'|')
+    .add(b'%');
 
 /// Wrapper around `Cookie` whose `Display` implementation percent-encodes the
 /// cookie's name and value.
@@ -942,8 +943,8 @@ const USERINFO_ENCODE_SET: &AsciiSet = &PATH_ENCODE_SET
 /// ```rust
 /// use cookie::Cookie;
 ///
-/// let mut c = Cookie::new("my name", "this; value?");
-/// assert_eq!(&c.encoded().to_string(), "my%20name=this%3B%20value%3F");
+/// let mut c = Cookie::new("my name", "this; value%?");
+/// assert_eq!(&c.encoded().to_string(), "my%20name=this%3B%20value%25%3F");
 /// ```
 #[cfg(feature = "percent-encode")]
 pub struct EncodedCookie<'a, 'c: 'a>(&'a Cookie<'c>);
