@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::cmp;
 use std::error::Error;
 use std::str::Utf8Error;
 use std::fmt;
@@ -163,21 +162,26 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
         match (&*key.to_ascii_lowercase(), value) {
             ("secure", _) => cookie.secure = Some(true),
             ("httponly", _) => cookie.http_only = Some(true),
-            ("max-age", Some(v)) => {
-                // See RFC 6265 Section 5.2.2, negative values indicate that the
-                // earliest possible expiration time should be used, so set the
-                // max age as 0 seconds.
-                cookie.max_age = match v.parse() {
-                    Ok(val) if val <= 0 => Some(Duration::zero()),
-                    Ok(val) => {
-                        // Don't panic if the max age seconds is greater than
-                        // what's supported by `Duration`.
-                        let val = cmp::min(val, Duration::max_value().whole_seconds());
-                        Some(Duration::seconds(val))
-                    }
-                    Err(_) => continue,
-                };
-            }
+            ("max-age", Some(mut v)) => cookie.max_age = {
+                let is_negative = v.starts_with('-');
+                if is_negative {
+                    v = &v[1..];
+                }
+
+                if !v.chars().all(|d| d.is_digit(10)) {
+                    continue
+                }
+
+                // From RFC 6265 5.2.2: neg values indicate that the earliest
+                // expiration should be used, so set the max age to 0 seconds.
+                if is_negative {
+                    Some(Duration::zero())
+                } else {
+                    Some(v.parse::<i64>()
+                        .map(Duration::seconds)
+                        .unwrap_or(Duration::seconds(i64::max_value())))
+                }
+            },
             ("domain", Some(mut domain)) if !domain.is_empty() => {
                 if domain.starts_with('.') {
                     domain = &domain[1..];
@@ -415,6 +419,29 @@ mod tests {
     }
 
     #[test]
+    fn parse_very_large_max_ages() {
+        let mut expected = Cookie::build("foo", "bar")
+            .max_age(Duration::seconds(i64::max_value()))
+            .finish();
+
+        let string = format!("foo=bar; Max-Age={}", 1u128 << 100);
+        assert_eq_parse!(&string, expected);
+
+        expected.set_max_age(Duration::seconds(0));
+        assert_eq_parse!("foo=bar; Max-Age=-129", expected);
+
+        let string = format!("foo=bar; Max-Age=-{}", 1u128 << 100);
+        assert_eq_parse!(&string, expected);
+
+        let string = format!("foo=bar; Max-Age=-{}", i64::max_value());
+        assert_eq_parse!(&string, expected);
+
+        let string = format!("foo=bar; Max-Age={}", i64::max_value());
+        expected.set_max_age(Duration::seconds(i64::max_value()));
+        assert_eq_parse!(&string, expected);
+    }
+
+    #[test]
     fn odd_characters() {
         let expected = Cookie::new("foo", "b%2Fr");
         assert_eq_parse!("foo=b%2Fr", expected);
@@ -438,6 +465,7 @@ mod tests {
         let expected = Cookie::build("foo", "bar")
             .max_age(Duration::seconds(max_seconds))
             .finish();
-        assert_eq_parse!(format!(" foo=bar; Max-Age={:?}", max_seconds), expected);
+        let too_many_seconds = (max_seconds as u64) + 1;
+        assert_eq_parse!(format!(" foo=bar; Max-Age={:?}", too_many_seconds), expected);
     }
 }
