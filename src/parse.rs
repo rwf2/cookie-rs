@@ -175,7 +175,22 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                         let val = cmp::min(val, Duration::max_value().whole_seconds());
                         Some(Duration::seconds(val))
                     }
-                    Err(_) => continue,
+                    Err(_) => {
+                        let (neg, digits) = if v.starts_with("-") {
+                            (true, &v[1..])
+                        } else {
+                            (false, v)
+                        };
+
+                        if !digits.chars().all(|d| d.is_digit(10)) {
+                            continue
+                        } else if neg {
+                            Some(Duration::zero())
+                        } else {
+                            let seconds = Duration::max_value().whole_seconds();
+                            Some(Duration::seconds(seconds))
+                        }
+                    }
                 };
             }
             ("domain", Some(mut domain)) if !domain.is_empty() => {
@@ -427,6 +442,7 @@ mod tests {
         let expected = Cookie::build("foo", "bar")
             .max_age(Duration::seconds(max_seconds))
             .finish();
-        assert_eq_parse!(format!(" foo=bar; Max-Age={:?}", max_seconds), expected);
+        let too_many_seconds = (max_seconds as u64) + 1;
+        assert_eq_parse!(format!(" foo=bar; Max-Age={:?}", too_many_seconds), expected);
     }
 }
