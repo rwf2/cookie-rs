@@ -1,4 +1,3 @@
-//! HTTP cookie parsing and cookie jar management.
 //!
 //! This crates provides the [`Cookie`](struct.Cookie.html) type, which directly
 //! maps to an HTTP cookie, and the [`CookieJar`](struct.CookieJar.html) type,
@@ -621,7 +620,13 @@ impl<'c> Cookie<'c> {
         self.secure = Some(value);
     }
 
-    /// Sets the value of `same_site` in `self` to `value`.
+    /// Sets the value of `same_site` in `self` to `value`. If `value` is
+    /// `None`, the field is unset. If `value` is `SameSite::None`, the "Secure"
+    /// flag will be set when the cookie is written out unless `secure` is
+    /// explicitly set to `false` via [`Cookie::set_secure()`] or the equivalent
+    /// builder method.
+    ///
+    /// [HTTP draft]: https://tools.ietf.org/html/draft-west-cookie-incrementalism-00
     ///
     /// # Example
     ///
@@ -629,14 +634,29 @@ impl<'c> Cookie<'c> {
     /// use cookie::{Cookie, SameSite};
     ///
     /// let mut c = Cookie::new("name", "value");
-    /// assert!(c.same_site().is_none());
+    /// assert_eq!(c.same_site(), None);
+    ///
+    /// c.set_same_site(SameSite::None);
+    /// assert_eq!(c.same_site(), Some(SameSite::None));
+    /// assert_eq!(c.to_string(), "name=value; SameSite=None; Secure");
+    ///
+    /// c.set_secure(false);
+    /// assert_eq!(c.to_string(), "name=value; SameSite=None");
+    ///
+    /// let mut c = Cookie::new("name", "value");
+    /// assert_eq!(c.same_site(), None);
     ///
     /// c.set_same_site(SameSite::Strict);
     /// assert_eq!(c.same_site(), Some(SameSite::Strict));
+    /// assert_eq!(c.to_string(), "name=value; SameSite=Strict");
+    ///
+    /// c.set_same_site(None);
+    /// assert_eq!(c.same_site(), None);
+    /// assert_eq!(c.to_string(), "name=value");
     /// ```
     #[inline]
-    pub fn set_same_site(&mut self, value: SameSite) {
-        self.same_site = Some(value);
+    pub fn set_same_site<T: Into<Option<SameSite>>>(&mut self, value: T) {
+        self.same_site = value.into();
     }
 
     /// Sets the value of `max_age` in `self` to `value`. If `value` is `None`,
@@ -764,14 +784,16 @@ impl<'c> Cookie<'c> {
             write!(f, "; HttpOnly")?;
         }
 
-        if let Some(true) = self.secure() {
-            write!(f, "; Secure")?;
+        if let Some(same_site) = self.same_site() {
+            write!(f, "; SameSite={}", same_site)?;
+
+            if same_site.is_none() && self.secure().is_none() {
+                write!(f, "; Secure")?;
+            }
         }
 
-        if let Some(same_site) = self.same_site() {
-            if !same_site.is_none() {
-                write!(f, "; SameSite={}", same_site)?;
-            }
+        if let Some(true) = self.secure() {
+            write!(f, "; Secure")?;
         }
 
         if let Some(path) = self.path() {
@@ -1080,9 +1102,20 @@ mod tests {
             .same_site(SameSite::Lax).finish();
         assert_eq!(&cookie.to_string(), "foo=bar; SameSite=Lax");
 
-        let cookie = Cookie::build("foo", "bar")
+        let mut cookie = Cookie::build("foo", "bar")
             .same_site(SameSite::None).finish();
+        assert_eq!(&cookie.to_string(), "foo=bar; SameSite=None; Secure");
+
+        cookie.set_same_site(None);
         assert_eq!(&cookie.to_string(), "foo=bar");
+
+        let mut cookie = Cookie::build("foo", "bar")
+            .same_site(SameSite::None)
+            .secure(false)
+            .finish();
+        assert_eq!(&cookie.to_string(), "foo=bar; SameSite=None");
+        cookie.set_secure(true);
+        assert_eq!(&cookie.to_string(), "foo=bar; SameSite=None; Secure");
     }
 
     #[test]
