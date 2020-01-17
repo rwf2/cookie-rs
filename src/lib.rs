@@ -584,7 +584,8 @@ impl<'c> Cookie<'c> {
         self.value = CookieStr::Concrete(value.into())
     }
 
-    /// Sets the value of `http_only` in `self` to `value`.
+    /// Sets the value of `http_only` in `self` to `value`.  If `value` is
+    /// `None`, the field is unset.
     ///
     /// # Example
     ///
@@ -596,13 +597,20 @@ impl<'c> Cookie<'c> {
     ///
     /// c.set_http_only(true);
     /// assert_eq!(c.http_only(), Some(true));
+    ///
+    /// c.set_http_only(false);
+    /// assert_eq!(c.http_only(), Some(false));
+    ///
+    /// c.set_http_only(None);
+    /// assert_eq!(c.http_only(), None);
     /// ```
     #[inline]
-    pub fn set_http_only(&mut self, value: bool) {
-        self.http_only = Some(value);
+    pub fn set_http_only<T: Into<Option<bool>>>(&mut self, value: T) {
+        self.http_only = value.into();
     }
 
-    /// Sets the value of `secure` in `self` to `value`.
+    /// Sets the value of `secure` in `self` to `value`. If `value` is `None`,
+    /// the field is unset.
     ///
     /// # Example
     ///
@@ -614,10 +622,16 @@ impl<'c> Cookie<'c> {
     ///
     /// c.set_secure(true);
     /// assert_eq!(c.secure(), Some(true));
+    ///
+    /// c.set_secure(false);
+    /// assert_eq!(c.secure(), Some(false));
+    ///
+    /// c.set_secure(None);
+    /// assert_eq!(c.secure(), None);
     /// ```
     #[inline]
-    pub fn set_secure(&mut self, value: bool) {
-        self.secure = Some(value);
+    pub fn set_secure<T: Into<Option<bool>>>(&mut self, value: T) {
+        self.secure = value.into();
     }
 
     /// Sets the value of `same_site` in `self` to `value`. If `value` is
@@ -704,6 +718,26 @@ impl<'c> Cookie<'c> {
         self.path = Some(CookieStr::Concrete(path.into()));
     }
 
+    /// Unsets the `path` of `self`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::Cookie;
+    ///
+    /// let mut c = Cookie::new("name", "value");
+    /// assert_eq!(c.path(), None);
+    ///
+    /// c.set_path("/");
+    /// assert_eq!(c.path(), Some("/"));
+    ///
+    /// c.unset_path();
+    /// assert_eq!(c.path(), None);
+    /// ```
+    pub fn unset_path(&mut self) {
+        self.path = None;
+    }
+
     /// Sets the `domain` of `self` to `domain`.
     ///
     /// # Example
@@ -719,6 +753,26 @@ impl<'c> Cookie<'c> {
     /// ```
     pub fn set_domain<D: Into<Cow<'c, str>>>(&mut self, domain: D) {
         self.domain = Some(CookieStr::Concrete(domain.into()));
+    }
+
+    /// Unsets the `domain` of `self`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::Cookie;
+    ///
+    /// let mut c = Cookie::new("name", "value");
+    /// assert_eq!(c.domain(), None);
+    ///
+    /// c.set_domain("rust-lang.org");
+    /// assert_eq!(c.domain(), Some("rust-lang.org"));
+    ///
+    /// c.unset_domain();
+    /// assert_eq!(c.domain(), None);
+    /// ```
+    pub fn unset_domain(&mut self) {
+        self.domain = None;
     }
 
     /// Sets the expires field of `self` to `time`. If `time` is `None`, the
@@ -746,7 +800,6 @@ impl<'c> Cookie<'c> {
     /// assert!(c.expires().is_none());
     /// # }
     /// ```
-    #[inline]
     pub fn set_expires<T: Into<Option<Tm>>>(&mut self, time: T) {
         self.expires = time.into();
     }
