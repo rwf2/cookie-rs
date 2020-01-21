@@ -9,7 +9,7 @@
 //! Add the following to the `[dependencies]` section of your `Cargo.toml`:
 //!
 //! ```ignore
-//! cookie = "0.12"
+//! cookie = "0.13"
 //! ```
 //!
 //! Then add the following line to your crate root:
@@ -57,7 +57,7 @@
 //! features = ["secure", "percent-encode"]
 //! ```
 
-#![doc(html_root_url = "https://docs.rs/cookie/0.12")]
+#![doc(html_root_url = "https://docs.rs/cookie/0.13")]
 #![deny(missing_docs)]
 
 #[cfg(feature = "percent-encode")] extern crate percent_encoding;
