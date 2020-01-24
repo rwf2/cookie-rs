@@ -1,6 +1,15 @@
-# Version 0.13.0 (Jan 21, 2020)
+# Version 0.13
 
-## Breaking Changes
+## Version 0.13.1 (Jan 23, 2020)
+
+### New Features
+
+  * Added the `CookieJar::reset_delta()` method, which reverts all _delta_
+    changes to a `CookieJar`.
+
+## Version 0.13.0 (Jan 21, 2020)
+
+### Breaking Changes
 
   * `time` was updated from 0.1 to 0.2.
   * `ring` was updated from 0.14 to 0.16.
@@ -9,7 +18,7 @@
     `Cookie::set_same_site()`.
   * `CookieBuilder` gained a lifetime: `CookieBuilder<'c>`.
 
-## General Changes and Fixes
+### General Changes and Fixes
 
   * Added a CHANGELOG.
   * `expires`, `max_age`, `path`, and `domain` can be unset by passing `None` to
