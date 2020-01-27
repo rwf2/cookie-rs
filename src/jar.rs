@@ -232,6 +232,43 @@ impl CookieJar {
         }
     }
 
+    /// Removes all delta cookies, i.e. all cookies not added via
+    /// [`CookieJar::add_original()`], from this `CookieJar`. This undoes any
+    /// changes from [`CookieJar::add()`] and [`CookieJar::remove()`]
+    /// operations.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::{CookieJar, Cookie};
+    ///
+    /// let mut jar = CookieJar::new();
+    ///
+    /// // Only original cookies will remain after calling `reset_delta`.
+    /// jar.add_original(Cookie::new("name", "value"));
+    /// jar.add_original(Cookie::new("language", "Rust"));
+    ///
+    /// // These operations, represented by delta cookies, will be reset.
+    /// jar.add(Cookie::new("language", "C++"));
+    /// jar.remove(Cookie::named("name"));
+    ///
+    /// // All is normal.
+    /// assert_eq!(jar.get("name"), None);
+    /// assert_eq!(jar.get("language").map(Cookie::value), Some("C++"));
+    /// assert_eq!(jar.iter().count(), 1);
+    /// assert_eq!(jar.delta().count(), 2);
+    ///
+    /// // Resetting undoes delta operations.
+    /// jar.reset_delta();
+    /// assert_eq!(jar.get("name").map(Cookie::value), Some("value"));
+    /// assert_eq!(jar.get("language").map(Cookie::value), Some("Rust"));
+    /// assert_eq!(jar.iter().count(), 2);
+    /// assert_eq!(jar.delta().count(), 0);
+    /// ```
+    pub fn reset_delta(&mut self) {
+        self.delta_cookies = HashSet::new();
+    }
+
     /// Removes `cookie` from this jar completely. This method differs from
     /// `remove` in that no delta cookie is created under any condition. Neither
     /// the `delta` nor `iter` methods will return a cookie that is removed
@@ -592,6 +629,9 @@ mod test {
 
         jar.remove(Cookie::named("name"));
         assert_eq!(jar.delta().count(), 1);
+
+        jar.reset_delta();
+        assert_eq!(jar.delta().count(), 0);
     }
 
     #[test]
