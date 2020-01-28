@@ -1,5 +1,12 @@
 # Version 0.13
 
+## Version 0.13.2 (Jan 28, 2020)
+
+### Changes
+
+  * The `time` dependency was pinned to `0.2.4` due to upstream breaking changes
+    in `0.2.5`.
+
 ## Version 0.13.1 (Jan 23, 2020)
 
 ### New Features
