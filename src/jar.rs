@@ -80,12 +80,12 @@ use Cookie;
 /// assert_eq!(jar.delta().count(), 2);
 /// ```
 #[derive(Default, Debug, Clone)]
-pub struct CookieJar {
-    original_cookies: HashSet<DeltaCookie>,
-    delta_cookies: HashSet<DeltaCookie>,
+pub struct CookieJar<'c> {
+    original_cookies: HashSet<DeltaCookie<'c>>,
+    delta_cookies: HashSet<DeltaCookie<'c>>,
 }
 
-impl CookieJar {
+impl<'c> CookieJar<'c> {
     /// Creates an empty cookie jar.
     ///
     /// # Example
@@ -96,7 +96,7 @@ impl CookieJar {
     /// let jar = CookieJar::new();
     /// assert_eq!(jar.iter().count(), 0);
     /// ```
-    pub fn new() -> CookieJar {
+    pub fn new<'b>() -> CookieJar<'b> {
         CookieJar::default()
     }
 
@@ -114,7 +114,7 @@ impl CookieJar {
     /// jar.add(Cookie::new("name", "value"));
     /// assert_eq!(jar.get("name").map(|c| c.value()), Some("value"));
     /// ```
-    pub fn get(&self, name: &str) -> Option<&Cookie<'static>> {
+    pub fn get(&self, name: &str) -> Option<&Cookie<'c>> {
         self.delta_cookies
             .get(name)
             .or_else(|| self.original_cookies.get(name))
@@ -146,7 +146,7 @@ impl CookieJar {
     /// assert_eq!(jar.iter().count(), 2);
     /// assert_eq!(jar.delta().count(), 0);
     /// ```
-    pub fn add_original(&mut self, cookie: Cookie<'static>) {
+    pub fn add_original(&mut self, cookie: Cookie<'c>) {
         self.original_cookies.replace(DeltaCookie::added(cookie));
     }
 
@@ -167,7 +167,7 @@ impl CookieJar {
     /// assert_eq!(jar.iter().count(), 2);
     /// assert_eq!(jar.delta().count(), 2);
     /// ```
-    pub fn add(&mut self, cookie: Cookie<'static>) {
+    pub fn add(&mut self, cookie: Cookie<'c>) {
         self.delta_cookies.replace(DeltaCookie::added(cookie));
     }
 
@@ -221,7 +221,7 @@ impl CookieJar {
     /// jar.remove(Cookie::named("name"));
     /// assert_eq!(jar.delta().count(), 0);
     /// ```
-    pub fn remove(&mut self, mut cookie: Cookie<'static>) {
+    pub fn remove(&mut self, mut cookie: Cookie<'c>) {
         if self.original_cookies.contains(cookie.name()) {
             cookie.set_value("");
             cookie.set_max_age(Duration::seconds(0));
@@ -468,13 +468,13 @@ use std::collections::hash_set::Iter as HashSetIter;
 
 /// Iterator over the changes to a cookie jar.
 pub struct Delta<'a> {
-    iter: HashSetIter<'a, DeltaCookie>,
+    iter: HashSetIter<'a, DeltaCookie<'a>>,
 }
 
 impl<'a> Iterator for Delta<'a> {
-    type Item = &'a Cookie<'static>;
+    type Item = &'a Cookie<'a>;
 
-    fn next(&mut self) -> Option<&'a Cookie<'static>> {
+    fn next(&mut self) -> Option<&'a Cookie<'a>> {
         self.iter.next().map(|c| &c.cookie)
     }
 }
@@ -485,13 +485,16 @@ use std::iter::Chain;
 
 /// Iterator over all of the cookies in a jar.
 pub struct Iter<'a> {
-    delta_cookies: Chain<HashSetIter<'a, DeltaCookie>, Difference<'a, DeltaCookie, RandomState>>,
+    delta_cookies: Chain<
+            HashSetIter<'a, DeltaCookie<'a>>, 
+            Difference<'a, DeltaCookie<'a>, RandomState>
+        >,
 }
 
 impl<'a> Iterator for Iter<'a> {
-    type Item = &'a Cookie<'static>;
+    type Item = &'a Cookie<'a>;
 
-    fn next(&mut self) -> Option<&'a Cookie<'static>> {
+    fn next(&mut self) -> Option<&'a Cookie<'a>> {
         for cookie in self.delta_cookies.by_ref() {
             if !cookie.removed {
                 return Some(&*cookie);

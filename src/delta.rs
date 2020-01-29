@@ -10,15 +10,15 @@ use Cookie;
 /// that when sent to the client removes the named cookie on the client's
 /// machine.
 #[derive(Clone, Debug)]
-pub struct DeltaCookie {
-    pub cookie: Cookie<'static>,
+pub struct DeltaCookie<'c> {
+    pub cookie: Cookie<'c>,
     pub removed: bool,
 }
 
-impl DeltaCookie {
+impl<'c> DeltaCookie<'c> {
     /// Create a new `DeltaCookie` that is being added to a jar.
     #[inline]
-    pub fn added(cookie: Cookie<'static>) -> DeltaCookie {
+    pub fn added(cookie: Cookie<'c>) -> DeltaCookie<'c> {
         DeltaCookie {
             cookie: cookie,
             removed: false,
@@ -28,7 +28,7 @@ impl DeltaCookie {
     /// Create a new `DeltaCookie` that is being removed from a jar. The
     /// `cookie` should be a "removal" cookie.
     #[inline]
-    pub fn removed(cookie: Cookie<'static>) -> DeltaCookie {
+    pub fn removed(cookie: Cookie<'c>) -> DeltaCookie<'c> {
         DeltaCookie {
             cookie: cookie,
             removed: true,
@@ -36,35 +36,35 @@ impl DeltaCookie {
     }
 }
 
-impl Deref for DeltaCookie {
-    type Target = Cookie<'static>;
+impl<'c> Deref for DeltaCookie<'c> {
+    type Target = Cookie<'c>;
 
-    fn deref(&self) -> &Cookie<'static> {
+    fn deref(&self) -> &Cookie<'c> {
         &self.cookie
     }
 }
 
-impl DerefMut for DeltaCookie {
-    fn deref_mut(&mut self) -> &mut Cookie<'static> {
+impl<'c> DerefMut for DeltaCookie<'c> {
+    fn deref_mut(&mut self) -> &mut Cookie<'c> {
         &mut self.cookie
     }
 }
 
-impl PartialEq for DeltaCookie {
+impl PartialEq for DeltaCookie<'_> {
     fn eq(&self, other: &DeltaCookie) -> bool {
         self.name() == other.name()
     }
 }
 
-impl Eq for DeltaCookie {}
+impl Eq for DeltaCookie<'_> {}
 
-impl Hash for DeltaCookie {
+impl Hash for DeltaCookie<'_> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.name().hash(state);
     }
 }
 
-impl Borrow<str> for DeltaCookie {
+impl Borrow<str> for DeltaCookie<'_> {
     fn borrow(&self) -> &str {
         self.name()
     }
