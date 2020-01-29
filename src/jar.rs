@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::mem::replace;
+use parse::ParseError;
 
 use time::{Duration, OffsetDateTime};
 
@@ -98,6 +99,36 @@ impl<'c> CookieJar<'c> {
     /// ```
     pub fn new<'b>() -> CookieJar<'b> {
         CookieJar::default()
+    }
+
+    /// Creates a cookie jar from the specified Cookie header value.
+    ///
+    /// Note that the cookies will only have name and value; all other
+    /// fields will be None, even though the client that sent you the
+    /// header may have values for those fields.
+    ///
+    /// These cookies will be added as 'original' cookies.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::CookieJar;
+    ///
+    /// let jar = CookieJar::parse("name=value; name2=value2; name3=value3").unwrap();
+    /// // name, value
+    /// // name2, value2
+    /// // name3, value3
+    /// for cookie in jar.iter() {
+    ///     let (name, value) = cookie.name_value();
+    ///     println!("{}, {}", name, value);
+    /// }
+    /// ```
+    pub fn parse(header: &str) -> Result<CookieJar, ParseError> {
+        let mut ret = CookieJar::default();
+        for cookiestr in header.split("; ") {
+            ret.add_original(Cookie::parse(cookiestr)?);
+        }
+        Ok(ret)
     }
 
     /// Returns a reference to the `Cookie` inside this jar with the name
@@ -537,6 +568,26 @@ mod test {
         }
 
         assert!(is_send(CookieJar::new()))
+    }
+
+    #[test]
+    fn parse() {
+        let jar = CookieJar::parse("name=value; name2=value2; name3=value3");
+        assert!(jar.is_ok());
+        let jar = jar.unwrap();
+        assert_eq!(jar.iter().count(), 3);
+        let cookie = jar.get("name");
+        assert!(cookie.is_some());
+        let cookie = cookie.unwrap();
+        assert_eq!(cookie.name_value(), ("name", "value"));
+        let cookie = jar.get("name2");
+        assert!(cookie.is_some());
+        let cookie = cookie.unwrap();
+        assert_eq!(cookie.name_value(), ("name2", "value2"));
+        let cookie = jar.get("name3");
+        assert!(cookie.is_some());
+        let cookie = cookie.unwrap();
+        assert_eq!(cookie.name_value(), ("name3", "value3"));
     }
 
     #[test]
