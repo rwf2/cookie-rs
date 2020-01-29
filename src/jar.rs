@@ -452,7 +452,7 @@ impl<'c> CookieJar<'c> {
     /// assert!(jar.get("private").is_some());
     /// ```
     #[cfg(feature = "secure")]
-    pub fn private(&mut self, key: &Key) -> PrivateJar {
+    pub fn private<'a: 'b, 'b>(&'a mut self, key: &Key) -> PrivateJar<'b, 'c> {
         PrivateJar::new(self, key)
     }
 
@@ -490,7 +490,7 @@ impl<'c> CookieJar<'c> {
     /// assert!(jar.get("signed").is_some());
     /// ```
     #[cfg(feature = "secure")]
-    pub fn signed(&mut self, key: &Key) -> SignedJar {
+    pub fn signed<'a: 'b, 'b> (&'a mut self, key: &Key) -> SignedJar<'b, 'c> {
         SignedJar::new(self, key)
     }
 }

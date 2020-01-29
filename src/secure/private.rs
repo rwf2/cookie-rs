@@ -20,17 +20,17 @@ pub const KEY_LEN: usize = 32;
 /// contents of a cookie, nor can they fabricate cookie data.
 ///
 /// This type is only available when the `secure` feature is enabled.
-pub struct PrivateJar<'a> {
-    parent: &'a mut CookieJar,
+pub struct PrivateJar<'a, 'c> {
+    parent: &'a mut CookieJar<'c>,
     key: [u8; KEY_LEN]
 }
 
-impl<'a> PrivateJar<'a> {
+impl<'a, 'c> PrivateJar<'a, 'c> {
     /// Creates a new child `PrivateJar` with parent `parent` and key `key`.
     /// This method is typically called indirectly via the `signed` method of
     /// `CookieJar`.
     #[doc(hidden)]
-    pub fn new(parent: &'a mut CookieJar, key: &Key) -> PrivateJar<'a> {
+    pub fn new<'f: 'b, 'b>(parent: &'f mut CookieJar<'c>, key: &Key) -> PrivateJar<'b, 'c> {
         let mut key_array = [0u8; KEY_LEN];
         key_array.copy_from_slice(key.encryption());
         PrivateJar { parent: parent, key: key_array }
@@ -77,7 +77,7 @@ impl<'a> PrivateJar<'a> {
     /// private_jar.add(Cookie::new("name", "value"));
     /// assert_eq!(private_jar.get("name").unwrap().value(), "value");
     /// ```
-    pub fn get(&self, name: &str) -> Option<Cookie<'static>> {
+    pub fn get(&self, name: &str) -> Option<Cookie<'c>> {
         if let Some(cookie_ref) = self.parent.get(name) {
             let mut cookie = cookie_ref.clone();
             if let Ok(value) = self.unseal(name, cookie.value()) {
@@ -105,7 +105,7 @@ impl<'a> PrivateJar<'a> {
     /// assert_ne!(jar.get("name").unwrap().value(), "value");
     /// assert_eq!(jar.private(&key).get("name").unwrap().value(), "value");
     /// ```
-    pub fn add(&mut self, mut cookie: Cookie<'static>) {
+    pub fn add(&mut self, mut cookie: Cookie<'c>) {
         self.encrypt_cookie(&mut cookie);
 
         // Add the sealed cookie to the parent.
@@ -134,7 +134,7 @@ impl<'a> PrivateJar<'a> {
     /// assert_eq!(jar.iter().count(), 1);
     /// assert_eq!(jar.delta().count(), 0);
     /// ```
-    pub fn add_original(&mut self, mut cookie: Cookie<'static>) {
+    pub fn add_original(&mut self, mut cookie: Cookie<'c>) {
         self.encrypt_cookie(&mut cookie);
 
         // Add the sealed cookie to the parent.
@@ -198,7 +198,7 @@ impl<'a> PrivateJar<'a> {
     /// private_jar.remove(Cookie::named("name"));
     /// assert!(private_jar.get("name").is_none());
     /// ```
-    pub fn remove(&mut self, cookie: Cookie<'static>) {
+    pub fn remove(&mut self, cookie: Cookie<'c>) {
         self.parent.remove(cookie);
     }
 }

@@ -18,17 +18,17 @@ pub const KEY_LEN: usize = 32;
 /// plaintext.
 ///
 /// This type is only available when the `secure` feature is enabled.
-pub struct SignedJar<'a> {
-    parent: &'a mut CookieJar,
+pub struct SignedJar<'a, 'c> {
+    parent: &'a mut CookieJar<'c>,
     key: hmac::Key,
 }
 
-impl<'a> SignedJar<'a> {
+impl<'a, 'c> SignedJar<'a, 'c> {
     /// Creates a new child `SignedJar` with parent `parent` and key `key`. This
     /// method is typically called indirectly via the `signed` method of
     /// `CookieJar`.
     #[doc(hidden)]
-    pub fn new(parent: &'a mut CookieJar, key: &Key) -> SignedJar<'a> {
+    pub fn new<'f: 'b, 'b> (parent: &'f mut CookieJar<'c>, key: &Key) -> SignedJar<'b, 'c> {
         SignedJar { parent: parent, key: hmac::Key::new(HMAC_DIGEST, key.signing()) }
     }
 
@@ -66,7 +66,7 @@ impl<'a> SignedJar<'a> {
     /// signed_jar.add(Cookie::new("name", "value"));
     /// assert_eq!(signed_jar.get("name").unwrap().value(), "value");
     /// ```
-    pub fn get(&self, name: &str) -> Option<Cookie<'static>> {
+    pub fn get(&self, name: &str) -> Option<Cookie<'c>> {
         if let Some(cookie_ref) = self.parent.get(name) {
             let mut cookie = cookie_ref.clone();
             if let Ok(value) = self.verify(cookie.value()) {
@@ -94,7 +94,7 @@ impl<'a> SignedJar<'a> {
     /// assert!(jar.get("name").unwrap().value().contains("value"));
     /// assert_eq!(jar.signed(&key).get("name").unwrap().value(), "value");
     /// ```
-    pub fn add(&mut self, mut cookie: Cookie<'static>) {
+    pub fn add(&mut self, mut cookie: Cookie<'c>) {
         self.sign_cookie(&mut cookie);
         self.parent.add(cookie);
     }
@@ -120,7 +120,7 @@ impl<'a> SignedJar<'a> {
     /// assert_eq!(jar.iter().count(), 1);
     /// assert_eq!(jar.delta().count(), 0);
     /// ```
-    pub fn add_original(&mut self, mut cookie: Cookie<'static>) {
+    pub fn add_original(&mut self, mut cookie: Cookie<'c>) {
         self.sign_cookie(&mut cookie);
         self.parent.add_original(cookie);
     }
@@ -156,7 +156,7 @@ impl<'a> SignedJar<'a> {
     /// signed_jar.remove(Cookie::named("name"));
     /// assert!(signed_jar.get("name").is_none());
     /// ```
-    pub fn remove(&mut self, cookie: Cookie<'static>) {
+    pub fn remove(&mut self, cookie: Cookie<'c>) {
         self.parent.remove(cookie);
     }
 }
