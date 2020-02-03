@@ -1,5 +1,12 @@
 # Version 0.13
 
+## Version 0.13.3 (Feb 3, 2020)
+
+### Changes
+
+  * The `time` dependency was unpinned from `0.2.4`, allowing any `0.2.x`
+    version of `time` where `x >= 6`.
+
 ## Version 0.13.2 (Jan 28, 2020)
 
 ### Changes
