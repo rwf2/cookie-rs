@@ -112,7 +112,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
     // Determine the name = val.
     let key_value = attributes.next().expect("first str::split().next() returns Some");
     let (name, value) = match key_value.find('=') {
-        Some(i) => (key_value[..i].trim(), key_value[(i + 1)..].trim()),
+        Some(i) => (key_value[..i].trim(), key_value[(i + 1)..].trim_matches(|c: char| c.is_whitespace() || c == '\"')),
         None => return Err(ParseError::MissingPair)
     };
 
@@ -321,7 +321,9 @@ mod tests {
         let mut expected = Cookie::build("foo", "bar").finish();
         assert_eq_parse!("foo=bar", expected);
         assert_eq_parse!("foo = bar", expected);
+        assert_eq_parse!("foo=\"bar\"", expected);
         assert_eq_parse!(" foo=bar ", expected);
+        assert_eq_parse!(" foo=\"bar\" ", expected);
         assert_eq_parse!(" foo=bar ;Domain=", expected);
         assert_eq_parse!(" foo=bar ;Domain= ", expected);
         assert_eq_parse!(" foo=bar ;Ignored", expected);
