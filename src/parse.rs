@@ -341,7 +341,7 @@ mod tests {
         assert_eq_parse!("foo = bar", expected);
         assert_eq_parse!("foo=\"bar\"", expected);
         assert_eq_parse!(" foo=bar ", expected);
-        assert_eq_parse!(" foo=\"bar\" ", expected);
+        assert_eq_parse!(" foo=\"bar   \" ", expected);
         assert_eq_parse!(" foo=bar ;Domain=", expected);
         assert_eq_parse!(" foo=bar ;Domain= ", expected);
         assert_eq_parse!(" foo=bar ;Ignored", expected);
