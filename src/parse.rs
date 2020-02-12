@@ -20,6 +20,8 @@ pub enum ParseError {
     MissingPair,
     /// The cookie's name was empty.
     EmptyName,
+    /// The cookie contained invalid characters
+    InvalidChar(char),
     /// Decoding the cookie's name or value resulted in invalid UTF-8.
     Utf8Error(Utf8Error),
     /// It is discouraged to exhaustively match on this enum as its variants may
@@ -34,6 +36,7 @@ impl ParseError {
         match *self {
             ParseError::MissingPair => "the cookie is missing a name/value pair",
             ParseError::EmptyName => "the cookie's name is empty",
+            ParseError::InvalidChar(_) => "the cookie contained invalid characters",
             ParseError::Utf8Error(_) => {
                 "decoding the cookie's name or value resulted in invalid UTF-8"
             }
@@ -111,6 +114,15 @@ fn trim_quotes<'a>(s: &'a str) -> &'a str {
     }
 }
 
+fn check_invalid(s: &str) -> Option<char> {
+    for c in s.chars() {
+        if ['"', ',', ';', '\\'].contains(&c) {
+            return Some(c);
+        }
+    }
+    None
+}
+
 // This function does the real parsing but _does not_ set the `cookie_string` in
 // the returned cookie object. This only exists so that the borrow to `s` is
 // returned at the end of the call, allowing the `cookie_string` field to be
@@ -124,6 +136,9 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
         Some(i) => {
             let (key, value) = (key_value[..i].trim(), key_value[(i + 1)..].trim());
             let value = trim_quotes(value);
+            if let Some(c) = check_invalid(value) {
+                return Err(ParseError::InvalidChar(c))
+            }
             (key, value.trim())
         },
         None => return Err(ParseError::MissingPair)
@@ -330,9 +345,7 @@ mod tests {
 
         let expected = Cookie::build("foo", "bar=baz").finish();
         assert_eq_parse!("foo=bar=baz", expected);
-
-        let expected = Cookie::build("foo", "\"bar\"").finish();
-        assert_eq_parse!("foo=\"\"bar\"\"", expected);
+        assert!(Cookie::parse("foo=\"\"bar\"\"").is_err());
 
         let mut expected = Cookie::build("foo", "bar").finish();
         assert_eq_parse!("foo=bar", expected);
