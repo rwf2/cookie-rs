@@ -109,7 +109,7 @@ fn trim_quotes<'a>(s: &'a str) -> &'a str {
     if s.len() < 2 {
         return s;
     }
-    
+
     match (s.chars().next(), s.chars().last()) {
         (Some('"'), Some('"')) => &s[1..s.len()-1],
         _ => s
