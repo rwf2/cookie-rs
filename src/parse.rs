@@ -106,8 +106,9 @@ fn name_val_decoded(
 }
 
 fn trim_quotes<'a>(s: &'a str) -> &'a str {
-    let first = s.chars().next();
-    let last = s.chars().last();
+    let mut chars = s.chars();
+    let first = chars.next();
+    let last = chars.last();
     match (first, last) {
         (Some('"'), Some('"')) => &s[1..s.len()-1],
         _ => s
@@ -116,7 +117,8 @@ fn trim_quotes<'a>(s: &'a str) -> &'a str {
 
 fn check_invalid(s: &str) -> Option<char> {
     for c in s.chars() {
-        if ['"', ',', ';', '\\'].contains(&c) {
+        if ['"', ',', ';', '\\'].contains(&c)
+           || c.is_whitespace() {
             return Some(c);
         }
     }
