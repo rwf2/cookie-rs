@@ -102,6 +102,17 @@ fn name_val_decoded(
     unreachable!("This function should never be called with 'percent-encode' disabled!")
 }
 
+fn trim_quotes(s: &str) -> &str {
+    if s.len() < 2 {
+        return s;
+    }
+
+    match (s.chars().next(), s.chars().last()) {
+        (Some('"'), Some('"')) => &s[1..(s.len() - 1)],
+        _ => s
+    }
+}
+
 // This function does the real parsing but _does not_ set the `cookie_string` in
 // the returned cookie object. This only exists so that the borrow to `s` is
 // returned at the end of the call, allowing the `cookie_string` field to be
@@ -112,7 +123,10 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
     // Determine the name = val.
     let key_value = attributes.next().expect("first str::split().next() returns Some");
     let (name, value) = match key_value.find('=') {
-        Some(i) => (key_value[..i].trim(), key_value[(i + 1)..].trim()),
+        Some(i) => {
+            let (key, value) = (key_value[..i].trim(), key_value[(i + 1)..].trim());
+            (key, trim_quotes(value).trim())
+        },
         None => return Err(ParseError::MissingPair)
     };
 
@@ -318,10 +332,28 @@ mod tests {
         let expected = Cookie::build("foo", "bar=baz").finish();
         assert_eq_parse!("foo=bar=baz", expected);
 
+        let expected = Cookie::build("foo", "\"bar\"").finish();
+        assert_eq_parse!("foo=\"\"bar\"\"", expected);
+
+        let expected = Cookie::build("foo", "\"bar").finish();
+        assert_eq_parse!("foo=  \"bar", expected);
+        assert_eq_parse!("foo=\"bar  ", expected);
+        assert_eq_parse!("foo=\"\"bar\"", expected);
+        assert_eq_parse!("foo=\"\"bar  \"", expected);
+        assert_eq_parse!("foo=\"\"bar  \"  ", expected);
+
+        let expected = Cookie::build("foo", "bar\"").finish();
+        assert_eq_parse!("foo=bar\"", expected);
+        assert_eq_parse!("foo=\"bar\"\"", expected);
+        assert_eq_parse!("foo=\"  bar\"\"", expected);
+        assert_eq_parse!("foo=\"  bar\"  \"  ", expected);
+
         let mut expected = Cookie::build("foo", "bar").finish();
         assert_eq_parse!("foo=bar", expected);
         assert_eq_parse!("foo = bar", expected);
+        assert_eq_parse!("foo=\"bar\"", expected);
         assert_eq_parse!(" foo=bar ", expected);
+        assert_eq_parse!(" foo=\"bar   \" ", expected);
         assert_eq_parse!(" foo=bar ;Domain=", expected);
         assert_eq_parse!(" foo=bar ;Domain= ", expected);
         assert_eq_parse!(" foo=bar ;Ignored", expected);
