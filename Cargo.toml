@@ -16,8 +16,8 @@ percent-encode = ["percent-encoding"]
 
 [dependencies]
 time = { version = "0.2.6", default-features = false, features = ["std"] }
-percent-encoding = { version = "2.0", optional = true }
-ring = { version = "0.16.0", optional = true }
+percent-encoding = { version = "2.1.0", optional = true }
+ring = { version = "0.16.11", optional = true }
 base64 = { version = "0.11.0", optional = true }
 
 [package.metadata.docs.rs]
