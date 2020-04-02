@@ -15,16 +15,16 @@ Add the following to your `Cargo.toml`:
 cookie = "0.13"
 ```
 
-See the [documentation](http://docs.rs/cookie) for detailed usage information.
+See the [documentation](https://docs.rs/cookie) for detailed usage information.
 
 # License
 
 This project is licensed under either of
 
  * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-   http://www.apache.org/licenses/LICENSE-2.0)
+   https://www.apache.org/licenses/LICENSE-2.0)
  * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-   http://opensource.org/licenses/MIT)
+   https://opensource.org/licenses/MIT)
 
 at your option.
 
