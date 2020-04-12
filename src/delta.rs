@@ -61,6 +61,9 @@ impl Eq for DeltaCookie {}
 impl Hash for DeltaCookie {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.name().hash(state);
+        if let Some(domain) = self.domain() {
+            domain.hash(state)
+        }
     }
 }
 
