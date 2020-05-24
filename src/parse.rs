@@ -12,7 +12,7 @@ use std::ascii::AsciiExt;
 use percent_encoding::percent_decode;
 use time::{self, Duration};
 
-use ::{Cookie, SameSite, CookieStr};
+use crate::{Cookie, SameSite, CookieStr};
 
 /// Enum corresponding to a parsing error.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -239,8 +239,8 @@ pub fn parse_cookie<'c, S>(cow: S, decode: bool) -> Result<Cookie<'c>, ParseErro
 
 #[cfg(test)]
 mod tests {
-    use ::{Cookie, SameSite};
-    use ::time::{strptime, Duration};
+    use crate::{Cookie, SameSite};
+    use time::{Duration, strptime};
 
     macro_rules! assert_eq_parse {
         ($string:expr, $expected:expr) => (

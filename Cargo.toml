@@ -1,6 +1,7 @@
 [package]
 name = "cookie"
-authors = ["Alex Crichton <alex@alexcrichton.com>", "Sergio Benitez <sb@sergio.bz>"]
+authors = ["Sergio Benitez <sb@sergio.bz>", "Alex Crichton <alex@alexcrichton.com>"]
+edition = "2018"
 version = "0.11.2"
 license = "MIT/Apache-2.0"
 repository = "https://github.com/alexcrichton/cookie-rs"
@@ -11,14 +12,23 @@ and private (encrypted + signed) jars.
 """
 
 [features]
-secure = ["ring", "base64"]
 percent-encode = ["percent-encoding"]
+secure = ["private", "signed"]
+private = ["aes-gcm", "base64", "rand", "key-expansion"]
+signed = ["hmac", "sha2", "base64", "rand", "key-expansion"]
+key-expansion = ["sha2", "hkdf"]
 
 [dependencies]
 time = "0.1"
 percent-encoding = { version = "2.0", optional = true }
-ring = { version = "0.13.0", optional = true }
+
+# dependencies for secure (private/signed) functionality
+aes-gcm = { version = "0.5.0", optional = true }
+hmac = { version = "0.7.1", optional = true }
+sha2 = { version = "0.8.2", optional = true }
 base64 = { version = "0.12.1", optional = true }
+rand = { version = "0.7.3", optional = true }
+hkdf = { version = "0.8.0", optional = true }
 
 [package.metadata.docs.rs]
 all-features = true

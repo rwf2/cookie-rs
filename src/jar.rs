@@ -3,10 +3,12 @@ use std::mem::replace;
 
 use time::{self, Duration};
 
-#[cfg(feature = "secure")]
-use secure::{PrivateJar, SignedJar, Key};
-use delta::DeltaCookie;
-use Cookie;
+#[cfg(feature = "signed")] use crate::secure::SignedJar;
+#[cfg(feature = "private")] use crate::secure::PrivateJar;
+#[cfg(any(feature = "signed", feature = "private"))] use crate::secure::Key;
+
+use crate::delta::DeltaCookie;
+use crate::Cookie;
 
 /// A collection of cookies that tracks its modifications.
 ///
@@ -394,8 +396,6 @@ impl CookieJar {
     /// Any modifications to the child jar will be reflected on the parent jar,
     /// and any retrievals from the child jar will be made from the parent jar.
     ///
-    /// This method is only available when the `secure` feature is enabled.
-    ///
     /// # Example
     ///
     /// ```rust
@@ -420,7 +420,8 @@ impl CookieJar {
     /// assert!(jar.private(&key).get("private").is_none());
     /// assert!(jar.get("private").is_some());
     /// ```
-    #[cfg(feature = "secure")]
+    #[cfg(feature = "private")]
+    #[cfg_attr(all(doc, not(doctest)), doc(cfg(feature = "private")))]
     pub fn private(&mut self, key: &Key) -> PrivateJar {
         PrivateJar::new(self, key)
     }
@@ -430,8 +431,6 @@ impl CookieJar {
     ///
     /// Any modifications to the child jar will be reflected on the parent jar,
     /// and any retrievals from the child jar will be made from the parent jar.
-    ///
-    /// This method is only available when the `secure` feature is enabled.
     ///
     /// # Example
     ///
@@ -458,7 +457,8 @@ impl CookieJar {
     /// assert!(jar.signed(&key).get("signed").is_none());
     /// assert!(jar.get("signed").is_some());
     /// ```
-    #[cfg(feature = "secure")]
+    #[cfg(feature = "signed")]
+    #[cfg_attr(all(doc, not(doctest)), doc(cfg(feature = "signed")))]
     pub fn signed(&mut self, key: &Key) -> SignedJar {
         SignedJar::new(self, key)
     }
@@ -505,7 +505,7 @@ impl<'a> Iterator for Iter<'a> {
 #[cfg(test)]
 mod test {
     use super::CookieJar;
-    use Cookie;
+    use crate::Cookie;
 
     #[test]
     #[allow(deprecated)]
@@ -537,9 +537,9 @@ mod test {
     }
 
     #[test]
-    #[cfg(feature = "secure")]
+    #[cfg(all(feature = "signed", feature = "private"))]
     fn iter() {
-        let key = ::Key::generate();
+        let key = crate::Key::generate();
         let mut c = CookieJar::new();
 
         c.add_original(Cookie::new("original", "original"));
@@ -568,7 +568,6 @@ mod test {
     }
 
     #[test]
-    #[cfg(feature = "secure")]
     fn delta() {
         use std::collections::HashMap;
         use time::Duration;

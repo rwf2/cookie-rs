@@ -1,36 +1,45 @@
-use secure::ring::digest::{SHA256, Algorithm};
-use secure::ring::hmac::{SigningKey, sign, verify_with_own_key as verify};
-use secure::{base64, Key};
+use sha2::Sha256;
+use hmac::{Hmac, Mac};
 
-use {Cookie, CookieJar};
+use crate::secure::{base64, Key};
+use crate::{Cookie, CookieJar};
 
 // Keep these in sync, and keep the key len synced with the `signed` docs as
 // well as the `KEYS_INFO` const in secure::Key.
-static HMAC_DIGEST: &'static Algorithm = &SHA256;
-const BASE64_DIGEST_LEN: usize = 44;
-pub const KEY_LEN: usize = 32;
+pub(crate) const BASE64_DIGEST_LEN: usize = 44;
+pub(crate) const KEY_LEN: usize = 32;
 
 /// A child cookie jar that authenticates its cookies.
 ///
 /// A _signed_ child jar signs all the cookies added to it and verifies cookies
-/// retrieved from it. Any cookies stored in a `SignedJar` are assured integrity
-/// and authenticity. In other words, clients cannot tamper with the contents of
-/// a cookie nor can they fabricate cookie values, but the data is visible in
-/// plaintext.
-///
-/// This type is only available when the `secure` feature is enabled.
+/// retrieved from it. Any cookies stored in a `SignedJar` are provided
+/// integrity and authenticity. In other words, clients cannot tamper with the
+/// contents of a cookie nor can they fabricate cookie values, but the data is
+/// visible in plaintext.
+#[cfg_attr(all(doc, not(doctest)), doc(cfg(feature = "signed")))]
 pub struct SignedJar<'a> {
     parent: &'a mut CookieJar,
-    key: SigningKey
+    key: [u8; KEY_LEN],
 }
 
 impl<'a> SignedJar<'a> {
     /// Creates a new child `SignedJar` with parent `parent` and key `key`. This
     /// method is typically called indirectly via the `signed` method of
     /// `CookieJar`.
-    #[doc(hidden)]
-    pub fn new(parent: &'a mut CookieJar, key: &Key) -> SignedJar<'a> {
-        SignedJar { parent: parent, key: SigningKey::new(HMAC_DIGEST, key.signing()) }
+    pub(crate) fn new(parent: &'a mut CookieJar, key: &Key) -> SignedJar<'a> {
+        SignedJar { parent, key: key.signing }
+    }
+
+    /// Signs the cookie's value providing integrity and authenticity.
+    fn sign_cookie(&self, cookie: &mut Cookie) {
+        // Compute HMAC-SHA256 of the cookie's value.
+        let mut mac = Hmac::<Sha256>::new_varkey(&self.key).expect("good key");
+        mac.input(cookie.value().as_bytes());
+
+        // Cookie's new value is [MAC | original-value].
+        let mut new_value = base64::encode(&mac.result().code());
+        new_value.push_str(cookie.value());
+        cookie.set_value(new_value);
     }
 
     /// Given a signed value `str` where the signature is prepended to `value`,
@@ -41,10 +50,14 @@ impl<'a> SignedJar<'a> {
             return Err("length of value is <= BASE64_DIGEST_LEN");
         }
 
+        // Split [MAC | original-value] into its two parts.
         let (digest_str, value) = cookie_value.split_at(BASE64_DIGEST_LEN);
-        let sig = base64::decode(digest_str).map_err(|_| "bad base64 digest")?;
+        let digest = base64::decode(digest_str).map_err(|_| "bad base64 digest")?;
 
-        verify(&self.key, value.as_bytes(), &sig)
+        // Perform the verification.
+        let mut mac = Hmac::<Sha256>::new_varkey(&self.key).expect("good key");
+        mac.input(value.as_bytes());
+        mac.verify(&digest)
             .map(|_| value.to_string())
             .map_err(|_| "value did not verify")
     }
@@ -102,9 +115,9 @@ impl<'a> SignedJar<'a> {
 
     /// Adds an "original" `cookie` to this jar. The cookie's value is signed
     /// assuring integrity and authenticity. Adding an original cookie does not
-    /// affect the [`CookieJar::delta()`](struct.CookieJar.html#method.delta)
-    /// computation. This method is intended to be used to seed the cookie jar
-    /// with cookies received from a client's HTTP message.
+    /// affect the [`CookieJar::delta()`] computation. This method is intended
+    /// to be used to seed the cookie jar with cookies received from a client's
+    /// HTTP message.
     ///
     /// For accurate `delta` computations, this method should not be called
     /// after calling `remove`.
@@ -126,21 +139,12 @@ impl<'a> SignedJar<'a> {
         self.parent.add_original(cookie);
     }
 
-    /// Signs the cookie's value assuring integrity and authenticity.
-    fn sign_cookie(&self, cookie: &mut Cookie) {
-        let digest = sign(&self.key, cookie.value().as_bytes());
-        let mut new_value = base64::encode(digest.as_ref());
-        new_value.push_str(cookie.value());
-        cookie.set_value(new_value);
-    }
-
     /// Removes `cookie` from the parent jar.
     ///
     /// For correct removal, the passed in `cookie` must contain the same `path`
     /// and `domain` as the cookie that was initially set.
     ///
-    /// See [CookieJar::remove](struct.CookieJar.html#method.remove) for more
-    /// details.
+    /// See [`CookieJar::remove()`] for more details.
     ///
     /// # Example
     ///
@@ -164,7 +168,7 @@ impl<'a> SignedJar<'a> {
 
 #[cfg(test)]
 mod test {
-    use {CookieJar, Cookie, Key};
+    use crate::{CookieJar, Cookie, Key};
 
     #[test]
     fn simple() {
@@ -178,5 +182,25 @@ mod test {
         let key = Key::generate();
         let mut jar = CookieJar::new();
         assert_secure_behaviour!(jar, jar.signed(&key));
+    }
+
+    #[test]
+    fn roundtrip() {
+        // Secret is SHA-256 hash of 'Super secret!' passed through HKDF-SHA256.
+        let key = Key::from(&[89, 202, 200, 125, 230, 90, 197, 245, 166, 249,
+            34, 169, 135, 31, 20, 197, 94, 154, 254, 79, 60, 26, 8, 143, 254,
+            24, 116, 138, 92, 225, 159, 60, 157, 41, 135, 129, 31, 226, 196, 16,
+            198, 168, 134, 4, 42, 1, 196, 24, 57, 103, 241, 147, 201, 185, 233,
+            10, 180, 170, 187, 89, 252, 137, 110, 107]);
+
+        let mut jar = CookieJar::new();
+        jar.add(Cookie::new("signed_with_ring014",
+                "3tdHXEQ2kf6fxC7dWzBGmpSLMtJenXLKrZ9cHkSsl1w=Tamper-proof"));
+        jar.add(Cookie::new("signed_with_ring016",
+                "3tdHXEQ2kf6fxC7dWzBGmpSLMtJenXLKrZ9cHkSsl1w=Tamper-proof"));
+
+        let signed = jar.signed(&key);
+        assert_eq!(signed.get("signed_with_ring014").unwrap().value(), "Tamper-proof");
+        assert_eq!(signed.get("signed_with_ring016").unwrap().value(), "Tamper-proof");
     }
 }
