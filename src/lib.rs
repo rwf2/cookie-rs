@@ -1,63 +1,82 @@
+//! HTTP cookie parsing and cookie jar management.
 //!
-//! This crates provides the [`Cookie`](struct.Cookie.html) type, which directly
-//! maps to an HTTP cookie, and the [`CookieJar`](struct.CookieJar.html) type,
-//! which allows for simple management of many cookies as well as encryption and
-//! signing of cookies for session management.
+//! This crates provides the [`Cookie`] type, representing an HTTP cookie, and
+//! the [`CookieJar`] type, which manages a collection of cookies for session
+//! management, recording changes as they are made, and optional automatic
+//! cookie encryption and signing.
 //!
 //! # Usage
 //!
 //! Add the following to the `[dependencies]` section of your `Cargo.toml`:
 //!
-//! ```ignore
-//! cookie = "0.13"
+//! ```toml
+//! cookie = "0.14"
 //! ```
 //!
 //! Then add the following line to your crate root:
 //!
-//! ```ignore
+//! ```
 //! extern crate cookie;
 //! ```
 //!
 //! # Features
 //!
-//! This crates can be configured at compile-time through the following Cargo
-//! features:
+//! This crate exposes several features, all of which are disabled by default:
 //!
+//! * **`percent-encode`**
 //!
-//! * **secure** (disabled by default)
+//!   Enables _percent encoding and decoding_ of names and values in cookies.
 //!
-//!   Enables signed and private (signed + encrypted) cookie jars.
+//!   When this feature is enabled, the [`Cookie::encoded()`] and
+//!   [`Cookie::parse_encoded()`] methods are available. The `encoded` method
+//!   returns a wrapper around a `Cookie` whose `Display` implementation
+//!   percent-encodes the name and value of the cookie. The `parse_encoded`
+//!   method percent-decodes the name and value of a `Cookie` during parsing.
 //!
-//!   When this feature is enabled, the
-//!   [signed](struct.CookieJar.html#method.signed) and
-//!   [private](struct.CookieJar.html#method.private) method of `CookieJar` and
-//!   [`SignedJar`](struct.SignedJar.html) and
-//!   [`PrivateJar`](struct.PrivateJar.html) structures are available. The jars
-//!   act as "children jars", allowing for easy retrieval and addition of signed
-//!   and/or encrypted cookies to a cookie jar. When this feature is disabled,
-//!   none of the types are available.
+//! * **`signed`**
 //!
-//! * **percent-encode** (disabled by default)
+//!   Enables _signed_ cookies via [`CookieJar::signed()`].
 //!
-//!   Enables percent encoding and decoding of names and values in cookies.
+//!   When this feature is enabled, the [`CookieJar::signed()`] method,
+//!   [`SignedJar`] type, and [`Key`] type are available. The jar acts as "child
+//!   jar"; operations on the jar automatically sign and verify cookies as they
+//!   are added and retrieved from the parent jar.
 //!
-//!   When this feature is enabled, the
-//!   [encoded](struct.Cookie.html#method.encoded) and
-//!   [`parse_encoded`](struct.Cookie.html#method.parse_encoded) methods of
-//!   `Cookie` become available. The `encoded` method returns a wrapper around a
-//!   `Cookie` whose `Display` implementation percent-encodes the name and value
-//!   of the cookie. The `parse_encoded` method percent-decodes the name and
-//!   value of a `Cookie` during parsing. When this feature is disabled, the
-//!   `encoded` and `parse_encoded` methods are not available.
+//! * **`private`**
 //!
-//! You can enable features via the `Cargo.toml` file:
+//!   Enables _private_ (authenticated, encrypted) cookies via
+//!   [`CookieJar::private()`].
 //!
-//! ```ignore
+//!   When this feature is enabled, the [`CookieJar::private()`] method,
+//!   [`PrivateJar`] type, and [`Key`] type are available. The jar acts as "child
+//!   jar"; operations on the jar automatically encrypt and decrypt/authenticate
+//!   cookies as they are added and retrieved from the parent jar.
+//!
+//! * **`key-expansion`**
+//!
+//!   Enables _key expansion_ or _key derivation_ via [`Key::derive_from()`].
+//!
+//!   When this feature is enabled, and either `signed` or `private` are _also_
+//!   enabled, the [`Key::derive_from()`] method is available. The method can be
+//!   used to derive a `Key` structure appropriate for use with signed and
+//!   private jars from cryptographically valid key material that is shorter in
+//!   length than the full key.
+//!
+//! * **`secure`**
+//!
+//!   A meta-feature that simultaneously enables `signed`, `private`, and
+//!   `key-expansion`.
+//!
+//! You can enable features via `Cargo.toml`:
+//!
+//! ```toml
 //! [dependencies.cookie]
 //! features = ["secure", "percent-encode"]
 //! ```
 
-#![doc(html_root_url = "https://docs.rs/cookie/0.13")]
+#![cfg_attr(all(doc, not(doctest)), feature(doc_cfg))]
+
+#![doc(html_root_url = "https://docs.rs/cookie/0.14")]
 #![deny(missing_docs)]
 
 #[cfg(feature = "percent-encode")] extern crate percent_encoding;
@@ -69,8 +88,8 @@ mod jar;
 mod delta;
 mod draft;
 
-#[cfg(feature = "secure")] #[macro_use] mod secure;
-#[cfg(feature = "secure")] pub use secure::*;
+#[cfg(any(feature = "private", feature = "signed"))] #[macro_use] mod secure;
+#[cfg(any(feature = "private", feature = "signed"))] pub use secure::*;
 
 use std::borrow::Cow;
 use std::fmt;
@@ -83,11 +102,11 @@ use std::ascii::AsciiExt;
 use percent_encoding::{AsciiSet, percent_encode};
 use time::{Duration, OffsetDateTime, UtcOffset};
 
-use parse::parse_cookie;
-pub use parse::ParseError;
-pub use builder::CookieBuilder;
-pub use jar::{CookieJar, Delta, Iter};
-pub use draft::*;
+use crate::parse::parse_cookie;
+pub use crate::parse::ParseError;
+pub use crate::builder::CookieBuilder;
+pub use crate::jar::{CookieJar, Delta, Iter};
+pub use crate::draft::*;
 
 #[derive(Debug, Clone)]
 enum CookieStr<'c> {
@@ -129,7 +148,7 @@ impl<'c> CookieStr<'c> {
     }
 
     fn into_owned(self) -> CookieStr<'static> {
-        use CookieStr::*;
+        use crate::CookieStr::*;
 
         match self {
             Indexed(a, b) => Indexed(a, b),
@@ -143,8 +162,7 @@ impl<'c> CookieStr<'c> {
 ///
 /// # Constructing a `Cookie`
 ///
-/// To construct a cookie with only a name/value, use the [new](#method.new)
-/// method:
+/// To construct a cookie with only a name/value, use [`Cookie::new()`]:
 ///
 /// ```rust
 /// use cookie::Cookie;
@@ -153,8 +171,8 @@ impl<'c> CookieStr<'c> {
 /// assert_eq!(&cookie.to_string(), "name=value");
 /// ```
 ///
-/// To construct more elaborate cookies, use the [build](#method.build) method
-/// and [`CookieBuilder`](struct.CookieBuilder.html) methods:
+/// To construct more elaborate cookies, use [`Cookie::build()`] and
+/// [`CookieBuilder`] methods:
 ///
 /// ```rust
 /// use cookie::Cookie;
@@ -277,9 +295,6 @@ impl<'c> Cookie<'c> {
     /// the name and value fields are percent-encoded. Percent-decodes the
     /// name/value fields.
     ///
-    /// This API requires the `percent-encode` feature to be enabled on this
-    /// crate.
-    ///
     /// # Example
     ///
     /// ```
@@ -290,6 +305,7 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.http_only(), Some(true));
     /// ```
     #[cfg(feature = "percent-encode")]
+    #[cfg_attr(all(doc, not(doctest)), cfg(feature = "percent-encode"))]
     pub fn parse_encoded<S>(s: S) -> Result<Cookie<'c>, ParseError>
         where S: Into<Cow<'c, str>>
     {
@@ -300,9 +316,6 @@ impl<'c> Cookie<'c> {
     /// whose `Display` implementation percent-encodes the name and value of the
     /// wrapped `Cookie`.
     ///
-    /// This method is only available when the `percent-encode` feature is
-    /// enabled.
-    ///
     /// # Example
     ///
     /// ```rust
@@ -312,6 +325,7 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(&c.encoded().to_string(), "my%20name=this%3B%20value%3F");
     /// ```
     #[cfg(feature = "percent-encode")]
+    #[cfg_attr(all(doc, not(doctest)), cfg(feature = "percent-encode"))]
     pub fn encoded<'a>(&'a self) -> EncodedCookie<'a, 'c> {
         EncodedCookie(self)
     }
@@ -880,10 +894,10 @@ impl<'c> Cookie<'c> {
     /// was originally parsed from. If `self` was not originally parsed from a
     /// raw string, returns `None`.
     ///
-    /// This method differs from [name](#method.name) in that it returns a
-    /// string with the same lifetime as the originally parsed string. This
-    /// lifetime may outlive `self`. If a longer lifetime is not required, or
-    /// you're unsure if you need a longer lifetime, use [name](#method.name).
+    /// This method differs from [`Cookie::name()`] in that it returns a string
+    /// with the same lifetime as the originally parsed string. This lifetime
+    /// may outlive `self`. If a longer lifetime is not required, or you're
+    /// unsure if you need a longer lifetime, use [`Cookie::name()`].
     ///
     /// # Example
     ///
@@ -910,10 +924,10 @@ impl<'c> Cookie<'c> {
     /// was originally parsed from. If `self` was not originally parsed from a
     /// raw string, returns `None`.
     ///
-    /// This method differs from [value](#method.value) in that it returns a
+    /// This method differs from [`Cookie::value()`] in that it returns a
     /// string with the same lifetime as the originally parsed string. This
     /// lifetime may outlive `self`. If a longer lifetime is not required, or
-    /// you're unsure if you need a longer lifetime, use [value](#method.value).
+    /// you're unsure if you need a longer lifetime, use [`Cookie::value()`].
     ///
     /// # Example
     ///
@@ -941,10 +955,10 @@ impl<'c> Cookie<'c> {
     /// raw string, or if `self` doesn't contain a `Path`, or if the `Path` has
     /// changed since parsing, returns `None`.
     ///
-    /// This method differs from [path](#method.path) in that it returns a
+    /// This method differs from [`Cookie::path()`] in that it returns a
     /// string with the same lifetime as the originally parsed string. This
     /// lifetime may outlive `self`. If a longer lifetime is not required, or
-    /// you're unsure if you need a longer lifetime, use [path](#method.path).
+    /// you're unsure if you need a longer lifetime, use [`Cookie::path()`].
     ///
     /// # Example
     ///
@@ -974,11 +988,11 @@ impl<'c> Cookie<'c> {
     /// from a raw string, or if `self` doesn't contain a `Domain`, or if the
     /// `Domain` has changed since parsing, returns `None`.
     ///
-    /// This method differs from [domain](#method.domain) in that it returns a
+    /// This method differs from [`Cookie::domain()`] in that it returns a
     /// string with the same lifetime as the originally parsed string. This
     /// lifetime may outlive `self` struct. If a longer lifetime is not
     /// required, or you're unsure if you need a longer lifetime, use
-    /// [domain](#method.domain).
+    /// [`Cookie::domain()`].
     ///
     /// # Example
     ///
@@ -1030,12 +1044,8 @@ const USERINFO_ENCODE_SET: &AsciiSet = &PATH_ENCODE_SET
 /// Wrapper around `Cookie` whose `Display` implementation percent-encodes the
 /// cookie's name and value.
 ///
-/// A value of this type can be obtained via the
-/// [encoded](struct.Cookie.html#method.encoded) method on
-/// [Cookie](struct.Cookie.html). This type should only be used for its
-/// `Display` implementation.
-///
-/// This type is only available when the `percent-encode` feature is enabled.
+/// A value of this type can be obtained via [`Cookie::encoded()`]. This type
+/// should only be used for its `Display` implementation.
 ///
 /// # Example
 ///
@@ -1046,6 +1056,7 @@ const USERINFO_ENCODE_SET: &AsciiSet = &PATH_ENCODE_SET
 /// assert_eq!(&c.encoded().to_string(), "my%20name=this%3B%20value%25%3F");
 /// ```
 #[cfg(feature = "percent-encode")]
+#[cfg_attr(all(doc, not(doctest)), cfg(feature = "percent-encode"))]
 pub struct EncodedCookie<'a, 'c: 'a>(&'a Cookie<'c>);
 
 #[cfg(feature = "percent-encode")]
@@ -1120,9 +1131,9 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
 
 #[cfg(test)]
 mod tests {
-    use ::{Cookie, SameSite};
-    use ::parse::parse_gmt_date;
-    use ::{time::Duration, OffsetDateTime};
+    use crate::{Cookie, SameSite};
+    use crate::parse::parse_gmt_date;
+    use crate::{time::Duration, OffsetDateTime};
 
     #[test]
     fn format() {

@@ -2,15 +2,15 @@ use std::borrow::Cow;
 
 use time::{Duration, OffsetDateTime};
 
-use ::{Cookie, SameSite};
+use crate::{Cookie, SameSite};
 
 /// Structure that follows the builder pattern for building `Cookie` structs.
 ///
 /// To construct a cookie:
 ///
-///   1. Call [`Cookie::build`](struct.Cookie.html#method.build) to start building.
+///   1. Call [`Cookie::build`] to start building.
 ///   2. Use any of the builder methods to set fields in the cookie.
-///   3. Call [finish](#method.finish) to retrieve the built cookie.
+///   3. Call [`CookieBuilder::finish()`] to retrieve the built cookie.
 ///
 /// # Example
 ///
@@ -40,8 +40,7 @@ pub struct CookieBuilder<'c> {
 impl<'c> CookieBuilder<'c> {
     /// Creates a new `CookieBuilder` instance from the given name and value.
     ///
-    /// This method is typically called indirectly via
-    /// [Cookie::build](struct.Cookie.html#method.build).
+    /// This method is typically called indirectly via [`Cookie::build()`].
     ///
     /// # Example
     ///

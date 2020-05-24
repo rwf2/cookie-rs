@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 use std::hash::{Hash, Hasher};
 use std::borrow::Borrow;
 
-use Cookie;
+use crate::Cookie;
 
 /// A `DeltaCookie` is a helper structure used in a cookie jar. It wraps a
 /// `Cookie` so that it can be hashed and compared purely by name. It further

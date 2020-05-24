@@ -6,13 +6,7 @@ matrix:
     - rust: nightly
 
 script:
-  - cargo build --verbose
-  - cargo test --verbose --no-default-features
-  - cargo test --verbose
-  - cargo test --verbose --features percent-encode
-  - cargo test --verbose --features secure
-  - cargo test --verbose --all-features
-  - rustdoc --test README.md -L target
+  - ./scripts/test.sh
 
 notifications:
   email:

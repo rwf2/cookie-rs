@@ -11,7 +11,7 @@ use std::ascii::AsciiExt;
 use percent_encoding::percent_decode;
 use time::{Duration, OffsetDateTime};
 
-use ::{Cookie, SameSite, CookieStr};
+use crate::{Cookie, SameSite, CookieStr};
 
 /// Enum corresponding to a parsing error.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -264,7 +264,7 @@ pub(crate) fn parse_gmt_date(s: &str, format: &str) -> Result<OffsetDateTime, ti
 
 #[cfg(test)]
 mod tests {
-    use ::{Cookie, SameSite};
+    use crate::{Cookie, SameSite};
     use super::parse_gmt_date;
     use ::time::Duration;
 

@@ -12,8 +12,9 @@ use std::fmt;
 /// requests with "safe" HTTP methods, i.e, `GET`, `HEAD`, `OPTIONS`, `TRACE`.
 /// If the `SameSite` attribute is "None", the cookie is sent in all cross-site
 /// requests if the "Secure" flag is also set, otherwise the cookie is ignored.
-/// This library automatically writes the "Secure" flag on cookies with
-/// `SameSite::None` as long as `secure` is not explicitly set to `false`.
+/// This library automatically sets the "Secure" flag on cookies when
+/// `same_site` is set to `SameSite::None` as long as `secure` is not explicitly
+/// set to `false`.
 ///
 /// If the `SameSite` attribute is not present (by not setting `SameSite`
 /// initally or passing `None` to [`Cookie::set_same_site()`]), then the cookie
