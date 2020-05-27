@@ -536,37 +536,37 @@ mod test {
         assert!(is_send(CookieJar::new()))
     }
 
-    // #[test]
-    // #[cfg(all(feature = "signed", feature = "private"))]
-    // fn iter() {
-    //     let key = ::Key::generate();
-    //     let mut c = CookieJar::new();
-    //
-    //     c.add_original(Cookie::new("original", "original"));
-    //
-    //     c.add(Cookie::new("test", "test"));
-    //     c.add(Cookie::new("test2", "test2"));
-    //     c.add(Cookie::new("test3", "test3"));
-    //     assert_eq!(c.iter().count(), 4);
-    //
-    //     c.signed(&key).add(Cookie::new("signed", "signed"));
-    //     c.private(&key).add(Cookie::new("encrypted", "encrypted"));
-    //     assert_eq!(c.iter().count(), 6);
-    //
-    //     c.remove(Cookie::named("test"));
-    //     assert_eq!(c.iter().count(), 5);
-    //
-    //     c.remove(Cookie::named("signed"));
-    //     c.remove(Cookie::named("test2"));
-    //     assert_eq!(c.iter().count(), 3);
-    //
-    //     c.add(Cookie::new("test2", "test2"));
-    //     assert_eq!(c.iter().count(), 4);
-    //
-    //     c.remove(Cookie::named("test2"));
-    //     assert_eq!(c.iter().count(), 3);
-    // }
-    //
+    #[test]
+    #[cfg(all(feature = "signed", feature = "private"))]
+    fn iter() {
+        let key = crate::Key::generate();
+        let mut c = CookieJar::new();
+
+        c.add_original(Cookie::new("original", "original"));
+
+        c.add(Cookie::new("test", "test"));
+        c.add(Cookie::new("test2", "test2"));
+        c.add(Cookie::new("test3", "test3"));
+        assert_eq!(c.iter().count(), 4);
+
+        c.signed(&key).add(Cookie::new("signed", "signed"));
+        c.private(&key).add(Cookie::new("encrypted", "encrypted"));
+        assert_eq!(c.iter().count(), 6);
+
+        c.remove(Cookie::named("test"));
+        assert_eq!(c.iter().count(), 5);
+
+        c.remove(Cookie::named("signed"));
+        c.remove(Cookie::named("test2"));
+        assert_eq!(c.iter().count(), 3);
+
+        c.add(Cookie::new("test2", "test2"));
+        assert_eq!(c.iter().count(), 4);
+
+        c.remove(Cookie::named("test2"));
+        assert_eq!(c.iter().count(), 3);
+    }
+
     #[test]
     fn delta() {
         use std::collections::HashMap;
