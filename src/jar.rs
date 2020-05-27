@@ -312,17 +312,6 @@ impl CookieJar {
         self.delta_cookies.remove(cookie.name());
     }
 
-    /// Removes all cookies from this cookie jar.
-    #[deprecated(since = "0.7.0", note = "calling this method may not remove \
-                 all cookies since the path and domain are not specified; use \
-                 `remove` instead")]
-    pub fn clear(&mut self) {
-        self.delta_cookies.clear();
-        for delta in replace(&mut self.original_cookies, HashSet::new()) {
-            self.remove(delta.cookie);
-        }
-    }
-
     /// Returns an iterator over cookies that represent the changes to this jar
     /// over time. These cookies can be rendered directly as `Set-Cookie` header
     /// values to affect the changes made to this jar on the client.
@@ -520,7 +509,8 @@ mod test {
         assert!(c.get("test2").is_some());
 
         c.add(Cookie::new("test3", ""));
-        c.clear();
+        c.remove(Cookie::named("test2"));
+        c.remove(Cookie::named("test3"));
 
         assert!(c.get("test").is_none());
         assert!(c.get("test2").is_none());
