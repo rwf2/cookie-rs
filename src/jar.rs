@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::mem::replace;
 
 use time::{Duration, OffsetDateTime};
 
