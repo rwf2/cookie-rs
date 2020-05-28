@@ -98,6 +98,36 @@ impl Key {
         Key::from(&both_keys)
     }
 
+    /// Derives new signing/encryption keys from a master key.
+    ///
+    /// The master key must be at least 256-bits (32 bytes). For security, the
+    /// master key _must_ be cryptographically random. The keys are derived
+    /// deterministically from the master key.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `key` is less than 32 bytes in length.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::Key;
+    ///
+    /// # /*
+    /// let master_key = { /* a cryptographically random key >= 32 bytes */ };
+    /// # */
+    /// # let master_key: &Vec<u8> = &(0..32).collect();
+    ///
+    /// let key = Key::from_master(master_key);
+    /// ```
+    #[cfg(feature = "key-expansion")]
+    #[cfg_attr(all(doc, not(doctest)), doc(cfg(feature = "key-expansion")))]
+    #[deprecated(since = "0.14.0", note = "removed in favor of the more aptly named \
+        `Key::derive_from()` and `Key::from()`; use one of those instead")]
+    pub fn from_master(key: &[u8]) -> Self {
+        Key::derive_from(key)
+    }
+
     /// Generates signing/encryption keys from a secure, random source. Keys are
     /// generated nondeterministically.
     ///
