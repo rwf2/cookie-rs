@@ -819,7 +819,8 @@ impl<'c> Cookie<'c> {
         use time::{date, time, offset};
         static MAX_DATETIME: OffsetDateTime = date!(9999-12-31)
             .with_time(time!(23:59:59.999_999))
-            .using_offset(offset!(UTC));
+            .assume_utc()
+            .to_offset(offset!(UTC));
 
         // RFC 6265 requires dates not to exceed 9999 years.
         self.expires = time.into().map(|time| std::cmp::min(time, MAX_DATETIME));
@@ -850,7 +851,7 @@ impl<'c> Cookie<'c> {
     pub fn make_permanent(&mut self) {
         let twenty_years = Duration::days(365 * 20);
         self.set_max_age(twenty_years);
-        self.set_expires(OffsetDateTime::now() + twenty_years);
+        self.set_expires(OffsetDateTime::now_utc() + twenty_years);
     }
 
     fn fmt_parameters(&self, f: &mut fmt::Formatter) -> fmt::Result {

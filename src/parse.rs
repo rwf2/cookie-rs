@@ -9,7 +9,7 @@ use std::ascii::AsciiExt;
 
 #[cfg(feature = "percent-encode")]
 use percent_encoding::percent_decode;
-use time::{Duration, OffsetDateTime};
+use time::{Duration, OffsetDateTime, PrimitiveDateTime, UtcOffset};
 
 use crate::{Cookie, SameSite, CookieStr};
 
@@ -258,8 +258,8 @@ pub fn parse_cookie<'c, S>(cow: S, decode: bool) -> Result<Cookie<'c>, ParseErro
 }
 
 pub(crate) fn parse_gmt_date(s: &str, format: &str) -> Result<OffsetDateTime, time::ParseError> {
-    let primitive = time::PrimitiveDateTime::parse(s, format)?;
-    Ok(primitive.using_offset(time::UtcOffset::UTC))
+    PrimitiveDateTime::parse(s, format)
+        .map(|t| t.assume_utc().to_offset(UtcOffset::UTC))
 }
 
 #[cfg(test)]
