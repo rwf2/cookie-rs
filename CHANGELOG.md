@@ -1,5 +1,13 @@
 # Version 0.14
 
+## Version 0.14.1 (Jun 5, 2020)
+
+### Changes and Fixes
+
+  * Updated `base64` dependency to 0.12.
+  * Updated minimum `time` dependency to correct version: 0.2.11.
+  * Added `readme` key to `Cargo.toml`, updated `license` field.
+
 ## Version 0.14.0 (May 29, 2020)
 
 ### Breaking Changes
