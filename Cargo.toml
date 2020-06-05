@@ -3,9 +3,10 @@ name = "cookie"
 version = "0.14.0"
 authors = ["Sergio Benitez <sb@sergio.bz>", "Alex Crichton <alex@alexcrichton.com>"]
 edition = "2018"
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/SergioBenitez/cookie-rs"
 documentation = "https://docs.rs/cookie"
+readme = "README.md"
 description = """
 HTTP cookie parsing and cookie jar management. Supports signed and private
 (encrypted, authenticated) jars.
