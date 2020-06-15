@@ -87,6 +87,7 @@ mod parse;
 mod jar;
 mod delta;
 mod draft;
+mod plain;
 
 #[cfg(any(feature = "private", feature = "signed"))] #[macro_use] mod secure;
 #[cfg(any(feature = "private", feature = "signed"))] pub use secure::*;
@@ -328,6 +329,18 @@ impl<'c> Cookie<'c> {
     #[cfg_attr(all(doc, not(doctest)), cfg(feature = "percent-encode"))]
     pub fn encoded<'a>(&'a self) -> EncodedCookie<'a, 'c> {
         EncodedCookie(self)
+    }
+ 
+    /// TODO
+    pub fn plain<'a>(&'a self) -> plain::PlainCookie<'a, 'c> {
+        plain::PlainCookie(self)
+    }
+ 
+    /// TODO
+    #[cfg(feature = "percent-encode")]
+    #[cfg_attr(all(doc, not(doctest)), cfg(feature = "percent-encode"))]
+    pub fn plain_encoded<'a>(&'a self) -> plain::PlainEncodedCookie<'a, 'c> {
+        plain::PlainEncodedCookie(self)
     }
 
     /// Converts `self` into a `Cookie` with a static lifetime with as few
