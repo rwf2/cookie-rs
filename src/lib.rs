@@ -99,7 +99,7 @@ use std::str::FromStr;
 use std::ascii::AsciiExt;
 
 #[cfg(feature = "percent-encode")]
-use percent_encoding::{AsciiSet, percent_encode};
+use percent_encoding::{AsciiSet, percent_encode as encode};
 use time::{Duration, OffsetDateTime, UtcOffset};
 
 use crate::parse::parse_cookie;
@@ -312,22 +312,51 @@ impl<'c> Cookie<'c> {
         parse_cookie(s, true)
     }
 
-    /// Wraps `self` in an `EncodedCookie`: a cost-free wrapper around `Cookie`
-    /// whose `Display` implementation percent-encodes the name and value of the
-    /// wrapped `Cookie`.
+    /// Wraps `self` in an encoded [`Display`]: a cost-free wrapper around
+    /// `Cookie` whose [`fmt::Display`] implementation percent-encodes the name
+    /// and value of the wrapped `Cookie`.
+    ///
+    /// The returned structure can be chained with [`Display::stripped()`] to
+    /// display only the name and value.
     ///
     /// # Example
     ///
     /// ```rust
     /// use cookie::Cookie;
     ///
-    /// let mut c = Cookie::new("my name", "this; value?");
-    /// assert_eq!(&c.encoded().to_string(), "my%20name=this%3B%20value%3F");
+    /// let mut c = Cookie::build("my name", "this; value?").secure(true).finish();
+    /// assert_eq!(&c.encoded().to_string(), "my%20name=this%3B%20value%3F; Secure");
+    /// assert_eq!(&c.encoded().stripped().to_string(), "my%20name=this%3B%20value%3F");
     /// ```
     #[cfg(feature = "percent-encode")]
-    #[cfg_attr(all(doc, not(doctest)), cfg(feature = "percent-encode"))]
-    pub fn encoded<'a>(&'a self) -> EncodedCookie<'a, 'c> {
-        EncodedCookie(self)
+    #[cfg_attr(all(doc, not(doctest)), doc(cfg(feature = "percent-encode")))]
+    #[inline(always)]
+    pub fn encoded<'a>(&'a self) -> Display<'a, 'c> {
+        Display::new_encoded(self)
+    }
+
+    /// Wraps `self` in a stripped `Display`]: a cost-free wrapper around
+    /// `Cookie` whose [`fmt::Display`] implementation prints only the `name`
+    /// and `value` of the wrapped `Cookie`.
+    ///
+    /// The returned structure can be chained with [`Display::encoded()`] to
+    /// encode the name and value.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::Cookie;
+    ///
+    /// let mut c = Cookie::build("key?", "value").secure(true).path("/").finish();
+    /// assert_eq!(&c.stripped().to_string(), "key?=value");
+    #[cfg_attr(feature = "percent-encode", doc = r##"
+    // Note: `encoded()` is only available when `percent-encode` is enabled.
+    assert_eq!(&c.stripped().encoded().to_string(), "key%3F=value");
+    #"##)]
+    /// ```
+    #[inline(always)]
+    pub fn stripped<'a>(&'a self) -> Display<'a, 'c> {
+        Display::new_stripped(self)
     }
 
     /// Converts `self` into a `Cookie` with a static lifetime with as few
@@ -1042,39 +1071,90 @@ const USERINFO_ENCODE_SET: &AsciiSet = &PATH_ENCODE_SET
     .add(b'|')
     .add(b'%');
 
-/// Wrapper around `Cookie` whose `Display` implementation percent-encodes the
-/// cookie's name and value.
+/// Wrapper around `Cookie` whose `Display` implementation either
+/// percent-encodes the cookie's name and value, skips displaying the cookie's
+/// parameters (only displaying it's name and value), or both.
 ///
-/// A value of this type can be obtained via [`Cookie::encoded()`]. This type
-/// should only be used for its `Display` implementation.
+/// A value of this type can be obtained via [`Cookie::encoded()`] and
+/// [`Cookie::stripped()`], or an arbitrary chaining of the two methods. This
+/// type should only be used for its `Display` implementation.
 ///
 /// # Example
 ///
 /// ```rust
 /// use cookie::Cookie;
 ///
-/// let mut c = Cookie::new("my name", "this; value%?");
-/// assert_eq!(&c.encoded().to_string(), "my%20name=this%3B%20value%25%3F");
+/// let c = Cookie::build("my name", "this; value%?").secure(true).finish();
+/// assert_eq!(&c.stripped().to_string(), "my name=this; value%?");
+#[cfg_attr(feature = "percent-encode", doc = r##"
+    // Note: `encoded()` is only available when `percent-encode` is enabled.
+    assert_eq!(&c.encoded().to_string(), "my%20name=this%3B%20value%25%3F; Secure");
+    assert_eq!(&c.stripped().encoded().to_string(), "my%20name=this%3B%20value%25%3F");
+    assert_eq!(&c.encoded().stripped().to_string(), "my%20name=this%3B%20value%25%3F");
+"##)]
 /// ```
-#[cfg(feature = "percent-encode")]
-#[cfg_attr(all(doc, not(doctest)), cfg(feature = "percent-encode"))]
-pub struct EncodedCookie<'a, 'c: 'a>(&'a Cookie<'c>);
+pub struct Display<'a, 'c: 'a> {
+    cookie: &'a Cookie<'c>,
+    #[cfg(feature = "percent-encode")]
+    encode: bool,
+    strip: bool,
+}
 
-#[cfg(feature = "percent-encode")]
-impl<'a, 'c: 'a> fmt::Display for EncodedCookie<'a, 'c> {
+impl<'a, 'c: 'a> fmt::Display for Display<'a, 'c> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // Percent-encode the name and value.
-        let name = percent_encode(self.0.name().as_bytes(), USERINFO_ENCODE_SET);
-        let value = percent_encode(self.0.value().as_bytes(), USERINFO_ENCODE_SET);
+        #[cfg(feature = "percent-encode")] {
+            if self.encode {
+                let name = encode(self.cookie.name().as_bytes(), USERINFO_ENCODE_SET);
+                let value = encode(self.cookie.value().as_bytes(), USERINFO_ENCODE_SET);
+                write!(f, "{}={}", name, value)?;
+            } else {
+                write!(f, "{}={}", self.cookie.name(), self.cookie.value())?;
+            }
+        }
 
-        // Write out the name/value pair and the cookie's parameters.
-        write!(f, "{}={}", name, value)?;
-        self.0.fmt_parameters(f)
+        #[cfg(not(feature = "percent-encode"))] {
+            write!(f, "{}={}", self.cookie.name(), self.cookie.value())?;
+        }
+
+        match self.strip {
+            true => Ok(()),
+            false => self.cookie.fmt_parameters(f)
+        }
+    }
+}
+
+impl<'a, 'c> Display<'a, 'c> {
+    #[cfg(feature = "percent-encode")]
+    fn new_encoded(cookie: &'a Cookie<'c>) -> Self {
+        Display { cookie, strip: false, encode: true }
+    }
+
+    fn new_stripped(cookie: &'a Cookie<'c>) -> Self {
+        Display { cookie, strip: true, #[cfg(feature = "percent-encode")] encode: false }
+    }
+
+    /// Percent-encode the name and value pair.
+    #[inline]
+    #[cfg(feature = "percent-encode")]
+    #[cfg_attr(all(doc, not(doctest)), cfg(feature = "percent-encode"))]
+    pub fn encoded(mut self) -> Self {
+        self.encode = true;
+        self
+    }
+
+    /// Only display the name and value.
+    #[inline]
+    pub fn stripped(mut self) -> Self {
+        self.strip = true;
+        self
     }
 }
 
 impl<'c> fmt::Display for Cookie<'c> {
     /// Formats the cookie `self` as a `Set-Cookie` header value.
+    ///
+    /// Does _not_ percent-encode any values. To percent-encode, use
+    /// [`Cookie::encoded()`].
     ///
     /// # Example
     ///
