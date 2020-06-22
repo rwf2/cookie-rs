@@ -48,4 +48,27 @@ mod test {
             _=> assert!(false),
         }
     }
+
+    #[test]
+    #[cfg(feature = "percent-encode")]
+    fn test_iter_encode() {
+        let mut ci = CookieIter::new("hello=world; foo=bar%20baz", false);
+        match ci.next() {
+            Some(Ok(cookie)) => assert_eq!(("hello", "world"), cookie.name_value()),
+            _=> assert!(false),
+        } match ci.next() {
+            Some(Ok(cookie)) => assert_eq!(("foo", "bar%20baz"), cookie.name_value()),
+            _=> assert!(false),
+        }
+
+        let mut ci = CookieIter::new("hello=world; foo=bar%20baz", true);
+        match ci.next() {
+            Some(Ok(cookie)) => assert_eq!(("hello", "world"), cookie.name_value()),
+            _=> assert!(false),
+        } match ci.next() {
+            Some(Ok(cookie)) => assert_eq!(("foo", "bar baz"), cookie.name_value()),
+            _=> assert!(false),
+        }
+    }
+
 }
