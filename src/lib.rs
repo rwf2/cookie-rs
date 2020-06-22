@@ -88,6 +88,7 @@ mod jar;
 mod delta;
 mod draft;
 mod crumb;
+mod iter;
 
 #[cfg(any(feature = "private", feature = "signed"))] #[macro_use] mod secure;
 #[cfg(any(feature = "private", feature = "signed"))] pub use secure::*;
