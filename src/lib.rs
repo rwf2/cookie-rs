@@ -110,6 +110,7 @@ pub use crate::builder::CookieBuilder;
 pub use crate::jar::{CookieJar, Delta, Iter};
 pub use crate::crumb::CookieCrumb;
 pub use crate::draft::*;
+pub use crate::iter::CookieIter;
 
 #[derive(Debug, Clone)]
 enum CookieStr<'c> {
@@ -313,6 +314,69 @@ impl<'c> Cookie<'c> {
         where S: Into<Cow<'c, str>>
     {
         parse_cookie(s, true)
+    }
+
+    /// Parses a `Cookie:` header and returns an iterator over the parsed values.
+    ///
+    /// This function assumes it is receiving the value of a `Cookie:` header. Therefore
+    /// the returned `Cookie`s will only contain a name and value. All attributes will be
+    /// None.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::Cookie
+    ///
+    /// let cookie_iter = cookie.parse_string("hello=world; foo=bar%20baz");
+    /// assert_eq!(("hello", "world"), cookie_iter.next().unwrap().unwrap());
+    /// assert_eq!(("foo", "bar%20baz"), cookie_iter.next().unwrap().unwrap());
+    /// ```
+    pub fn parse_string(s: &'c str) -> CookieIter<'c>
+    //    where S: Into<Cow<'c, str>>
+    {
+        CookieIter::new(&s, false)
+    }
+
+    /// Parses a `Cookie:` header where the name and value are percent-encoded and
+    /// returns an iterator over the percent-decoded values.
+    ///
+    /// This function assumes it is receiving the value of a `Cookie:` header. Therefore
+    /// the returned `Cookie`s will only contain a name and value. All attributes will be
+    /// None.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::Cookie
+    ///
+    /// let cookie_iter = cookie.parse_string_encoded("hello=world; foo=bar%20baz");
+    /// assert_eq!(("hello", "world"), cookie_iter.next().unwrap().unwrap());
+    /// assert_eq!(("foo", "bar baz"), cookie_iter.next().unwrap().unwrap());
+    /// ```
+    #[cfg(feature = "percent-encode")]
+    #[cfg_attr(all(doc, not(doctest)), cfg(feature = "percent-encode"))]
+    pub fn parse_string_encoded(s: &'c str) -> CookieIter<'c>
+    //    where S: Into<Cow<'c, str>>
+    {
+        CookieIter::new(&s, true)
+    }
+
+    /// Wraps `self` in an `EncodedCookie`: a cost-free wrapper around `Cookie`
+    /// whose `Display` implementation percent-encodes the name and value of the
+    /// wrapped `Cookie`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::Cookie;
+    ///
+    /// let mut c = Cookie::new("my name", "this; value?");
+    /// assert_eq!(&c.encoded().to_string(), "my%20name=this%3B%20value%3F");
+    /// ```
+    #[cfg(feature = "percent-encode")]
+    #[cfg_attr(all(doc, not(doctest)), cfg(feature = "percent-encode"))]
+    pub fn encoded<'a>(&'a self) -> EncodedCookie<'a, 'c> {
+        EncodedCookie(self)
     }
 
     /// Converts `self` into a `Cookie` with a static lifetime with as few

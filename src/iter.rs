@@ -1,20 +1,33 @@
 use crate::Cookie;
-use crate::parse::{
+use crate::parse::parse_cookie;
+use crate::parse::ParseError;
 
 pub struct CookieIter<'c> {
     pub input: Option<&'c str>,
+    pub decode: bool,
 }
 
-impl <'c> Iterator for CookieIter<'c> {
+impl <'c> Iterator for CookieIter<'c>
+{
     type Item = Result<Cookie<'c>, ParseError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut split2 = self.input?.splitn(2, ';');
         let unparsed = split2.next().unwrap().trim();
         self.input = split2.next();
-        
-        Some(Cookie::parse(unparsed))
+        Some(parse_cookie(unparsed, self.decode))
     }
+}
+
+impl <'c> CookieIter<'c> {
+    pub fn new(iter: &'c str, decode: bool) -> CookieIter<'c>
+    {
+        CookieIter {
+            input: Some(iter),
+            decode,
+        }
+    }
+
 }
 
 #[cfg(test)]
@@ -23,10 +36,16 @@ mod test {
 
     #[test]
     fn test_iter() {
-        let ci = CookieIter { input: Some("hello=world; foo=bar") };
+        let mut ci = CookieIter::new("hello=world; foo=bar", false);
         
-        for cookie in ci {
-            println!("Cookie: {:?}", cookie);
+        match ci.next() {
+            Some(Ok(cookie)) => assert_eq!(("hello", "world"), cookie.name_value()),
+            _=> assert!(false),
+        }
+
+        match ci.next() {
+            Some(Ok(cookie)) => assert_eq!(("foo", "bar"), cookie.name_value()),
+            _=> assert!(false),
         }
     }
 }
