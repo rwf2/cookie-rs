@@ -26,13 +26,13 @@ macro_rules! assert_secure_behaviour {
         assert!($clear.get("secure").unwrap().value() != "secure");
         assert!($secure.get("secure").unwrap().value() == "secure");
 
-        let mut cookie = $clear.get("secure").unwrap().clone();
+        let mut cookie = $clear.get("secure").unwrap().into_cookie();
         let new_val = format!("{}l", cookie.value());
         cookie.set_value(new_val);
         $clear.add(cookie);
         assert!($secure.get("secure").is_none());
 
-        let mut cookie = $clear.get("secure").unwrap().clone();
+        let mut cookie = $clear.get("secure").unwrap().into_cookie();
         cookie.set_value("foobar");
         $clear.add(cookie);
         assert!($secure.get("secure").is_none());

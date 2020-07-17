@@ -18,7 +18,7 @@ pub(crate) const KEY_LEN: usize = 32;
 /// visible in plaintext.
 #[cfg_attr(nightly, doc(cfg(feature = "signed")))]
 pub struct SignedJar<'a> {
-    parent: &'a mut CookieJar,
+    parent: &'a CookieJar,
     key: [u8; KEY_LEN],
 }
 
@@ -26,7 +26,7 @@ impl<'a> SignedJar<'a> {
     /// Creates a new child `SignedJar` with parent `parent` and key `key`. This
     /// method is typically called indirectly via the `signed` method of
     /// `CookieJar`.
-    pub(crate) fn new(parent: &'a mut CookieJar, key: &Key) -> SignedJar<'a> {
+    pub(crate) fn new(parent: &'a CookieJar, key: &Key) -> SignedJar<'a> {
         SignedJar { parent, key: key.signing }
     }
 
@@ -73,7 +73,7 @@ impl<'a> SignedJar<'a> {
     /// use cookie::{CookieJar, Cookie, Key};
     ///
     /// let key = Key::generate();
-    /// let mut jar = CookieJar::new();
+    /// let jar = CookieJar::new();
     /// let mut signed_jar = jar.signed(&key);
     /// assert!(signed_jar.get("name").is_none());
     ///
@@ -81,8 +81,8 @@ impl<'a> SignedJar<'a> {
     /// assert_eq!(signed_jar.get("name").unwrap().value(), "value");
     /// ```
     pub fn get(&self, name: &str) -> Option<Cookie<'static>> {
-        if let Some(cookie_ref) = self.parent.get(name) {
-            let mut cookie = cookie_ref.clone();
+        if let Some(crumb) = self.parent.get(name) {
+            let mut cookie = crumb.into_cookie();
             if let Ok(value) = self.verify(cookie.value()) {
                 cookie.set_value(value);
                 return Some(cookie);
@@ -101,14 +101,14 @@ impl<'a> SignedJar<'a> {
     /// use cookie::{CookieJar, Cookie, Key};
     ///
     /// let key = Key::generate();
-    /// let mut jar = CookieJar::new();
+    /// let jar = CookieJar::new();
     /// jar.signed(&key).add(Cookie::new("name", "value"));
     ///
     /// assert_ne!(jar.get("name").unwrap().value(), "value");
     /// assert!(jar.get("name").unwrap().value().contains("value"));
     /// assert_eq!(jar.signed(&key).get("name").unwrap().value(), "value");
     /// ```
-    pub fn add(&mut self, mut cookie: Cookie<'static>) {
+    pub fn add(&self, mut cookie: Cookie<'static>) {
         self.sign_cookie(&mut cookie);
         self.parent.add(cookie);
     }
@@ -128,13 +128,13 @@ impl<'a> SignedJar<'a> {
     /// use cookie::{CookieJar, Cookie, Key};
     ///
     /// let key = Key::generate();
-    /// let mut jar = CookieJar::new();
+    /// let jar = CookieJar::new();
     /// jar.signed(&key).add_original(Cookie::new("name", "value"));
     ///
     /// assert_eq!(jar.iter().count(), 1);
     /// assert_eq!(jar.delta().count(), 0);
     /// ```
-    pub fn add_original(&mut self, mut cookie: Cookie<'static>) {
+    pub fn add_original(&self, mut cookie: Cookie<'static>) {
         self.sign_cookie(&mut cookie);
         self.parent.add_original(cookie);
     }
@@ -152,7 +152,7 @@ impl<'a> SignedJar<'a> {
     /// use cookie::{CookieJar, Cookie, Key};
     ///
     /// let key = Key::generate();
-    /// let mut jar = CookieJar::new();
+    /// let jar = CookieJar::new();
     /// let mut signed_jar = jar.signed(&key);
     ///
     /// signed_jar.add(Cookie::new("name", "value"));
@@ -161,7 +161,7 @@ impl<'a> SignedJar<'a> {
     /// signed_jar.remove(Cookie::named("name"));
     /// assert!(signed_jar.get("name").is_none());
     /// ```
-    pub fn remove(&mut self, cookie: Cookie<'static>) {
+    pub fn remove(&self, cookie: Cookie<'static>) {
         self.parent.remove(cookie);
     }
 }
@@ -171,16 +171,22 @@ mod test {
     use crate::{CookieJar, Cookie, Key};
 
     #[test]
+    fn signed_jar_is_send_sync() {
+        fn is_send_sync<T: Send + Sync>() {}
+        is_send_sync::<super::SignedJar>();
+    }
+
+    #[test]
     fn simple() {
         let key = Key::generate();
-        let mut jar = CookieJar::new();
+        let jar = CookieJar::new();
         assert_simple_behaviour!(jar, jar.signed(&key));
     }
 
     #[test]
     fn private() {
         let key = Key::generate();
-        let mut jar = CookieJar::new();
+        let jar = CookieJar::new();
         assert_secure_behaviour!(jar, jar.signed(&key));
     }
 
@@ -193,7 +199,7 @@ mod test {
             198, 168, 134, 4, 42, 1, 196, 24, 57, 103, 241, 147, 201, 185, 233,
             10, 180, 170, 187, 89, 252, 137, 110, 107]);
 
-        let mut jar = CookieJar::new();
+        let jar = CookieJar::new();
         jar.add(Cookie::new("signed_with_ring014",
                 "3tdHXEQ2kf6fxC7dWzBGmpSLMtJenXLKrZ9cHkSsl1w=Tamper-proof"));
         jar.add(Cookie::new("signed_with_ring016",

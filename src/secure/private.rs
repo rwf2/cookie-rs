@@ -23,7 +23,7 @@ pub(crate) const KEY_LEN: usize = 32;
 /// contents of a cookie, nor can they fabricate cookie data.
 #[cfg_attr(nightly, doc(cfg(feature = "private")))]
 pub struct PrivateJar<'a> {
-    parent: &'a mut CookieJar,
+    parent: &'a CookieJar,
     key: [u8; KEY_LEN]
 }
 
@@ -31,7 +31,7 @@ impl<'a> PrivateJar<'a> {
     /// Creates a new child `PrivateJar` with parent `parent` and key `key`.
     /// This method is typically called indirectly via the `signed` method of
     /// `CookieJar`.
-    pub(crate) fn new(parent: &'a mut CookieJar, key: &Key) -> PrivateJar<'a> {
+    pub(crate) fn new(parent: &'a CookieJar, key: &Key) -> PrivateJar<'a> {
         PrivateJar { parent, key: key.encryption }
     }
 
@@ -65,7 +65,7 @@ impl<'a> PrivateJar<'a> {
     /// use cookie::{CookieJar, Cookie, Key};
     ///
     /// let key = Key::generate();
-    /// let mut jar = CookieJar::new();
+    /// let jar = CookieJar::new();
     /// let mut private_jar = jar.private(&key);
     /// assert!(private_jar.get("name").is_none());
     ///
@@ -73,8 +73,8 @@ impl<'a> PrivateJar<'a> {
     /// assert_eq!(private_jar.get("name").unwrap().value(), "value");
     /// ```
     pub fn get(&self, name: &str) -> Option<Cookie<'static>> {
-        if let Some(cookie_ref) = self.parent.get(name) {
-            let mut cookie = cookie_ref.clone();
+        if let Some(crumb) = self.parent.get(name) {
+            let mut cookie = crumb.into_cookie();
             if let Ok(value) = self.unseal(name, cookie.value()) {
                 cookie.set_value(value);
                 return Some(cookie);
@@ -94,13 +94,13 @@ impl<'a> PrivateJar<'a> {
     /// use cookie::{CookieJar, Cookie, Key};
     ///
     /// let key = Key::generate();
-    /// let mut jar = CookieJar::new();
+    /// let jar = CookieJar::new();
     /// jar.private(&key).add(Cookie::new("name", "value"));
     ///
     /// assert_ne!(jar.get("name").unwrap().value(), "value");
     /// assert_eq!(jar.private(&key).get("name").unwrap().value(), "value");
     /// ```
-    pub fn add(&mut self, mut cookie: Cookie<'static>) {
+    pub fn add(&self, mut cookie: Cookie<'static>) {
         self.encrypt_cookie(&mut cookie);
         self.parent.add(cookie);
     }
@@ -121,13 +121,13 @@ impl<'a> PrivateJar<'a> {
     /// use cookie::{CookieJar, Cookie, Key};
     ///
     /// let key = Key::generate();
-    /// let mut jar = CookieJar::new();
+    /// let jar = CookieJar::new();
     /// jar.private(&key).add_original(Cookie::new("name", "value"));
     ///
     /// assert_eq!(jar.iter().count(), 1);
     /// assert_eq!(jar.delta().count(), 0);
     /// ```
-    pub fn add_original(&mut self, mut cookie: Cookie<'static>) {
+    pub fn add_original(&self, mut cookie: Cookie<'static>) {
         self.encrypt_cookie(&mut cookie);
         self.parent.add_original(cookie);
     }
@@ -176,7 +176,7 @@ impl<'a> PrivateJar<'a> {
     /// use cookie::{CookieJar, Cookie, Key};
     ///
     /// let key = Key::generate();
-    /// let mut jar = CookieJar::new();
+    /// let jar = CookieJar::new();
     /// let mut private_jar = jar.private(&key);
     ///
     /// private_jar.add(Cookie::new("name", "value"));
@@ -185,7 +185,7 @@ impl<'a> PrivateJar<'a> {
     /// private_jar.remove(Cookie::named("name"));
     /// assert!(private_jar.get("name").is_none());
     /// ```
-    pub fn remove(&mut self, cookie: Cookie<'static>) {
+    pub fn remove(&self, cookie: Cookie<'static>) {
         self.parent.remove(cookie);
     }
 }
@@ -195,16 +195,22 @@ mod test {
     use crate::{CookieJar, Cookie, Key};
 
     #[test]
+    fn private_jar_is_send_sync() {
+        fn is_send_sync<T: Send + Sync>() {}
+        is_send_sync::<super::PrivateJar>();
+    }
+
+    #[test]
     fn simple() {
         let key = Key::generate();
-        let mut jar = CookieJar::new();
+        let jar = CookieJar::new();
         assert_simple_behaviour!(jar, jar.private(&key));
     }
 
     #[test]
     fn secure() {
         let key = Key::generate();
-        let mut jar = CookieJar::new();
+        let jar = CookieJar::new();
         assert_secure_behaviour!(jar, jar.private(&key));
     }
 
@@ -217,7 +223,7 @@ mod test {
             198, 168, 134, 4, 42, 1, 196, 24, 57, 103, 241, 147, 201, 185, 233,
             10, 180, 170, 187, 89, 252, 137, 110, 107]);
 
-        let mut jar = CookieJar::new();
+        let jar = CookieJar::new();
         jar.add(Cookie::new("encrypted_with_ring014",
                 "lObeZJorGVyeSWUA8khTO/8UCzFVBY9g0MGU6/J3NN1R5x11dn2JIA=="));
         jar.add(Cookie::new("encrypted_with_ring016",
