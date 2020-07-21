@@ -19,7 +19,8 @@ pub(crate) const KEY_LEN: usize = 32;
 #[cfg_attr(all(doc, not(doctest)), doc(cfg(feature = "signed")))]
 pub struct SignedJar<'a> {
     parent: &'a mut CookieJar,
-    key: [u8; KEY_LEN],
+    rotated_keys: Vec<[u8; KEY_LEN]>, // Older rotated keys.
+    key: [u8; KEY_LEN],               // The primary (newest) key.
 }
 
 impl<'a> SignedJar<'a> {
@@ -27,7 +28,22 @@ impl<'a> SignedJar<'a> {
     /// method is typically called indirectly via the `signed` method of
     /// `CookieJar`.
     pub(crate) fn new(parent: &'a mut CookieJar, key: &Key) -> SignedJar<'a> {
-        SignedJar { parent, key: key.signing }
+        SignedJar {
+            parent,
+            key: key.signing,
+            rotated_keys: vec![],
+        }
+    }
+
+    /// Creates a new child `SignedJar` with parent `parent` and a set of rotatable `keys`.
+    /// This method is typically called indirectly via the `signed` method of `CookieJar`.
+    pub(crate) fn new_rotatable(parent: &'a mut CookieJar, keys: &Vec<&Key>) -> SignedJar<'a> {
+        let rotated_keys = keys.split_at(1).1.iter().map(|key| key.signing).collect();
+        SignedJar {
+            parent,
+            key: keys[0].signing,
+            rotated_keys,
+        }
     }
 
     /// Signs the cookie's value providing integrity and authenticity.
@@ -57,9 +73,18 @@ impl<'a> SignedJar<'a> {
         // Perform the verification.
         let mut mac = Hmac::<Sha256>::new_varkey(&self.key).expect("good key");
         mac.update(value.as_bytes());
-        mac.verify(&digest)
-            .map(|_| value.to_string())
-            .map_err(|_| "value did not verify")
+        if mac.verify(&digest).is_ok() {
+            return Ok(value.to_string());
+        }
+
+        for key in &self.rotated_keys {
+            let mut mac = Hmac::<Sha256>::new_varkey(key).expect("good key");
+            mac.update(value.as_bytes());
+            if mac.verify(&digest).is_ok() {
+                return Ok(value.to_string());
+            }
+        }
+        Err("value did not verify")
     }
 
     /// Returns a reference to the `Cookie` inside this jar with the name `name`
@@ -202,5 +227,41 @@ mod test {
         let signed = jar.signed(&key);
         assert_eq!(signed.get("signed_with_ring014").unwrap().value(), "Tamper-proof");
         assert_eq!(signed.get("signed_with_ring016").unwrap().value(), "Tamper-proof");
+    }
+
+    #[test]
+    fn rotating_keys() {
+        // Secret is SHA-512 hash of 'Super secret!'.
+        let key_new = Key::from(&[
+            33, 67, 213, 207, 60, 35, 188, 129, 181, 18, 75, 142, 79, 74,
+            82, 88, 141, 94, 5, 87, 164, 213, 172, 164, 195, 185, 194, 154,
+            203, 102, 24, 20, 121, 211, 230, 9, 205, 151, 193, 12, 240,
+            186, 198, 163, 239, 226, 208, 156, 99, 188, 245, 108, 84, 188,
+            177, 108, 191, 89, 198, 151, 12, 190, 51, 187
+        ]);
+        // Secret is SHA-512 hash of 'Old secret!'.
+        let key_old = Key::from(&[
+            237, 50, 109, 19, 90, 25, 201, 206, 238, 47, 124, 229, 10, 191,
+            231, 91, 231, 145, 2, 26, 190, 32, 246, 190, 131, 82, 231,
+            249, 28, 243, 217, 227, 153, 161, 144, 65, 91, 192, 107, 130,
+            38, 131, 229, 107, 42, 214, 195, 103, 14, 92, 184, 25, 148, 62,
+            250, 58, 127, 59, 51, 40, 224, 89, 239, 121
+        ]);
+
+        let mut jar = CookieJar::new();
+        jar.add(Cookie::new("using_new_key",
+            "IIP0fH9nFQMPSauP/US8rZql3HZvzqC9HjY5EfcY3/g=Tamper-proof"));
+        jar.add(Cookie::new("using_old_key",
+            "ElLdnp9/IWK4N7DpsG3zogF48iKQN2813GpCynTn1C4=Tamper-proof"));
+
+        let mut signed = jar.signed_rotatable(&vec![&key_new, &key_old]);
+        assert_eq!(signed.get("using_new_key").unwrap().value(), "Tamper-proof");
+        assert_eq!(signed.get("using_old_key").unwrap().value(), "Tamper-proof");
+
+        signed.add(Cookie::new("made_with_new", "Tamper-proof"));
+        assert_eq!(
+            signed.get("using_new_key").unwrap().value(),
+            signed.get("made_with_new").unwrap().value()
+        );
     }
 }

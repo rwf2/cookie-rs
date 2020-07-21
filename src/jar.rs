@@ -450,6 +450,48 @@ impl CookieJar {
     pub fn signed(&mut self, key: &Key) -> SignedJar {
         SignedJar::new(self, key)
     }
+
+    /// Returns a `SignedJar` with `self` as its parent jar using the provided keys
+    /// to sign/verify cookies added/retrieved from the child jar.
+    ///
+    /// The first key will be used to create all new signed cookies and is optimized.
+    /// Any further keys are only able to verify older cookies as a fallback.
+    ///
+    /// Any modifications to the child jar will be reflected on the parent jar,
+    /// and any retrievals from the child jar will be made from the parent jar.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::{Cookie, CookieJar, Key};
+    ///
+    /// // Generate secure kesy.
+    /// let key_new = Key::generate();
+    /// let key_old = Key::generate();
+    ///
+    /// // Add a signed cookie.
+    /// let mut jar = CookieJar::new();
+    /// let mut signed = jar.signed_rotatable(&vec![&key_new, &key_old]);
+    /// signed.add(Cookie::new("signed", "text"));
+    ///
+    /// // The cookie's contents are signed but still in plaintext.
+    /// assert_ne!(jar.get("signed").unwrap().value(), "text");
+    /// assert!(jar.get("signed").unwrap().value().contains("text"));
+    ///
+    /// // They can be verified through the child jar.
+    /// assert_eq!(jar.signed(&key_new).get("signed").unwrap().value(), "text");
+    ///
+    /// // A tampered with cookie does not validate but still exists.
+    /// let mut cookie = jar.get("signed").unwrap().clone();
+    /// jar.add(Cookie::new("signed", cookie.value().to_string() + "!"));
+    /// assert!(jar.signed(&key_new).get("signed").is_none());
+    /// assert!(jar.get("signed").is_some());
+    /// ```
+    #[cfg(feature = "signed")]
+    #[cfg_attr(all(doc, not(doctest)), doc(cfg(feature = "signed")))]
+    pub fn signed_rotatable(&mut self, keys: &Vec<&Key>) -> SignedJar {
+        SignedJar::new_rotatable(self, keys)
+    }
 }
 
 use std::collections::hash_set::Iter as HashSetIter;
