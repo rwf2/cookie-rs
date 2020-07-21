@@ -14,17 +14,23 @@ const_assert!(crate::secure::signed::KEY_LEN == SIGNED_KEY_LEN);
 /// [`PrivateJar`](crate::PrivateJar) and [`SignedJar`](crate::SignedJar). A
 /// single instance of a `Key` can be used for both a `PrivateJar` and a
 /// `SignedJar` simultaneously with no notable security implications.
-#[cfg_attr(all(doc, not(doctest)), doc(cfg(any(feature = "private", feature = "signed"))))]
+#[cfg_attr(
+    all(doc, not(doctest)),
+    doc(cfg(any(feature = "private", feature = "signed")))
+)]
 #[derive(Clone)]
 pub struct Key {
     pub(crate) signing: [u8; SIGNED_KEY_LEN],
-    pub(crate) encryption: [u8; PRIVATE_KEY_LEN]
+    pub(crate) encryption: [u8; PRIVATE_KEY_LEN],
 }
 
 impl Key {
     // An empty key structure, to be filled.
     const fn zero() -> Self {
-        Key { signing: [0; SIGNED_KEY_LEN], encryption: [0; PRIVATE_KEY_LEN] }
+        Key {
+            signing: [0; SIGNED_KEY_LEN],
+            encryption: [0; PRIVATE_KEY_LEN],
+        }
     }
 
     /// Creates a new `Key` from a 512-bit cryptographically random string.
@@ -55,7 +61,9 @@ impl Key {
 
         let mut output = Key::zero();
         output.signing.copy_from_slice(&key[..SIGNED_KEY_LEN]);
-        output.encryption.copy_from_slice(&key[SIGNED_KEY_LEN..COMBINED_KEY_LENGTH]);
+        output
+            .encryption
+            .copy_from_slice(&key[SIGNED_KEY_LEN..COMBINED_KEY_LENGTH]);
         output
     }
 
@@ -85,14 +93,18 @@ impl Key {
     #[cfg_attr(all(doc, not(doctest)), doc(cfg(feature = "key-expansion")))]
     pub fn derive_from(master_key: &[u8]) -> Self {
         if master_key.len() < 32 {
-            panic!("bad master key length: expected >= 32 bytes, found {}", master_key.len());
+            panic!(
+                "bad master key length: expected >= 32 bytes, found {}",
+                master_key.len()
+            );
         }
 
         // Expand the master key into two HKDF generated keys.
         const KEYS_INFO: &[u8] = b"COOKIE;SIGNED:HMAC-SHA256;PRIVATE:AEAD-AES-256-GCM";
         let mut both_keys = [0; SIGNED_KEY_LEN + PRIVATE_KEY_LEN];
         let hk = hkdf::Hkdf::<sha2::Sha256>::from_prk(master_key).expect("key length prechecked");
-        hk.expand(KEYS_INFO, &mut both_keys).expect("expand into keys");
+        hk.expand(KEYS_INFO, &mut both_keys)
+            .expect("expand into keys");
 
         // Copy the key parts into their respective fields.
         Key::from(&both_keys)
@@ -122,8 +134,11 @@ impl Key {
     /// ```
     #[cfg(feature = "key-expansion")]
     #[cfg_attr(all(doc, not(doctest)), doc(cfg(feature = "key-expansion")))]
-    #[deprecated(since = "0.14.0", note = "removed in favor of the more aptly named \
-        `Key::derive_from()` and `Key::from()`; use one of those instead")]
+    #[deprecated(
+        since = "0.14.0",
+        note = "removed in favor of the more aptly named \
+        `Key::derive_from()` and `Key::from()`; use one of those instead"
+    )]
     pub fn from_master(key: &[u8]) -> Self {
         Key::derive_from(key)
     }

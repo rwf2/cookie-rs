@@ -1,8 +1,8 @@
 use std::borrow::Cow;
-use std::error::Error;
-use std::str::Utf8Error;
-use std::fmt;
 use std::convert::From;
+use std::error::Error;
+use std::fmt;
+use std::str::Utf8Error;
 
 #[allow(unused_imports, deprecated)]
 use std::ascii::AsciiExt;
@@ -11,7 +11,7 @@ use std::ascii::AsciiExt;
 use percent_encoding::percent_decode;
 use time::{Duration, OffsetDateTime, PrimitiveDateTime, UtcOffset};
 
-use crate::{Cookie, SameSite, CookieStr};
+use crate::{Cookie, CookieStr, SameSite};
 
 /// Enum corresponding to a parsing error.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -80,13 +80,13 @@ fn indexes_of(needle: &str, haystack: &str) -> Option<(usize, usize)> {
 #[cfg(feature = "percent-encode")]
 fn name_val_decoded(
     name: &str,
-    val: &str
+    val: &str,
 ) -> Result<Option<(CookieStr<'static>, CookieStr<'static>)>, ParseError> {
     let decoded_name = percent_decode(name.as_bytes()).decode_utf8()?;
     let decoded_value = percent_decode(val.as_bytes()).decode_utf8()?;
 
     if let (&Cow::Borrowed(_), &Cow::Borrowed(_)) = (&decoded_name, &decoded_value) {
-         Ok(None)
+        Ok(None)
     } else {
         let name = CookieStr::Concrete(Cow::Owned(decoded_name.into()));
         let val = CookieStr::Concrete(Cow::Owned(decoded_value.into()));
@@ -97,7 +97,7 @@ fn name_val_decoded(
 #[cfg(not(feature = "percent-encode"))]
 fn name_val_decoded(
     _: &str,
-    _: &str
+    _: &str,
 ) -> Result<Option<(CookieStr<'static>, CookieStr<'static>)>, ParseError> {
     unreachable!("This function should never be called with 'percent-encode' disabled!")
 }
@@ -109,7 +109,7 @@ fn trim_quotes(s: &str) -> &str {
 
     match (s.chars().next(), s.chars().last()) {
         (Some('"'), Some('"')) => &s[1..(s.len() - 1)],
-        _ => s
+        _ => s,
     }
 }
 
@@ -121,13 +121,15 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
     let mut attributes = s.split(';');
 
     // Determine the name = val.
-    let key_value = attributes.next().expect("first str::split().next() returns Some");
+    let key_value = attributes
+        .next()
+        .expect("first str::split().next() returns Some");
     let (name, value) = match key_value.find('=') {
         Some(i) => {
             let (key, value) = (key_value[..i].trim(), key_value[(i + 1)..].trim());
             (key, trim_quotes(value).trim())
-        },
-        None => return Err(ParseError::MissingPair)
+        }
+        None => return Err(ParseError::MissingPair),
     };
 
     if name.is_empty() {
@@ -148,7 +150,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
     let (name, value) = if decode {
         match name_val_decoded(name, value)? {
             Some((name, value)) => (name, value),
-            None => indexed_names(s, name, value)
+            None => indexed_names(s, name, value),
         }
     } else {
         indexed_names(s, name, value)
@@ -164,7 +166,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
         path: None,
         secure: None,
         http_only: None,
-        same_site: None
+        same_site: None,
     };
 
     for attr in attributes {
@@ -176,26 +178,30 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
         match (&*key.to_ascii_lowercase(), value) {
             ("secure", _) => cookie.secure = Some(true),
             ("httponly", _) => cookie.http_only = Some(true),
-            ("max-age", Some(mut v)) => cookie.max_age = {
-                let is_negative = v.starts_with('-');
-                if is_negative {
-                    v = &v[1..];
-                }
+            ("max-age", Some(mut v)) => {
+                cookie.max_age = {
+                    let is_negative = v.starts_with('-');
+                    if is_negative {
+                        v = &v[1..];
+                    }
 
-                if !v.chars().all(|d| d.is_digit(10)) {
-                    continue
-                }
+                    if !v.chars().all(|d| d.is_digit(10)) {
+                        continue;
+                    }
 
-                // From RFC 6265 5.2.2: neg values indicate that the earliest
-                // expiration should be used, so set the max age to 0 seconds.
-                if is_negative {
-                    Some(Duration::zero())
-                } else {
-                    Some(v.parse::<i64>()
-                        .map(Duration::seconds)
-                        .unwrap_or(Duration::seconds(i64::max_value())))
+                    // From RFC 6265 5.2.2: neg values indicate that the earliest
+                    // expiration should be used, so set the max age to 0 seconds.
+                    if is_negative {
+                        Some(Duration::zero())
+                    } else {
+                        Some(
+                            v.parse::<i64>()
+                                .map(Duration::seconds)
+                                .unwrap_or(Duration::seconds(i64::max_value())),
+                        )
+                    }
                 }
-            },
+            }
             ("domain", Some(mut domain)) if !domain.is_empty() => {
                 if domain.starts_with('.') {
                     domain = &domain[1..];
@@ -249,7 +255,8 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
 }
 
 pub fn parse_cookie<'c, S>(cow: S, decode: bool) -> Result<Cookie<'c>, ParseError>
-    where S: Into<Cow<'c, str>>
+where
+    S: Into<Cow<'c, str>>,
 {
     let s = cow.into();
     let mut cookie = parse_inner(&s, decode)?;
@@ -258,36 +265,35 @@ pub fn parse_cookie<'c, S>(cow: S, decode: bool) -> Result<Cookie<'c>, ParseErro
 }
 
 pub(crate) fn parse_gmt_date(s: &str, format: &str) -> Result<OffsetDateTime, time::ParseError> {
-    PrimitiveDateTime::parse(s, format)
-        .map(|t| t.assume_utc().to_offset(UtcOffset::UTC))
+    PrimitiveDateTime::parse(s, format).map(|t| t.assume_utc().to_offset(UtcOffset::UTC))
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Cookie, SameSite};
     use super::parse_gmt_date;
+    use crate::{Cookie, SameSite};
     use ::time::Duration;
 
     macro_rules! assert_eq_parse {
-        ($string:expr, $expected:expr) => (
+        ($string:expr, $expected:expr) => {
             let cookie = match Cookie::parse($string) {
                 Ok(cookie) => cookie,
-                Err(e) => panic!("Failed to parse {:?}: {:?}", $string, e)
+                Err(e) => panic!("Failed to parse {:?}: {:?}", $string, e),
             };
 
             assert_eq!(cookie, $expected);
-        )
+        };
     }
 
     macro_rules! assert_ne_parse {
-        ($string:expr, $expected:expr) => (
+        ($string:expr, $expected:expr) => {
             let cookie = match Cookie::parse($string) {
                 Ok(cookie) => cookie,
-                Err(e) => panic!("Failed to parse {:?}: {:?}", $string, e)
+                Err(e) => panic!("Failed to parse {:?}: {:?}", $string, e),
             };
 
             assert_ne!(cookie, $expected);
-        )
+        };
     }
 
     #[test]
@@ -421,33 +427,54 @@ mod tests {
         assert_ne_parse!("foo=bar;HttpOnly; Secure; Max-Age=4;Path=/baz", unexpected);
 
         expected.set_domain("www.foo.com");
-        assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
-            Domain=www.foo.com", expected);
+        assert_eq_parse!(
+            " foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
+            Domain=www.foo.com",
+            expected
+        );
 
         expected.set_domain("foo.com");
-        assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
-            Domain=foo.com", expected);
-        assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
-            Domain=FOO.COM", expected);
+        assert_eq_parse!(
+            " foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
+            Domain=foo.com",
+            expected
+        );
+        assert_eq_parse!(
+            " foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
+            Domain=FOO.COM",
+            expected
+        );
 
         unexpected.set_path("/foo");
         unexpected.set_domain("bar.com");
-        assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
-            Domain=foo.com", unexpected);
-        assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
-            Domain=FOO.COM", unexpected);
+        assert_ne_parse!(
+            " foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
+            Domain=foo.com",
+            unexpected
+        );
+        assert_ne_parse!(
+            " foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
+            Domain=FOO.COM",
+            unexpected
+        );
 
         let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
         let expires = parse_gmt_date(time_str, "%a, %d %b %Y %H:%M:%S GMT").unwrap();
         expected.set_expires(expires);
-        assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
-            Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", expected);
+        assert_eq_parse!(
+            " foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
+            Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT",
+            expected
+        );
 
         unexpected.set_domain("foo.com");
         let bad_expires = parse_gmt_date(time_str, "%a, %d %b %Y %H:%S:%M GMT").unwrap();
         expected.set_expires(bad_expires);
-        assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
-            Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", unexpected);
+        assert_ne_parse!(
+            " foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
+            Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT",
+            unexpected
+        );
     }
 
     #[test]
@@ -485,7 +512,7 @@ mod tests {
         let expected = Cookie::new("foo", "b/r");
         let cookie = match Cookie::parse_encoded("foo=b%2Fr") {
             Ok(cookie) => cookie,
-            Err(e) => panic!("Failed to parse: {:?}", e)
+            Err(e) => panic!("Failed to parse: {:?}", e),
         };
 
         assert_eq!(cookie, expected);
@@ -498,6 +525,9 @@ mod tests {
             .max_age(Duration::seconds(max_seconds))
             .finish();
         let too_many_seconds = (max_seconds as u64) + 1;
-        assert_eq_parse!(format!(" foo=bar; Max-Age={:?}", too_many_seconds), expected);
+        assert_eq_parse!(
+            format!(" foo=bar; Max-Age={:?}", too_many_seconds),
+            expected
+        );
     }
 }
