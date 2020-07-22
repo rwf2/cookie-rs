@@ -409,7 +409,7 @@ impl CookieJar {
     /// assert!(jar.get("private").is_some());
     /// ```
     #[cfg(feature = "private")]
-    #[cfg_attr(all(doc, not(doctest)), doc(cfg(feature = "private")))]
+    #[cfg_attr(nightly, doc(cfg(feature = "private")))]
     pub fn private(&mut self, key: &Key) -> PrivateJar {
         PrivateJar::new(self, key)
     }
@@ -446,7 +446,7 @@ impl CookieJar {
     /// assert!(jar.get("signed").is_some());
     /// ```
     #[cfg(feature = "signed")]
-    #[cfg_attr(all(doc, not(doctest)), doc(cfg(feature = "signed")))]
+    #[cfg_attr(nightly, doc(cfg(feature = "signed")))]
     pub fn signed(&mut self, key: &Key) -> SignedJar {
         SignedJar::new(self, key)
     }
