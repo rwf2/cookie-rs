@@ -1,5 +1,13 @@
 # Version 0.14
 
+## Version 0.14.2 (Jul 22, 2020)
+
+### Changes and Fixes
+
+  * Documentation now builds on the stable channel.
+  * `rust-crypto` dependencies were updated to their latest versions.
+  * Fixed 'interator' -> 'iterator' documentation typo.
+
 ## Version 0.14.1 (Jun 5, 2020)
 
 ### Changes and Fixes
