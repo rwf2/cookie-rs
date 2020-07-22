@@ -1,6 +1,6 @@
 [package]
 name = "cookie"
-version = "0.14.1"
+version = "0.15.0-dev"
 authors = ["Sergio Benitez <sb@sergio.bz>", "Alex Crichton <alex@alexcrichton.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
