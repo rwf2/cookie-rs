@@ -9,7 +9,7 @@ use std::ascii::AsciiExt;
 
 #[cfg(feature = "percent-encode")]
 use percent_encoding::percent_decode;
-use time::{Duration, OffsetDateTime, PrimitiveDateTime, UtcOffset};
+use time::{Duration, OffsetDateTime, PrimitiveDateTime, UtcOffset, Date};
 
 use crate::{Cookie, SameSite, CookieStr};
 
@@ -248,7 +248,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
     Ok(cookie)
 }
 
-pub fn parse_cookie<'c, S>(cow: S, decode: bool) -> Result<Cookie<'c>, ParseError>
+pub(crate) fn parse_cookie<'c, S>(cow: S, decode: bool) -> Result<Cookie<'c>, ParseError>
     where S: Into<Cow<'c, str>>
 {
     let s = cow.into();
@@ -260,6 +260,17 @@ pub fn parse_cookie<'c, S>(cow: S, decode: bool) -> Result<Cookie<'c>, ParseErro
 pub(crate) fn parse_gmt_date(s: &str, format: &str) -> Result<OffsetDateTime, time::ParseError> {
     PrimitiveDateTime::parse(s, format)
         .map(|t| t.assume_utc().to_offset(UtcOffset::UTC))
+        // Handle malformed "abbreviated" dates like Chromium. See cookie#162.
+        .map(|date| {
+            let offset = match date.year() {
+                0..=68 => 2000,
+                69..=99 => 1900,
+                _ => return date,
+            };
+
+            let new_date = Date::try_from_ymd(date.year() + offset, date.month(), date.day());
+            PrimitiveDateTime::new(new_date.expect("date from date"), date.time()).assume_utc()
+        })
 }
 
 #[cfg(test)]
@@ -448,6 +459,25 @@ mod tests {
         expected.set_expires(bad_expires);
         assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
             Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", unexpected);
+    }
+
+    #[test]
+    fn parse_abbreviated_years() {
+        let cookie_str = "foo=bar; expires=Thu, 10-Sep-20 20:00:00 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        assert_eq!(cookie.expires().unwrap().year(), 2020);
+
+        let cookie_str = "foo=bar; expires=Thu, 10-Sep-68 20:00:00 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        assert_eq!(cookie.expires().unwrap().year(), 2068);
+
+        let cookie_str = "foo=bar; expires=Thu, 10-Sep-69 20:00:00 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        assert_eq!(cookie.expires().unwrap().year(), 1969);
+
+        let cookie_str = "foo=bar; expires=Thu, 10-Sep-99 20:00:00 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        assert_eq!(cookie.expires().unwrap().year(), 1999);
     }
 
     #[test]
