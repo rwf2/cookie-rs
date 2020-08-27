@@ -331,10 +331,10 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(("hello", "world"), cookie_iter.next().unwrap().unwrap());
     /// assert_eq!(("foo", "bar%20baz"), cookie_iter.next().unwrap().unwrap());
     /// ```
-    pub fn parse_string(s: &'c str) -> CookieIter<'c>
-    //    where S: Into<Cow<'c, str>>
+    pub fn parse_string<S>(s: S) -> CookieIter<'c>
+        where S: Into<Cow<'c, str>>
     {
-        CookieIter::new(&s, false)
+        CookieIter::new(s.into(), false)
     }
 
     /// Parses a `Cookie:` header where the name and value are percent-encoded and

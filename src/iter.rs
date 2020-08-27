@@ -1,9 +1,10 @@
 use crate::Cookie;
 use crate::parse::parse_cookie;
 use crate::parse::ParseError;
+use std::borrow::Cow;
 
 pub struct CookieIter<'c> {
-    pub input: Option<&'c str>,
+    pub input: Option<Cow<'c, str>>,
     pub decode: bool,
 }
 
@@ -12,15 +13,29 @@ impl <'c> Iterator for CookieIter<'c>
     type Item = Result<Cookie<'c>, ParseError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut split2 = self.input?.splitn(2, ';');
-        let unparsed = split2.next().unwrap().trim();
-        self.input = split2.next();
-        Some(parse_cookie(unparsed, self.decode))
+        let input = self.input.as_mut()?;
+        if let Some(split_index) = input.find(';') {
+            let split_index = split_index + 1;
+            match input {
+                Cow::Borrowed(ref mut input) => {
+                    let next = &input[..split_index];
+                    *input = &input[split_index..];
+                    Some(parse_cookie(next, self.decode))
+                }
+                Cow::Owned(ref mut input) => {
+                    let next = input.drain(..split_index).collect::<String>();
+                    Some(parse_cookie(next, self.decode))
+                }
+            }
+        } else {
+            let next = self.input.take()?;
+            Some(parse_cookie(next, self.decode))
+        }
     }
 }
 
 impl <'c> CookieIter<'c> {
-    pub fn new(iter: &'c str, decode: bool) -> CookieIter<'c>
+    pub fn new(iter: Cow<'c, str>, decode: bool) -> CookieIter<'c>
     {
         CookieIter {
             input: Some(iter),
@@ -33,10 +48,12 @@ impl <'c> CookieIter<'c> {
 #[cfg(test)]
 mod test {
     use super::CookieIter;
+    use std::borrow::Cow;
 
     #[test]
     fn test_iter() {
-        let mut ci = CookieIter::new("hello=world; foo=bar", false);
+        let input = Cow::from("hello=world; foo=bar");
+        let mut ci = CookieIter::new(input, false);
         
         match ci.next() {
             Some(Ok(cookie)) => assert_eq!(("hello", "world"), cookie.name_value()),
@@ -52,7 +69,8 @@ mod test {
     #[test]
     #[cfg(feature = "percent-encode")]
     fn test_iter_encode() {
-        let mut ci = CookieIter::new("hello=world; foo=bar%20baz", false);
+        let input = Cow::from("hello=world; foo=bar%20baz");
+        let mut ci = CookieIter::new(input, false);
         match ci.next() {
             Some(Ok(cookie)) => assert_eq!(("hello", "world"), cookie.name_value()),
             _=> assert!(false),
@@ -61,7 +79,8 @@ mod test {
             _=> assert!(false),
         }
 
-        let mut ci = CookieIter::new("hello=world; foo=bar%20baz", true);
+        let input = Cow::from("hello=world; foo=bar%20baz");
+        let mut ci = CookieIter::new(input, true);
         match ci.next() {
             Some(Ok(cookie)) => assert_eq!(("hello", "world"), cookie.name_value()),
             _=> assert!(false),
