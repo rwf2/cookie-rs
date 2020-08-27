@@ -325,16 +325,19 @@ impl<'c> Cookie<'c> {
     /// # Example
     ///
     /// ```rust
-    /// use cookie::Cookie
+    /// use cookie::Cookie;
+    /// use cookie::ParseError;
     ///
-    /// let cookie_iter = cookie.parse_string("hello=world; foo=bar%20baz");
-    /// assert_eq!(("hello", "world"), cookie_iter.next().unwrap().unwrap());
-    /// assert_eq!(("foo", "bar%20baz"), cookie_iter.next().unwrap().unwrap());
+    /// let mut cookie_iter = Cookie::parse_string("hello=world; foo=bar%20baz; bin");
+    /// assert_eq!(Some(Ok(Cookie::new("hello", "world"))), cookie_iter.next());
+    /// assert_eq!(Some(Ok(Cookie::new("foo", "bar%20baz"))), cookie_iter.next());
+    /// assert_eq!(Some(Err(ParseError::MissingPair)), cookie_iter.next());
+    /// assert_eq!(None, cookie_iter.next());
     /// ```
     pub fn parse_string<S>(s: S) -> CookieIter<'c>
         where S: Into<Cow<'c, str>>
     {
-        CookieIter::new(s.into(), false)
+        CookieIter {remaining: Some(s.into()), encoded: false}
     }
 
     /// Parses a `Cookie:` header where the name and value are percent-encoded and
@@ -355,10 +358,10 @@ impl<'c> Cookie<'c> {
     /// ```
     #[cfg(feature = "percent-encode")]
     #[cfg_attr(all(doc, not(doctest)), cfg(feature = "percent-encode"))]
-    pub fn parse_string_encoded(s: &'c str) -> CookieIter<'c>
-    //    where S: Into<Cow<'c, str>>
+    pub fn parse_string_encoded<S>(s: S) -> CookieIter<'c>
+        where S: Into<Cow<'c, str>>
     {
-        CookieIter::new(&s, true)
+        CookieIter {remaining: Some(s.into()), encoded: true}
     }
 
     /// Wraps `self` in an `EncodedCookie`: a cost-free wrapper around `Cookie`
