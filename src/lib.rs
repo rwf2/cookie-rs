@@ -350,11 +350,14 @@ impl<'c> Cookie<'c> {
     /// # Example
     ///
     /// ```rust
-    /// use cookie::Cookie
+    /// use cookie::Cookie;
+    /// use cookie::ParseError;
     ///
-    /// let cookie_iter = cookie.parse_string_encoded("hello=world; foo=bar%20baz");
-    /// assert_eq!(("hello", "world"), cookie_iter.next().unwrap().unwrap());
-    /// assert_eq!(("foo", "bar baz"), cookie_iter.next().unwrap().unwrap());
+    /// let mut cookie_iter = Cookie::parse_string_encoded("hello=world; foo=bar%20baz; bin");
+    /// assert_eq!(Some(Ok(Cookie::new("hello", "world"))), cookie_iter.next());
+    /// assert_eq!(Some(Ok(Cookie::new("foo", "bar baz"))), cookie_iter.next());
+    /// assert_eq!(Some(Err(ParseError::MissingPair)), cookie_iter.next());
+    /// assert_eq!(None, cookie_iter.next());
     /// ```
     #[cfg(feature = "percent-encode")]
     #[cfg_attr(all(doc, not(doctest)), cfg(feature = "percent-encode"))]
@@ -362,24 +365,6 @@ impl<'c> Cookie<'c> {
         where S: Into<Cow<'c, str>>
     {
         CookieIter {remaining: Some(s.into()), encoded: true}
-    }
-
-    /// Wraps `self` in an `EncodedCookie`: a cost-free wrapper around `Cookie`
-    /// whose `Display` implementation percent-encodes the name and value of the
-    /// wrapped `Cookie`.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use cookie::Cookie;
-    ///
-    /// let mut c = Cookie::new("my name", "this; value?");
-    /// assert_eq!(&c.encoded().to_string(), "my%20name=this%3B%20value%3F");
-    /// ```
-    #[cfg(feature = "percent-encode")]
-    #[cfg_attr(all(doc, not(doctest)), cfg(feature = "percent-encode"))]
-    pub fn encoded<'a>(&'a self) -> EncodedCookie<'a, 'c> {
-        EncodedCookie(self)
     }
 
     /// Converts `self` into a `Cookie` with a static lifetime with as few
