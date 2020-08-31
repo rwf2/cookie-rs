@@ -1,3 +1,5 @@
+use std::convert::TryInto;
+
 use sha2::Sha256;
 use hmac::{Hmac, Mac, NewMac};
 
@@ -27,8 +29,9 @@ impl<'a> SignedJar<'a> {
     /// method is typically called indirectly via the `signed` method of
     /// `CookieJar`.
     pub(crate) fn new(parent: &'a CookieJar, key: &Key) -> SignedJar<'a> {
-        SignedJar { parent, key: key.signing }
+        SignedJar { parent, key: key.signing().try_into().expect("sign key len") }
     }
+
 
     /// Signs the cookie's value providing integrity and authenticity.
     fn sign_cookie(&self, cookie: &mut Cookie) {

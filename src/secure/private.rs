@@ -1,11 +1,12 @@
 extern crate aes_gcm;
 
-use self::aes_gcm::Aes256Gcm;
-use self::aes_gcm::aead::{Aead, AeadInPlace, NewAead, generic_array::GenericArray, Payload};
+use std::convert::TryInto;
 
 use crate::secure::{base64, rand, Key};
 use crate::{Cookie, CookieJar};
 
+use self::aes_gcm::Aes256Gcm;
+use self::aes_gcm::aead::{Aead, AeadInPlace, NewAead, generic_array::GenericArray, Payload};
 use self::rand::RngCore;
 
 // Keep these in sync, and keep the key len synced with the `private` docs as
@@ -32,7 +33,7 @@ impl<'a> PrivateJar<'a> {
     /// This method is typically called indirectly via the `signed` method of
     /// `CookieJar`.
     pub(crate) fn new(parent: &'a CookieJar, key: &Key) -> PrivateJar<'a> {
-        PrivateJar { parent, key: key.encryption }
+        PrivateJar { parent, key: key.encryption().try_into().expect("enc key len") }
     }
 
     /// Given a sealed value `str` and a key name `name`, where the nonce is

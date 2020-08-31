@@ -1,12 +1,12 @@
-const PRIVATE_KEY_LEN: usize = 32;
-const SIGNED_KEY_LEN: usize = 32;
-const COMBINED_KEY_LENGTH: usize = PRIVATE_KEY_LEN + SIGNED_KEY_LEN;
+const SIGNING_KEY_LEN: usize = 32;
+const ENCRYPTION_KEY_LEN: usize = 32;
+const COMBINED_KEY_LENGTH: usize = SIGNING_KEY_LEN + ENCRYPTION_KEY_LEN;
 
 // Statically ensure the numbers above are in-sync.
-#[cfg(feature = "private")]
-const_assert!(crate::secure::private::KEY_LEN == PRIVATE_KEY_LEN);
 #[cfg(feature = "signed")]
-const_assert!(crate::secure::signed::KEY_LEN == SIGNED_KEY_LEN);
+const_assert!(crate::secure::signed::KEY_LEN == SIGNING_KEY_LEN);
+#[cfg(feature = "private")]
+const_assert!(crate::secure::private::KEY_LEN == ENCRYPTION_KEY_LEN);
 
 /// A cryptographic master key for use with `Signed` and/or `Private` jars.
 ///
@@ -16,15 +16,12 @@ const_assert!(crate::secure::signed::KEY_LEN == SIGNED_KEY_LEN);
 /// `SignedJar` simultaneously with no notable security implications.
 #[cfg_attr(nightly, doc(cfg(any(feature = "private", feature = "signed"))))]
 #[derive(Clone)]
-pub struct Key {
-    pub(crate) signing: [u8; SIGNED_KEY_LEN],
-    pub(crate) encryption: [u8; PRIVATE_KEY_LEN]
-}
+pub struct Key([u8; COMBINED_KEY_LENGTH /* SIGNING | ENCRYPTION */]);
 
 impl Key {
     // An empty key structure, to be filled.
     const fn zero() -> Self {
-        Key { signing: [0; SIGNED_KEY_LEN], encryption: [0; PRIVATE_KEY_LEN] }
+        Key([0; COMBINED_KEY_LENGTH])
     }
 
     /// Creates a new `Key` from a 512-bit cryptographically random string.
@@ -54,8 +51,7 @@ impl Key {
         }
 
         let mut output = Key::zero();
-        output.signing.copy_from_slice(&key[..SIGNED_KEY_LEN]);
-        output.encryption.copy_from_slice(&key[SIGNED_KEY_LEN..COMBINED_KEY_LENGTH]);
+        output.0.copy_from_slice(&key[..COMBINED_KEY_LENGTH]);
         output
     }
 
@@ -90,42 +86,10 @@ impl Key {
 
         // Expand the master key into two HKDF generated keys.
         const KEYS_INFO: &[u8] = b"COOKIE;SIGNED:HMAC-SHA256;PRIVATE:AEAD-AES-256-GCM";
-        let mut both_keys = [0; SIGNED_KEY_LEN + PRIVATE_KEY_LEN];
+        let mut both_keys = [0; COMBINED_KEY_LENGTH];
         let hk = hkdf::Hkdf::<sha2::Sha256>::from_prk(master_key).expect("key length prechecked");
         hk.expand(KEYS_INFO, &mut both_keys).expect("expand into keys");
-
-        // Copy the key parts into their respective fields.
         Key::from(&both_keys)
-    }
-
-    /// Derives new signing/encryption keys from a master key.
-    ///
-    /// The master key must be at least 256-bits (32 bytes). For security, the
-    /// master key _must_ be cryptographically random. The keys are derived
-    /// deterministically from the master key.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `key` is less than 32 bytes in length.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use cookie::Key;
-    ///
-    /// # /*
-    /// let master_key = { /* a cryptographically random key >= 32 bytes */ };
-    /// # */
-    /// # let master_key: &Vec<u8> = &(0..32).collect();
-    ///
-    /// let key = Key::from_master(master_key);
-    /// ```
-    #[cfg(feature = "key-expansion")]
-    #[cfg_attr(nightly, doc(cfg(feature = "key-expansion")))]
-    #[deprecated(since = "0.14.0", note = "removed in favor of the more aptly named \
-        `Key::derive_from()` and `Key::from()`; use one of those instead")]
-    pub fn from_master(key: &[u8]) -> Self {
-        Key::derive_from(key)
     }
 
     /// Generates signing/encryption keys from a secure, random source. Keys are
@@ -162,12 +126,13 @@ impl Key {
         use crate::secure::rand::RngCore;
 
         let mut rng = crate::secure::rand::thread_rng();
-        let mut both_keys = [0; SIGNED_KEY_LEN + PRIVATE_KEY_LEN];
-        rng.try_fill_bytes(&mut both_keys).ok()?;
-        Some(Key::from(&both_keys))
+        let mut key = Key::zero();
+        rng.try_fill_bytes(&mut key.0).ok()?;
+        Some(key)
     }
 
-    /// Returns the raw bytes of a key suitable for signing cookies.
+    /// Returns the raw bytes of a key suitable for signing cookies. Guaranteed
+    /// to be at least 32 bytes.
     ///
     /// # Example
     ///
@@ -178,10 +143,11 @@ impl Key {
     /// let signing_key = key.signing();
     /// ```
     pub fn signing(&self) -> &[u8] {
-        &self.signing[..]
+        &self.0[..SIGNING_KEY_LEN]
     }
 
     /// Returns the raw bytes of a key suitable for encrypting cookies.
+    /// Guaranteed to be at least 32 bytes.
     ///
     /// # Example
     ///
@@ -192,7 +158,22 @@ impl Key {
     /// let encryption_key = key.encryption();
     /// ```
     pub fn encryption(&self) -> &[u8] {
-        &self.encryption[..]
+        &self.0[SIGNING_KEY_LEN..]
+    }
+
+    /// Returns the raw bytes of the master key. Guaranteed to be at least 64
+    /// bytes.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::Key;
+    ///
+    /// let key = Key::generate();
+    /// let master_key = key.master();
+    /// ```
+    pub fn master(&self) -> &[u8] {
+        &self.0
     }
 }
 
