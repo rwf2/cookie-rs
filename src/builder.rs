@@ -248,9 +248,3 @@ impl<'c> CookieBuilder<'c> {
         self.cookie
     }
 }
-
-impl<'c> From<CookieBuilder<'c>> for Cookie<'c> {
-    fn from(builder: CookieBuilder<'c>) -> Self {
-        builder.finish()
-    }
-}
