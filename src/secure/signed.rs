@@ -1,4 +1,5 @@
 use std::convert::TryInto;
+use std::borrow::{Borrow, BorrowMut};
 
 use sha2::Sha256;
 use hmac::{Hmac, Mac, NewMac};
@@ -19,16 +20,16 @@ pub(crate) const KEY_LEN: usize = 32;
 /// contents of a cookie nor can they fabricate cookie values, but the data is
 /// visible in plaintext.
 #[cfg_attr(nightly, doc(cfg(feature = "signed")))]
-pub struct SignedJar<'a> {
-    parent: &'a mut CookieJar,
+pub struct SignedJar<J> {
+    parent: J,
     key: [u8; KEY_LEN],
 }
 
-impl<'a> SignedJar<'a> {
+impl<J> SignedJar<J> {
     /// Creates a new child `SignedJar` with parent `parent` and key `key`. This
-    /// method is typically called indirectly via the `signed` method of
+    /// method is typically called indirectly via the `signed{_mut}` methods of
     /// `CookieJar`.
-    pub(crate) fn new(parent: &'a mut CookieJar, key: &Key) -> SignedJar<'a> {
+    pub(crate) fn new(parent: J, key: &Key) -> SignedJar<J> {
         SignedJar { parent, key: key.signing().try_into().expect("sign key len") }
     }
 
@@ -78,7 +79,7 @@ impl<'a> SignedJar<'a> {
     /// let mut jar = CookieJar::new();
     /// assert!(jar.signed(&key).get("name").is_none());
     ///
-    /// jar.signed(&key).add(Cookie::new("name", "value"));
+    /// jar.signed_mut(&key).add(Cookie::new("name", "value"));
     /// assert_eq!(jar.signed(&key).get("name").unwrap().value(), "value");
     ///
     /// let plain = jar.get("name").cloned().unwrap();
@@ -97,7 +98,9 @@ impl<'a> SignedJar<'a> {
 
         None
     }
+}
 
+impl<J: Borrow<CookieJar>> SignedJar<J> {
     /// Returns a reference to the `Cookie` inside this jar with the name `name`
     /// and verifies the authenticity and integrity of the cookie's value,
     /// returning a `Cookie` with the authenticated value. If the cookie cannot
@@ -109,17 +112,20 @@ impl<'a> SignedJar<'a> {
     /// use cookie::{CookieJar, Cookie, Key};
     ///
     /// let key = Key::generate();
-    /// let mut jar = CookieJar::new();
-    /// let mut signed_jar = jar.signed(&key);
-    /// assert!(signed_jar.get("name").is_none());
+    /// let jar = CookieJar::new();
+    /// assert!(jar.signed(&key).get("name").is_none());
     ///
+    /// let mut jar = jar;
+    /// let mut signed_jar = jar.signed_mut(&key);
     /// signed_jar.add(Cookie::new("name", "value"));
     /// assert_eq!(signed_jar.get("name").unwrap().value(), "value");
     /// ```
     pub fn get(&self, name: &str) -> Option<Cookie<'static>> {
-        self.parent.get(name).and_then(|c| self.verify(c.clone()))
+        self.parent.borrow().get(name).and_then(|c| self.verify(c.clone()))
     }
+}
 
+impl<J: BorrowMut<CookieJar>> SignedJar<J> {
     /// Adds `cookie` to the parent jar. The cookie's value is signed assuring
     /// integrity and authenticity.
     ///
@@ -130,7 +136,7 @@ impl<'a> SignedJar<'a> {
     ///
     /// let key = Key::generate();
     /// let mut jar = CookieJar::new();
-    /// jar.signed(&key).add(Cookie::new("name", "value"));
+    /// jar.signed_mut(&key).add(Cookie::new("name", "value"));
     ///
     /// assert_ne!(jar.get("name").unwrap().value(), "value");
     /// assert!(jar.get("name").unwrap().value().contains("value"));
@@ -138,7 +144,7 @@ impl<'a> SignedJar<'a> {
     /// ```
     pub fn add(&mut self, mut cookie: Cookie<'static>) {
         self.sign_cookie(&mut cookie);
-        self.parent.add(cookie);
+        self.parent.borrow_mut().add(cookie);
     }
 
     /// Adds an "original" `cookie` to this jar. The cookie's value is signed
@@ -157,14 +163,14 @@ impl<'a> SignedJar<'a> {
     ///
     /// let key = Key::generate();
     /// let mut jar = CookieJar::new();
-    /// jar.signed(&key).add_original(Cookie::new("name", "value"));
+    /// jar.signed_mut(&key).add_original(Cookie::new("name", "value"));
     ///
     /// assert_eq!(jar.iter().count(), 1);
     /// assert_eq!(jar.delta().count(), 0);
     /// ```
     pub fn add_original(&mut self, mut cookie: Cookie<'static>) {
         self.sign_cookie(&mut cookie);
-        self.parent.add_original(cookie);
+        self.parent.borrow_mut().add_original(cookie);
     }
 
     /// Removes `cookie` from the parent jar.
@@ -172,7 +178,8 @@ impl<'a> SignedJar<'a> {
     /// For correct removal, the passed in `cookie` must contain the same `path`
     /// and `domain` as the cookie that was initially set.
     ///
-    /// See [`CookieJar::remove()`] for more details.
+    /// This is identical to [`CookieJar::remove()`]. See the method's
+    /// documentation for more details.
     ///
     /// # Example
     ///
@@ -181,7 +188,7 @@ impl<'a> SignedJar<'a> {
     ///
     /// let key = Key::generate();
     /// let mut jar = CookieJar::new();
-    /// let mut signed_jar = jar.signed(&key);
+    /// let mut signed_jar = jar.signed_mut(&key);
     ///
     /// signed_jar.add(Cookie::new("name", "value"));
     /// assert!(signed_jar.get("name").is_some());
@@ -190,7 +197,7 @@ impl<'a> SignedJar<'a> {
     /// assert!(signed_jar.get("name").is_none());
     /// ```
     pub fn remove(&mut self, cookie: Cookie<'static>) {
-        self.parent.remove(cookie);
+        self.parent.borrow_mut().remove(cookie);
     }
 }
 
@@ -202,14 +209,14 @@ mod test {
     fn simple() {
         let key = Key::generate();
         let mut jar = CookieJar::new();
-        assert_simple_behaviour!(jar, jar.signed(&key));
+        assert_simple_behaviour!(jar, jar.signed_mut(&key));
     }
 
     #[test]
     fn private() {
         let key = Key::generate();
         let mut jar = CookieJar::new();
-        assert_secure_behaviour!(jar, jar.signed(&key));
+        assert_secure_behaviour!(jar, jar.signed_mut(&key));
     }
 
     #[test]

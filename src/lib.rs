@@ -883,6 +883,35 @@ impl<'c> Cookie<'c> {
         self.set_expires(OffsetDateTime::now_utc() + twenty_years);
     }
 
+    /// Make `self` a "removal" cookie by clearing its value, setting a max-age
+    /// of `0`, and setting an expiration date far in the past.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate cookie;
+    /// extern crate time;
+    ///
+    /// use cookie::Cookie;
+    /// use time::Duration;
+    ///
+    /// # fn main() {
+    /// let mut c = Cookie::new("foo", "bar");
+    /// c.make_permanent();
+    /// assert_eq!(c.max_age(), Some(Duration::days(365 * 20)));
+    /// assert_eq!(c.value(), "bar");
+    ///
+    /// c.make_removal();
+    /// assert_eq!(c.value(), "");
+    /// assert_eq!(c.max_age(), Some(Duration::zero()));
+    /// # }
+    /// ```
+    pub fn make_removal(&mut self) {
+        self.set_value("");
+        self.set_max_age(Duration::seconds(0));
+        self.set_expires(OffsetDateTime::now_utc() - Duration::days(365));
+    }
+
     fn fmt_parameters(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(true) = self.http_only() {
             write!(f, "; HttpOnly")?;

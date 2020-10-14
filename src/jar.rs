@@ -1,7 +1,5 @@
 use std::collections::HashSet;
 
-use time::{Duration, OffsetDateTime};
-
 #[cfg(feature = "signed")] use crate::secure::SignedJar;
 #[cfg(feature = "private")] use crate::secure::PrivateJar;
 #[cfg(any(feature = "signed", feature = "private"))] use crate::secure::Key;
@@ -180,7 +178,7 @@ impl CookieJar {
     ///
     /// A "removal" cookie is a cookie that has the same name as the original
     /// cookie but has an empty value, a max-age of 0, and an expiration date
-    /// far in the past.
+    /// far in the past. See also [`Cookie::make_removal()`].
     ///
     /// # Example
     ///
@@ -210,7 +208,8 @@ impl CookieJar {
     /// # }
     /// ```
     ///
-    /// Removing a new cookie does not result in a _removal_ cookie:
+    /// Removing a new cookie does not result in a _removal_ cookie unless
+    /// there's an original cookie with the same name:
     ///
     /// ```rust
     /// use cookie::{CookieJar, Cookie};
@@ -221,16 +220,62 @@ impl CookieJar {
     ///
     /// jar.remove(Cookie::named("name"));
     /// assert_eq!(jar.delta().count(), 0);
+    ///
+    /// jar.add_original(Cookie::new("name", "value"));
+    /// jar.add(Cookie::new("name", "value"));
+    /// assert_eq!(jar.delta().count(), 1);
+    ///
+    /// jar.remove(Cookie::named("name"));
+    /// assert_eq!(jar.delta().count(), 1);
     /// ```
     pub fn remove(&mut self, mut cookie: Cookie<'static>) {
         if self.original_cookies.contains(cookie.name()) {
-            cookie.set_value("");
-            cookie.set_max_age(Duration::seconds(0));
-            cookie.set_expires(OffsetDateTime::now_utc() - Duration::days(365));
+            cookie.make_removal();
             self.delta_cookies.replace(DeltaCookie::removed(cookie));
         } else {
             self.delta_cookies.remove(cookie.name());
         }
+    }
+
+    /// Removes `cookie` from this jar completely. This method differs from
+    /// `remove` in that no delta cookie is created under any condition. Neither
+    /// the `delta` nor `iter` methods will return a cookie that is removed
+    /// using this method.
+    ///
+    /// # Example
+    ///
+    /// Removing an _original_ cookie; no _removal_ cookie is generated:
+    ///
+    /// ```rust
+    /// # extern crate cookie;
+    /// extern crate time;
+    ///
+    /// use cookie::{CookieJar, Cookie};
+    /// use time::Duration;
+    ///
+    /// # fn main() {
+    /// let mut jar = CookieJar::new();
+    ///
+    /// // Add an original cookie and a new cookie.
+    /// jar.add_original(Cookie::new("name", "value"));
+    /// jar.add(Cookie::new("key", "value"));
+    /// assert_eq!(jar.delta().count(), 1);
+    /// assert_eq!(jar.iter().count(), 2);
+    ///
+    /// // Now force remove the original cookie.
+    /// jar.force_remove(&Cookie::named("name"));
+    /// assert_eq!(jar.delta().count(), 1);
+    /// assert_eq!(jar.iter().count(), 1);
+    ///
+    /// // Now force remove the new cookie.
+    /// jar.force_remove(&Cookie::named("key"));
+    /// assert_eq!(jar.delta().count(), 0);
+    /// assert_eq!(jar.iter().count(), 0);
+    /// # }
+    /// ```
+    pub fn force_remove<'a>(&mut self, cookie: &Cookie<'a>) {
+        self.original_cookies.remove(cookie.name());
+        self.delta_cookies.remove(cookie.name());
     }
 
     /// Removes all delta cookies, i.e. all cookies not added via
@@ -268,47 +313,6 @@ impl CookieJar {
     /// ```
     pub fn reset_delta(&mut self) {
         self.delta_cookies = HashSet::new();
-    }
-
-    /// Removes `cookie` from this jar completely. This method differs from
-    /// `remove` in that no delta cookie is created under any condition. Neither
-    /// the `delta` nor `iter` methods will return a cookie that is removed
-    /// using this method.
-    ///
-    /// # Example
-    ///
-    /// Removing an _original_ cookie; no _removal_ cookie is generated:
-    ///
-    /// ```rust
-    /// # extern crate cookie;
-    /// extern crate time;
-    ///
-    /// use cookie::{CookieJar, Cookie};
-    /// use time::Duration;
-    ///
-    /// # fn main() {
-    /// let mut jar = CookieJar::new();
-    ///
-    /// // Add an original cookie and a new cookie.
-    /// jar.add_original(Cookie::new("name", "value"));
-    /// jar.add(Cookie::new("key", "value"));
-    /// assert_eq!(jar.delta().count(), 1);
-    /// assert_eq!(jar.iter().count(), 2);
-    ///
-    /// // Now force remove the original cookie.
-    /// jar.force_remove(Cookie::new("name", "value"));
-    /// assert_eq!(jar.delta().count(), 1);
-    /// assert_eq!(jar.iter().count(), 1);
-    ///
-    /// // Now force remove the new cookie.
-    /// jar.force_remove(Cookie::new("key", "value"));
-    /// assert_eq!(jar.delta().count(), 0);
-    /// assert_eq!(jar.iter().count(), 0);
-    /// # }
-    /// ```
-    pub fn force_remove<'a>(&mut self, cookie: Cookie<'a>) {
-        self.original_cookies.remove(cookie.name());
-        self.delta_cookies.remove(cookie.name());
     }
 
     /// Returns an iterator over cookies that represent the changes to this jar
@@ -377,12 +381,9 @@ impl CookieJar {
         }
     }
 
-    /// Returns a `PrivateJar` with `self` as its parent jar using the key `key`
-    /// to sign/encrypt and verify/decrypt cookies added/retrieved from the
-    /// child jar.
-    ///
-    /// Any modifications to the child jar will be reflected on the parent jar,
-    /// and any retrievals from the child jar will be made from the parent jar.
+    /// Returns a read-only `PrivateJar` with `self` as its parent jar using the
+    /// key `key` to verify/decrypt cookies retrieved from the child jar. Any
+    /// retrievals from the child jar will be made from the parent jar.
     ///
     /// # Example
     ///
@@ -394,7 +395,7 @@ impl CookieJar {
     ///
     /// // Add a private (signed + encrypted) cookie.
     /// let mut jar = CookieJar::new();
-    /// jar.private(&key).add(Cookie::new("private", "text"));
+    /// jar.private_mut(&key).add(Cookie::new("private", "text"));
     ///
     /// // The cookie's contents are encrypted.
     /// assert_ne!(jar.get("private").unwrap().value(), "text");
@@ -410,12 +411,13 @@ impl CookieJar {
     /// ```
     #[cfg(feature = "private")]
     #[cfg_attr(nightly, doc(cfg(feature = "private")))]
-    pub fn private(&mut self, key: &Key) -> PrivateJar {
+    pub fn private<'a>(&'a self, key: &Key) -> PrivateJar<&'a Self> {
         PrivateJar::new(self, key)
     }
 
-    /// Returns a `SignedJar` with `self` as its parent jar using the key `key`
-    /// to sign/verify cookies added/retrieved from the child jar.
+    /// Returns a read/write `PrivateJar` with `self` as its parent jar using
+    /// the key `key` to sign/encrypt and verify/decrypt cookies added/retrieved
+    /// from the child jar.
     ///
     /// Any modifications to the child jar will be reflected on the parent jar,
     /// and any retrievals from the child jar will be made from the parent jar.
@@ -428,9 +430,34 @@ impl CookieJar {
     /// // Generate a secure key.
     /// let key = Key::generate();
     ///
+    /// // Add a private (signed + encrypted) cookie.
+    /// let mut jar = CookieJar::new();
+    /// jar.private_mut(&key).add(Cookie::new("private", "text"));
+    ///
+    /// // Remove a cookie using the child jar.
+    /// jar.private_mut(&key).remove(Cookie::named("private"));
+    /// ```
+    #[cfg(feature = "private")]
+    #[cfg_attr(nightly, doc(cfg(feature = "private")))]
+    pub fn private_mut<'a>(&'a mut self, key: &Key) -> PrivateJar<&'a mut Self> {
+        PrivateJar::new(self, key)
+    }
+
+    /// Returns a read-only `SignedJar` with `self` as its parent jar using the
+    /// key `key` to verify cookies retrieved from the child jar. Any retrievals
+    /// from the child jar will be made from the parent jar.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::{Cookie, CookieJar, Key};
+    ///
+    /// // Generate a secure key.
+    /// let key = Key::generate();
+    ///
     /// // Add a signed cookie.
     /// let mut jar = CookieJar::new();
-    /// jar.signed(&key).add(Cookie::new("signed", "text"));
+    /// jar.signed_mut(&key).add(Cookie::new("signed", "text"));
     ///
     /// // The cookie's contents are signed but still in plaintext.
     /// assert_ne!(jar.get("signed").unwrap().value(), "text");
@@ -447,7 +474,34 @@ impl CookieJar {
     /// ```
     #[cfg(feature = "signed")]
     #[cfg_attr(nightly, doc(cfg(feature = "signed")))]
-    pub fn signed(&mut self, key: &Key) -> SignedJar {
+    pub fn signed<'a>(&'a self, key: &Key) -> SignedJar<&'a Self> {
+        SignedJar::new(self, key)
+    }
+
+    /// Returns a read/write `SignedJar` with `self` as its parent jar using the
+    /// key `key` to sign/verify cookies added/retrieved from the child jar.
+    ///
+    /// Any modifications to the child jar will be reflected on the parent jar,
+    /// and any retrievals from the child jar will be made from the parent jar.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::{Cookie, CookieJar, Key};
+    ///
+    /// // Generate a secure key.
+    /// let key = Key::generate();
+    ///
+    /// // Add a signed cookie.
+    /// let mut jar = CookieJar::new();
+    /// jar.signed_mut(&key).add(Cookie::new("signed", "text"));
+    ///
+    /// // Remove a cookie.
+    /// jar.signed_mut(&key).remove(Cookie::named("signed"));
+    /// ```
+    #[cfg(feature = "signed")]
+    #[cfg_attr(nightly, doc(cfg(feature = "signed")))]
+    pub fn signed_mut<'a>(&'a mut self, key: &Key) -> SignedJar<&'a mut Self> {
         SignedJar::new(self, key)
     }
 }
@@ -538,8 +592,8 @@ mod test {
         c.add(Cookie::new("test3", "test3"));
         assert_eq!(c.iter().count(), 4);
 
-        c.signed(&key).add(Cookie::new("signed", "signed"));
-        c.private(&key).add(Cookie::new("encrypted", "encrypted"));
+        c.signed_mut(&key).add(Cookie::new("signed", "signed"));
+        c.private_mut(&key).add(Cookie::new("encrypted", "encrypted"));
         assert_eq!(c.iter().count(), 6);
 
         c.remove(Cookie::named("test"));
