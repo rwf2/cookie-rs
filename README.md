@@ -1,10 +1,10 @@
-# cookie-rs
+# Cookie
 
-[![Build Status](https://travis-ci.com/SergioBenitez/cookie-rs.svg?branch=master)](https://travis-ci.com/SergioBenitez/cookie-rs)
+[![CI Status](https://github.com/SergioBenitez/cookie-rs/workflows/CI/badge.svg)](https://github.com/SergioBenitez/cookie-rs/actions)
 [![Current Crates.io Version](https://img.shields.io/crates/v/cookie.svg)](https://crates.io/crates/cookie)
 [![Documentation](https://docs.rs/cookie/badge.svg)](https://docs.rs/cookie)
 
-A library for parsing HTTP cookies and managing cookie jars.
+A Rust library for parsing HTTP cookies and managing cookie jars.
 
 # Usage
 
