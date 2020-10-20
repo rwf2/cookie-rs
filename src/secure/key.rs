@@ -18,6 +18,14 @@ const_assert!(crate::secure::private::KEY_LEN == ENCRYPTION_KEY_LEN);
 #[derive(Clone)]
 pub struct Key([u8; COMBINED_KEY_LENGTH /* SIGNING | ENCRYPTION */]);
 
+impl PartialEq for Key {
+    fn eq(&self, other: &Self) -> bool {
+        use subtle::ConstantTimeEq;
+
+        self.0.ct_eq(&other.0).into()
+    }
+}
+
 impl Key {
     // An empty key structure, to be filled.
     const fn zero() -> Self {
