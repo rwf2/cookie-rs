@@ -942,7 +942,6 @@ impl<'c> Cookie<'c> {
         }
 
         if let Some(time) = self.expires() {
-            let time = time.to_offset(UtcOffset::UTC);
             write!(f, "; Expires={}", time.format("%a, %d %b %Y %H:%M:%S GMT"))?;
         }
 
