@@ -117,7 +117,7 @@ impl CookieJar {
         self.delta_cookies
             .get(name)
             .or_else(|| self.original_cookies.get(name))
-            .and_then(|c| if !c.removed { Some(&c.cookie) } else { None })
+            .and_then(|c| if c.removed { None } else { Some(&c.cookie) })
     }
 
     /// Adds an "original" `cookie` to this jar. If an original cookie with the

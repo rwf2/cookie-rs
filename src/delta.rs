@@ -19,20 +19,14 @@ impl DeltaCookie {
     /// Create a new `DeltaCookie` that is being added to a jar.
     #[inline]
     pub fn added(cookie: Cookie<'static>) -> DeltaCookie {
-        DeltaCookie {
-            cookie: cookie,
-            removed: false,
-        }
+        DeltaCookie { cookie, removed: false, }
     }
 
     /// Create a new `DeltaCookie` that is being removed from a jar. The
     /// `cookie` should be a "removal" cookie.
     #[inline]
     pub fn removed(cookie: Cookie<'static>) -> DeltaCookie {
-        DeltaCookie {
-            cookie: cookie,
-            removed: true,
-        }
+        DeltaCookie { cookie, removed: true, }
     }
 }
 

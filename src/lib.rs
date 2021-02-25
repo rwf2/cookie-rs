@@ -135,6 +135,7 @@ impl<'c> CookieStr<'c> {
         }
     }
 
+    #[allow(clippy::ptr_arg)]
     fn to_raw_str<'s, 'b: 's>(&'s self, string: &'s Cow<'b, str>) -> Option<&'b str> {
         match *self {
             CookieStr::Indexed(i, j) => {

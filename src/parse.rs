@@ -15,6 +15,7 @@ use crate::{Cookie, SameSite, CookieStr};
 
 /// Enum corresponding to a parsing error.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[non_exhaustive]
 pub enum ParseError {
     /// The cookie did not contain a name/value pair.
     MissingPair,
@@ -22,10 +23,6 @@ pub enum ParseError {
     EmptyName,
     /// Decoding the cookie's name or value resulted in invalid UTF-8.
     Utf8Error(Utf8Error),
-    /// It is discouraged to exhaustively match on this enum as its variants may
-    /// grow without a breaking-change bump in version numbers.
-    #[doc(hidden)]
-    __Nonexhasutive,
 }
 
 impl ParseError {
@@ -37,7 +34,6 @@ impl ParseError {
             ParseError::Utf8Error(_) => {
                 "decoding the cookie's name or value resulted in invalid UTF-8"
             }
-            ParseError::__Nonexhasutive => unreachable!("__Nonexhasutive ParseError"),
         }
     }
 }
@@ -155,9 +151,8 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
     };
 
     let mut cookie: Cookie<'c> = Cookie {
+        name, value,
         cookie_string: None,
-        name: name,
-        value: value,
         expires: None,
         max_age: None,
         domain: None,
@@ -193,7 +188,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                 } else {
                     Some(v.parse::<i64>()
                         .map(Duration::seconds)
-                        .unwrap_or(Duration::seconds(i64::max_value())))
+                        .unwrap_or_else(|_| Duration::seconds(i64::max_value())))
                 }
             },
             ("domain", Some(mut domain)) if !domain.is_empty() => {

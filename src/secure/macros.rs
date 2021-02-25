@@ -43,7 +43,7 @@ macro_rules! assert_secure_behaviour {
 // Nikolai Vazquez. See https://github.com/nvzqz/static-assertions-rs for more.
 macro_rules! const_assert {
     ($x:expr $(,)?) => {
-        #[allow(unknown_lints, eq_op)]
+        #[allow(unknown_lints, clippy::eq_op)]
         const _: [(); 0 - !{ const ASSERT: bool = $x; ASSERT } as usize] = [];
     };
 }
