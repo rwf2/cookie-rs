@@ -351,8 +351,8 @@ impl<'c> Cookie<'c> {
     /// let mut c = Cookie::build("key?", "value").secure(true).path("/").finish();
     /// assert_eq!(&c.stripped().to_string(), "key?=value");
     #[cfg_attr(feature = "percent-encode", doc = r##"
-    // Note: `encoded()` is only available when `percent-encode` is enabled.
-    assert_eq!(&c.stripped().encoded().to_string(), "key%3F=value");
+// Note: `encoded()` is only available when `percent-encode` is enabled.
+assert_eq!(&c.stripped().encoded().to_string(), "key%3F=value");
     #"##)]
     /// ```
     #[inline(always)]
@@ -1117,10 +1117,10 @@ const USERINFO_ENCODE_SET: &AsciiSet = &PATH_ENCODE_SET
 /// let c = Cookie::build("my name", "this; value%?").secure(true).finish();
 /// assert_eq!(&c.stripped().to_string(), "my name=this; value%?");
 #[cfg_attr(feature = "percent-encode", doc = r##"
-    // Note: `encoded()` is only available when `percent-encode` is enabled.
-    assert_eq!(&c.encoded().to_string(), "my%20name=this%3B%20value%25%3F; Secure");
-    assert_eq!(&c.stripped().encoded().to_string(), "my%20name=this%3B%20value%25%3F");
-    assert_eq!(&c.encoded().stripped().to_string(), "my%20name=this%3B%20value%25%3F");
+// Note: `encoded()` is only available when `percent-encode` is enabled.
+assert_eq!(&c.encoded().to_string(), "my%20name=this%3B%20value%25%3F; Secure");
+assert_eq!(&c.stripped().encoded().to_string(), "my%20name=this%3B%20value%25%3F");
+assert_eq!(&c.encoded().stripped().to_string(), "my%20name=this%3B%20value%25%3F");
 "##)]
 /// ```
 pub struct Display<'a, 'c: 'a> {
