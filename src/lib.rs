@@ -87,6 +87,7 @@ mod parse;
 mod jar;
 mod delta;
 mod draft;
+mod expiration;
 
 #[cfg(any(feature = "private", feature = "signed"))] #[macro_use] mod secure;
 #[cfg(any(feature = "private", feature = "signed"))] pub use secure::*;
@@ -107,6 +108,7 @@ pub use crate::parse::ParseError;
 pub use crate::builder::CookieBuilder;
 pub use crate::jar::{CookieJar, Delta, Iter};
 pub use crate::draft::*;
+pub use crate::expiration::*;
 
 #[derive(Debug, Clone)]
 enum CookieStr<'c> {
@@ -195,7 +197,7 @@ pub struct Cookie<'c> {
     /// The cookie's value.
     value: CookieStr<'c>,
     /// The cookie's expiration, if any.
-    expires: Option<OffsetDateTime>,
+    expires: Option<Expiration>,
     /// The cookie's maximum age, if any.
     max_age: Option<Duration>,
     /// The cookie's domain, if any.
@@ -311,53 +313,6 @@ impl<'c> Cookie<'c> {
         where S: Into<Cow<'c, str>>
     {
         parse_cookie(s, true)
-    }
-
-    /// Wraps `self` in an encoded [`Display`]: a cost-free wrapper around
-    /// `Cookie` whose [`fmt::Display`] implementation percent-encodes the name
-    /// and value of the wrapped `Cookie`.
-    ///
-    /// The returned structure can be chained with [`Display::stripped()`] to
-    /// display only the name and value.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use cookie::Cookie;
-    ///
-    /// let mut c = Cookie::build("my name", "this; value?").secure(true).finish();
-    /// assert_eq!(&c.encoded().to_string(), "my%20name=this%3B%20value%3F; Secure");
-    /// assert_eq!(&c.encoded().stripped().to_string(), "my%20name=this%3B%20value%3F");
-    /// ```
-    #[cfg(feature = "percent-encode")]
-    #[cfg_attr(nightly, doc(cfg(feature = "percent-encode")))]
-    #[inline(always)]
-    pub fn encoded<'a>(&'a self) -> Display<'a, 'c> {
-        Display::new_encoded(self)
-    }
-
-    /// Wraps `self` in a stripped `Display`]: a cost-free wrapper around
-    /// `Cookie` whose [`fmt::Display`] implementation prints only the `name`
-    /// and `value` of the wrapped `Cookie`.
-    ///
-    /// The returned structure can be chained with [`Display::encoded()`] to
-    /// encode the name and value.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use cookie::Cookie;
-    ///
-    /// let mut c = Cookie::build("key?", "value").secure(true).path("/").finish();
-    /// assert_eq!(&c.stripped().to_string(), "key?=value");
-    #[cfg_attr(feature = "percent-encode", doc = r##"
-// Note: `encoded()` is only available when `percent-encode` is enabled.
-assert_eq!(&c.stripped().encoded().to_string(), "key%3F=value");
-    #"##)]
-    /// ```
-    #[inline(always)]
-    pub fn stripped<'a>(&'a self) -> Display<'a, 'c> {
-        Display::new_stripped(self)
     }
 
     /// Converts `self` into a `Cookie` with a static lifetime with as few
@@ -574,7 +529,31 @@ assert_eq!(&c.stripped().encoded().to_string(), "key%3F=value");
         }
     }
 
-    /// Returns the `Expires` time of the cookie if one was specified.
+    /// Returns the [`Expiration`] of the cookie if one was specified.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::{Cookie, Expiration};
+    ///
+    /// let c = Cookie::parse("name=value").unwrap();
+    /// assert_eq!(c.expires(), None);
+    ///
+    /// // Here, `cookie.expires_datetime()` returns `None`.
+    /// let c = Cookie::build("name", "value").expires(None).finish();
+    /// assert_eq!(c.expires(), Some(Expiration::Session));
+    ///
+    /// let expire_time = "Wed, 21 Oct 2017 07:28:00 GMT";
+    /// let cookie_str = format!("name=value; Expires={}", expire_time);
+    /// let c = Cookie::parse(cookie_str).unwrap();
+    /// assert_eq!(c.expires().and_then(|e| e.datetime()).map(|t| t.year()), Some(2017));
+    /// ```
+    #[inline]
+    pub fn expires(&self) -> Option<Expiration> {
+        self.expires
+    }
+
+    /// Returns the expiration date-time of the cookie if one was specified.
     ///
     /// # Example
     ///
@@ -582,16 +561,20 @@ assert_eq!(&c.stripped().encoded().to_string(), "key%3F=value");
     /// use cookie::Cookie;
     ///
     /// let c = Cookie::parse("name=value").unwrap();
-    /// assert_eq!(c.expires(), None);
+    /// assert_eq!(c.expires_datetime(), None);
+    ///
+    /// // Here, `cookie.expires()` returns `Some`.
+    /// let c = Cookie::build("name", "value").expires(None).finish();
+    /// assert_eq!(c.expires_datetime(), None);
     ///
     /// let expire_time = "Wed, 21 Oct 2017 07:28:00 GMT";
     /// let cookie_str = format!("name=value; Expires={}", expire_time);
     /// let c = Cookie::parse(cookie_str).unwrap();
-    /// assert_eq!(c.expires().map(|t| t.year()), Some(2017));
+    /// assert_eq!(c.expires_datetime().map(|t| t.year()), Some(2017));
     /// ```
     #[inline]
-    pub fn expires(&self) -> Option<OffsetDateTime> {
-        self.expires
+    pub fn expires_datetime(&self) -> Option<OffsetDateTime> {
+        self.expires.and_then(|e| e.datetime())
     }
 
     /// Sets the name of `self` to `name`.
@@ -722,7 +705,7 @@ assert_eq!(&c.stripped().encoded().to_string(), "key%3F=value");
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust
     /// # extern crate cookie;
     /// extern crate time;
     ///
@@ -749,7 +732,7 @@ assert_eq!(&c.stripped().encoded().to_string(), "key%3F=value");
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust
     /// use cookie::Cookie;
     ///
     /// let mut c = Cookie::new("name", "value");
@@ -819,19 +802,17 @@ assert_eq!(&c.stripped().encoded().to_string(), "key%3F=value");
         self.domain = None;
     }
 
-    /// Sets the expires field of `self` to `time`. If `time` is `None`, the
-    /// field is unset.
+    /// Sets the expires field of `self` to `time`. If `time` is `None`, an
+    /// expiration of [`Session`](Expiration::Session) is set.
     ///
     /// # Example
     ///
     /// ```
     /// # extern crate cookie;
     /// extern crate time;
+    /// use cookie::{Cookie, Expiration};
     /// use time::{Duration, OffsetDateTime};
     ///
-    /// use cookie::Cookie;
-    ///
-    /// # fn main() {
     /// let mut c = Cookie::new("name", "value");
     /// assert_eq!(c.expires(), None);
     ///
@@ -842,10 +823,9 @@ assert_eq!(&c.stripped().encoded().to_string(), "key%3F=value");
     /// assert!(c.expires().is_some());
     ///
     /// c.set_expires(None);
-    /// assert!(c.expires().is_none());
-    /// # }
+    /// assert_eq!(c.expires(), Some(Expiration::Session));
     /// ```
-    pub fn set_expires<T: Into<Option<OffsetDateTime>>>(&mut self, time: T) {
+    pub fn set_expires<T: Into<Expiration>>(&mut self, time: T) {
         use time::{date, time, offset};
         static MAX_DATETIME: OffsetDateTime = date!(9999-12-31)
             .with_time(time!(23:59:59.999_999))
@@ -853,7 +833,28 @@ assert_eq!(&c.stripped().encoded().to_string(), "key%3F=value");
             .to_offset(offset!(UTC));
 
         // RFC 6265 requires dates not to exceed 9999 years.
-        self.expires = time.into().map(|time| std::cmp::min(time, MAX_DATETIME));
+        self.expires = Some(time.into()
+            .map(|time| std::cmp::min(time, MAX_DATETIME)));
+    }
+
+    /// Unsets the `expires` of `self`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::{Cookie, Expiration};
+    ///
+    /// let mut c = Cookie::new("name", "value");
+    /// assert_eq!(c.expires(), None);
+    ///
+    /// c.set_expires(None);
+    /// assert_eq!(c.expires(), Some(Expiration::Session));
+    ///
+    /// c.unset_expires();
+    /// assert_eq!(c.expires(), None);
+    /// ```
+    pub fn unset_expires(&mut self) {
+        self.expires = None;
     }
 
     /// Makes `self` a "permanent" cookie by extending its expiration and max
@@ -942,7 +943,7 @@ assert_eq!(&c.stripped().encoded().to_string(), "key%3F=value");
             write!(f, "; Max-Age={}", max_age.whole_seconds())?;
         }
 
-        if let Some(time) = self.expires() {
+        if let Some(time) = self.expires_datetime() {
             let time = time.to_offset(UtcOffset::UTC);
             write!(f, "; Expires={}", time.format("%a, %d %b %Y %H:%M:%S GMT"))?;
         }
@@ -1075,6 +1076,53 @@ assert_eq!(&c.stripped().encoded().to_string(), "key%3F=value");
             (Some(domain), Some(string)) => domain.to_raw_str(string),
             _ => None,
         }
+    }
+
+    /// Wraps `self` in an encoded [`Display`]: a cost-free wrapper around
+    /// `Cookie` whose [`fmt::Display`] implementation percent-encodes the name
+    /// and value of the wrapped `Cookie`.
+    ///
+    /// The returned structure can be chained with [`Display::stripped()`] to
+    /// display only the name and value.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::Cookie;
+    ///
+    /// let mut c = Cookie::build("my name", "this; value?").secure(true).finish();
+    /// assert_eq!(&c.encoded().to_string(), "my%20name=this%3B%20value%3F; Secure");
+    /// assert_eq!(&c.encoded().stripped().to_string(), "my%20name=this%3B%20value%3F");
+    /// ```
+    #[cfg(feature = "percent-encode")]
+    #[cfg_attr(nightly, doc(cfg(feature = "percent-encode")))]
+    #[inline(always)]
+    pub fn encoded<'a>(&'a self) -> Display<'a, 'c> {
+        Display::new_encoded(self)
+    }
+
+    /// Wraps `self` in a stripped `Display`]: a cost-free wrapper around
+    /// `Cookie` whose [`fmt::Display`] implementation prints only the `name`
+    /// and `value` of the wrapped `Cookie`.
+    ///
+    /// The returned structure can be chained with [`Display::encoded()`] to
+    /// encode the name and value.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::Cookie;
+    ///
+    /// let mut c = Cookie::build("key?", "value").secure(true).path("/").finish();
+    /// assert_eq!(&c.stripped().to_string(), "key?=value");
+    #[cfg_attr(feature = "percent-encode", doc = r##"
+// Note: `encoded()` is only available when `percent-encode` is enabled.
+assert_eq!(&c.stripped().encoded().to_string(), "key%3F=value");
+    #"##)]
+    /// ```
+    #[inline(always)]
+    pub fn stripped<'a>(&'a self) -> Display<'a, 'c> {
+        Display::new_stripped(self)
     }
 }
 

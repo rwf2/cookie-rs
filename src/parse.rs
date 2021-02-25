@@ -228,7 +228,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                     .or_else(|_| parse_gmt_date(v, "%a %b %d %H:%M:%S %Y"));
 
                 if let Ok(time) = tm {
-                    cookie.expires = Some(time)
+                    cookie.expires = Some(time.into())
                 }
             }
             _ => {
@@ -460,19 +460,19 @@ mod tests {
     fn parse_abbreviated_years() {
         let cookie_str = "foo=bar; expires=Thu, 10-Sep-20 20:00:00 GMT";
         let cookie = Cookie::parse(cookie_str).unwrap();
-        assert_eq!(cookie.expires().unwrap().year(), 2020);
+        assert_eq!(cookie.expires_datetime().unwrap().year(), 2020);
 
         let cookie_str = "foo=bar; expires=Thu, 10-Sep-68 20:00:00 GMT";
         let cookie = Cookie::parse(cookie_str).unwrap();
-        assert_eq!(cookie.expires().unwrap().year(), 2068);
+        assert_eq!(cookie.expires_datetime().unwrap().year(), 2068);
 
         let cookie_str = "foo=bar; expires=Thu, 10-Sep-69 20:00:00 GMT";
         let cookie = Cookie::parse(cookie_str).unwrap();
-        assert_eq!(cookie.expires().unwrap().year(), 1969);
+        assert_eq!(cookie.expires_datetime().unwrap().year(), 1969);
 
         let cookie_str = "foo=bar; expires=Thu, 10-Sep-99 20:00:00 GMT";
         let cookie = Cookie::parse(cookie_str).unwrap();
-        assert_eq!(cookie.expires().unwrap().year(), 1999);
+        assert_eq!(cookie.expires_datetime().unwrap().year(), 1999);
     }
 
     #[test]
