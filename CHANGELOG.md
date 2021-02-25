@@ -1,5 +1,11 @@
 # Version 0.14
 
+## Version 0.14.3 (Nov 5, 2020)
+
+### Changes and Fixes
+
+  * `rust-crypto` dependencies were updated to their latest versions.
+
 ## Version 0.14.2 (Jul 22, 2020)
 
 ### Changes and Fixes
