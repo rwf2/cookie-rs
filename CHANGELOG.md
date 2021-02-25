@@ -1,3 +1,36 @@
+# Version 0.15
+
+## Version 0.15.0 (Feb 25, 2021)
+
+### Breaking Changes
+
+  * `Cookie::force_remove()` takes `&Cookie` instead of `Cookie`.
+  * Child jar methods split into immutable and mutable versions
+    (`Cookie::{private{_mut}, signed{_mut}}`).
+  * `Cookie::encoded()` returns a new `Display` struct.
+  * Dates with year `<= 99` are handled like Chrome: range `0..=68` maps to
+    `2000..=2068`, `69..=99` to `1969..=1999`.
+  * `Cookie::{set_}expires()` operates on a new `Expiration` enum.
+
+### New Features
+
+  * Added `Cookie::make_removal()` to manually create expired cookies.
+  * Added `Cookie::stripped()` display variant to print only the `name` and
+    `value` of a cookie.
+  * `Key` implements a constant-time `PartialEq`.
+  * Added `Key::master()` to retrieve the full 512-bit master key.
+  * Added `PrivateJar::decrypt()` to manually decrypt an encrypted `Cookie`.
+  * Added `SignedJar::verify()` to manually verify a signed `Cookie`.
+  * `Cookie::expires()` returns an `Option<Expiration>` to allow distinguishing
+    between unset and `None` expirations.
+  * Added `Cookie::expires_datetime()` to retrieve the expiration as an
+    `OffsetDateTime`.
+  * Added `Cookie::unset_expires()` to unset expirations.
+
+### General Changes and Fixes
+
+  * MSRV is 1.41.
+
 # Version 0.14
 
 ## Version 0.14.3 (Nov 5, 2020)
