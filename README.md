@@ -12,7 +12,7 @@ Add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-cookie = "0.14"
+cookie = "0.15"
 ```
 
 See the [documentation](http://docs.rs/cookie) for detailed usage information.

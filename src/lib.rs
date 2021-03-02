@@ -10,7 +10,7 @@
 //! Add the following to the `[dependencies]` section of your `Cargo.toml`:
 //!
 //! ```toml
-//! cookie = "0.14"
+//! cookie = "0.15"
 //! ```
 //!
 //! Then add the following line to your crate root:
@@ -76,7 +76,7 @@
 
 #![cfg_attr(nightly, feature(doc_cfg))]
 
-#![doc(html_root_url = "https://docs.rs/cookie/0.14")]
+#![doc(html_root_url = "https://docs.rs/cookie/0.15")]
 #![deny(missing_docs)]
 
 #[cfg(feature = "percent-encode")] extern crate percent_encoding;
