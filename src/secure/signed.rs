@@ -1,5 +1,5 @@
 use sha2::Sha256;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, Mac, NewMac};
 
 use crate::secure::{base64, Key};
 use crate::{Cookie, CookieJar};
@@ -34,10 +34,10 @@ impl<'a> SignedJar<'a> {
     fn sign_cookie(&self, cookie: &mut Cookie) {
         // Compute HMAC-SHA256 of the cookie's value.
         let mut mac = Hmac::<Sha256>::new_varkey(&self.key).expect("good key");
-        mac.input(cookie.value().as_bytes());
+        mac.update(cookie.value().as_bytes());
 
         // Cookie's new value is [MAC | original-value].
-        let mut new_value = base64::encode(&mac.result().code());
+        let mut new_value = base64::encode(&mac.finalize().into_bytes());
         new_value.push_str(cookie.value());
         cookie.set_value(new_value);
     }
@@ -56,7 +56,7 @@ impl<'a> SignedJar<'a> {
 
         // Perform the verification.
         let mut mac = Hmac::<Sha256>::new_varkey(&self.key).expect("good key");
-        mac.input(value.as_bytes());
+        mac.update(value.as_bytes());
         mac.verify(&digest)
             .map(|_| value.to_string())
             .map_err(|_| "value did not verify")
