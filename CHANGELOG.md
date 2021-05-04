@@ -1,5 +1,12 @@
 # Version 0.15
 
+## Version 0.15.1 (May 4, 2021)
+
+### Changes and Fixes
+
+  * `rust-crypto` dependencies were updated to their latest versions.
+  * Stale doc references to version `0.14` were updated.
+
 ## Version 0.15.0 (Feb 25, 2021)
 
 ### Breaking Changes
