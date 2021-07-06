@@ -23,7 +23,7 @@ pub(crate) const KEY_LEN: usize = 32;
 /// `PrivateJar` are simultaneously assured confidentiality, integrity, and
 /// authenticity. In other words, clients cannot discover nor tamper with the
 /// contents of a cookie, nor can they fabricate cookie data.
-#[cfg_attr(nightly, doc(cfg(feature = "private")))]
+#[cfg_attr(all(nightly, doc), doc(cfg(feature = "private")))]
 pub struct PrivateJar<J> {
     parent: J,
     key: [u8; KEY_LEN]

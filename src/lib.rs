@@ -74,7 +74,7 @@
 //! features = ["secure", "percent-encode"]
 //! ```
 
-#![cfg_attr(nightly, feature(doc_cfg))]
+#![cfg_attr(all(nightly, doc), feature(doc_cfg))]
 
 #![doc(html_root_url = "https://docs.rs/cookie/0.15")]
 #![deny(missing_docs)]
@@ -308,7 +308,7 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.http_only(), Some(true));
     /// ```
     #[cfg(feature = "percent-encode")]
-    #[cfg_attr(nightly, doc(cfg(feature = "percent-encode")))]
+    #[cfg_attr(all(nightly, doc), doc(cfg(feature = "percent-encode")))]
     pub fn parse_encoded<S>(s: S) -> Result<Cookie<'c>, ParseError>
         where S: Into<Cow<'c, str>>
     {
@@ -1095,7 +1095,7 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(&c.encoded().stripped().to_string(), "my%20name=this%3B%20value%3F");
     /// ```
     #[cfg(feature = "percent-encode")]
-    #[cfg_attr(nightly, doc(cfg(feature = "percent-encode")))]
+    #[cfg_attr(all(nightly, doc), doc(cfg(feature = "percent-encode")))]
     #[inline(always)]
     pub fn encoded<'a>(&'a self) -> Display<'a, 'c> {
         Display::new_encoded(self)
@@ -1214,7 +1214,7 @@ impl<'a, 'c> Display<'a, 'c> {
     /// Percent-encode the name and value pair.
     #[inline]
     #[cfg(feature = "percent-encode")]
-    #[cfg_attr(nightly, doc(cfg(feature = "percent-encode")))]
+    #[cfg_attr(all(nightly, doc), doc(cfg(feature = "percent-encode")))]
     pub fn encoded(mut self) -> Self {
         self.encode = true;
         self

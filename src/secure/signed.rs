@@ -19,7 +19,7 @@ pub(crate) const KEY_LEN: usize = 32;
 /// integrity and authenticity. In other words, clients cannot tamper with the
 /// contents of a cookie nor can they fabricate cookie values, but the data is
 /// visible in plaintext.
-#[cfg_attr(nightly, doc(cfg(feature = "signed")))]
+#[cfg_attr(all(nightly, doc), doc(cfg(feature = "signed")))]
 pub struct SignedJar<J> {
     parent: J,
     key: [u8; KEY_LEN],
