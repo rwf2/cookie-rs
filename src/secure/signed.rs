@@ -49,8 +49,8 @@ impl<J> SignedJar<J> {
     /// verifies the signed value and returns it. If there's a problem, returns
     /// an `Err` with a string describing the issue.
     fn _verify(&self, cookie_value: &str) -> Result<String, &'static str> {
-        if cookie_value.len() < BASE64_DIGEST_LEN {
-            return Err("length of value is <= BASE64_DIGEST_LEN");
+        if !cookie_value.is_char_boundary(BASE64_DIGEST_LEN) {
+            return Err("missing or invalid digest");
         }
 
         // Split [MAC | original-value] into its two parts.
@@ -237,5 +237,15 @@ mod test {
         let signed = jar.signed(&key);
         assert_eq!(signed.get("signed_with_ring014").unwrap().value(), "Tamper-proof");
         assert_eq!(signed.get("signed_with_ring016").unwrap().value(), "Tamper-proof");
+    }
+
+    #[test]
+    fn issue_178() {
+        let data = "x=yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy£";
+        let c = Cookie::parse(data).expect("failed to parse cookie");
+        let key = Key::from(&[0u8; 64]);
+        let mut jar = CookieJar::new();
+        let signed = jar.signed_mut(&key);
+        assert!(signed.verify(c).is_none());
     }
 }
