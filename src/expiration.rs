@@ -16,7 +16,7 @@ use time::OffsetDateTime;
 /// let expires = Expiration::from(None);
 /// assert_eq!(expires, Expiration::Session);
 ///
-/// let now = OffsetDateTime::now();
+/// let now = OffsetDateTime::now_utc();
 /// let expires = Expiration::from(now);
 /// assert_eq!(expires, Expiration::DateTime(now));
 ///
@@ -46,7 +46,7 @@ impl Expiration {
     /// let expires = Expiration::from(None);
     /// assert!(!expires.is_datetime());
     ///
-    /// let expires = Expiration::from(OffsetDateTime::now());
+    /// let expires = Expiration::from(OffsetDateTime::now_utc());
     /// assert!(expires.is_datetime());
     /// ```
     pub fn is_datetime(&self) -> bool {
@@ -67,7 +67,7 @@ impl Expiration {
     /// let expires = Expiration::from(None);
     /// assert!(expires.is_session());
     ///
-    /// let expires = Expiration::from(OffsetDateTime::now());
+    /// let expires = Expiration::from(OffsetDateTime::now_utc());
     /// assert!(!expires.is_session());
     /// ```
     pub fn is_session(&self) -> bool {
@@ -88,7 +88,7 @@ impl Expiration {
     /// let expires = Expiration::from(None);
     /// assert!(expires.datetime().is_none());
     ///
-    /// let now = OffsetDateTime::now();
+    /// let now = OffsetDateTime::now_utc();
     /// let expires = Expiration::from(now);
     /// assert_eq!(expires.datetime(), Some(now));
     /// ```
@@ -108,7 +108,7 @@ impl Expiration {
     /// use cookie::Expiration;
     /// use time::{OffsetDateTime, Duration};
     ///
-    /// let now = OffsetDateTime::now();
+    /// let now = OffsetDateTime::now_utc();
     /// let one_week = Duration::weeks(1);
     ///
     /// let expires = Expiration::from(now);
