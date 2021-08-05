@@ -68,7 +68,7 @@ impl<'c> CookieBuilder<'c> {
     ///
     /// # fn main() {
     /// let c = Cookie::build("foo", "bar")
-    ///     .expires(OffsetDateTime::now())
+    ///     .expires(OffsetDateTime::now_utc())
     ///     .finish();
     ///
     /// assert!(c.expires().is_some());

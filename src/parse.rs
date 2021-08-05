@@ -2,14 +2,17 @@ use std::borrow::Cow;
 use std::error::Error;
 use std::str::Utf8Error;
 use std::fmt;
-use std::convert::From;
+use std::convert::{From, TryFrom};
 
 #[allow(unused_imports, deprecated)]
 use std::ascii::AsciiExt;
 
 #[cfg(feature = "percent-encode")]
 use percent_encoding::percent_decode;
-use time::{Duration, OffsetDateTime, PrimitiveDateTime, UtcOffset, Date};
+use time::{Duration, OffsetDateTime, PrimitiveDateTime, UtcOffset};
+use time::error::Parse;
+use time::parsing::Parsed;
+use time::macros::format_description;
 
 use crate::{Cookie, SameSite, CookieStr};
 
@@ -184,7 +187,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                 // From RFC 6265 5.2.2: neg values indicate that the earliest
                 // expiration should be used, so set the max age to 0 seconds.
                 if is_negative {
-                    Some(Duration::zero())
+                    Some(Duration::ZERO)
                 } else {
                     Some(v.parse::<i64>()
                         .map(Duration::seconds)
@@ -222,10 +225,19 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                 // Try strptime with three date formats according to
                 // http://tools.ietf.org/html/rfc2616#section-3.3.1. Try
                 // additional ones as encountered in the real world.
-                let tm = parse_gmt_date(v, "%a, %d %b %Y %H:%M:%S GMT")
-                    .or_else(|_| parse_gmt_date(v, "%A, %d-%b-%y %H:%M:%S GMT"))
-                    .or_else(|_| parse_gmt_date(v, "%a, %d-%b-%Y %H:%M:%S GMT"))
-                    .or_else(|_| parse_gmt_date(v, "%a %b %d %H:%M:%S %Y"));
+                let tm = parse_gmt_date(
+                    v,
+                    &format_description!("[weekday repr:short], [day] [month repr:short] [year] [hour]:[minute]:[second] GMT")
+                ).or_else(|_| parse_gmt_date(
+                    v,
+                    &format_description!("[weekday repr:short], [day]-[month repr:short]-[year repr:last_two] [hour]:[minute]:[second] GMT")
+                )).or_else(|_| parse_gmt_date(
+                    v,
+                    &format_description!("[weekday repr:short], [day]-[month repr:short]-[year] [hour]:[minute]:[second] GMT")
+                )).or_else(|_| parse_gmt_date(
+                    v,
+                    &format_description!("[weekday repr:short] [month repr:short] [day] [hour]:[minute]:[second] [year]")
+                ));
 
                 if let Ok(time) = tm {
                     cookie.expires = Some(time.into())
@@ -252,20 +264,31 @@ pub(crate) fn parse_cookie<'c, S>(cow: S, decode: bool) -> Result<Cookie<'c>, Pa
     Ok(cookie)
 }
 
-pub(crate) fn parse_gmt_date(s: &str, format: &str) -> Result<OffsetDateTime, time::ParseError> {
-    PrimitiveDateTime::parse(s, format)
-        .map(|t| t.assume_utc().to_offset(UtcOffset::UTC))
-        // Handle malformed "abbreviated" dates like Chromium. See cookie#162.
-        .map(|date| {
-            let offset = match date.year() {
-                0..=68 => 2000,
-                69..=99 => 1900,
-                _ => return date,
-            };
+pub(crate) fn parse_gmt_date<T>(s: &str, format: &T) -> Result<OffsetDateTime, time::error::Parse>
+where
+    T: time::parsing::Parsable,
+{
+    format.parse(s.as_bytes())
+        .map(|mut parsed| {
+            // Handle malformed "abbreviated" dates like Chromium. See cookie#162.
+            parsed.year_last_two()
+                .map(|y| {
+                    let y = y as i32;
+                    let offset = match y {
+                        0..=68 => 2000,
+                        69..=99 => 1900,
+                        _ => 0,
+                    };
 
-            let new_date = Date::try_from_ymd(date.year() + offset, date.month(), date.day());
-            PrimitiveDateTime::new(new_date.expect("date from date"), date.time()).assume_utc()
+                    parsed.set_year(y + offset)
+                });
+
+            parsed
         })
+        .and_then(|parsed| <PrimitiveDateTime as TryFrom<Parsed>>::try_from(parsed)
+            .map_err(|err| Parse::TryFromParsed(err))
+        )
+        .map(|t| t.assume_utc().to_offset(UtcOffset::UTC))
 }
 
 #[cfg(test)]
@@ -273,6 +296,7 @@ mod tests {
     use crate::{Cookie, SameSite};
     use super::parse_gmt_date;
     use ::time::Duration;
+    use ::time::macros::format_description;
 
     macro_rules! assert_eq_parse {
         ($string:expr, $expected:expr) => (
@@ -389,7 +413,7 @@ mod tests {
         assert_ne_parse!(" foo=bar ;HttpOnly; secure", unexpected);
         assert_ne_parse!(" foo=bar ;HttpOnly; secure", unexpected);
 
-        expected.set_max_age(Duration::zero());
+        expected.set_max_age(Duration::ZERO);
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=0", expected);
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age = 0 ", expected);
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=-1", expected);
@@ -444,13 +468,19 @@ mod tests {
             Domain=FOO.COM", unexpected);
 
         let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
-        let expires = parse_gmt_date(time_str, "%a, %d %b %Y %H:%M:%S GMT").unwrap();
+        let expires = parse_gmt_date(
+            time_str,
+            &format_description!("[weekday repr:short], [day] [month repr:short] [year] [hour]:[minute]:[second] GMT")
+        ).unwrap();
         expected.set_expires(expires);
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
             Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", expected);
 
         unexpected.set_domain("foo.com");
-        let bad_expires = parse_gmt_date(time_str, "%a, %d %b %Y %H:%S:%M GMT").unwrap();
+        let bad_expires = parse_gmt_date(
+            time_str,
+            &format_description!("[weekday repr:short], [day] [month repr:short] [year] [hour]:[minute]:[minute] GMT")
+        ).unwrap();
         expected.set_expires(bad_expires);
         assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
             Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", unexpected);
@@ -518,7 +548,7 @@ mod tests {
 
     #[test]
     fn do_not_panic_on_large_max_ages() {
-        let max_seconds = Duration::max_value().whole_seconds();
+        let max_seconds = Duration::MAX.whole_seconds();
         let expected = Cookie::build("foo", "bar")
             .max_age(Duration::seconds(max_seconds))
             .finish();
