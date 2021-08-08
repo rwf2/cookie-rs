@@ -1,20 +1,25 @@
 use std::borrow::Cow;
 use std::error::Error;
+use std::convert::{From, TryFrom};
 use std::str::Utf8Error;
 use std::fmt;
-use std::convert::{From, TryFrom};
 
 #[allow(unused_imports, deprecated)]
 use std::ascii::AsciiExt;
 
 #[cfg(feature = "percent-encode")]
 use percent_encoding::percent_decode;
-use time::{Duration, OffsetDateTime, PrimitiveDateTime, UtcOffset};
-use time::error::Parse;
-use time::parsing::Parsed;
-use time::macros::format_description;
+use time::{PrimitiveDateTime, Duration, OffsetDateTime};
+use time::{parsing::Parsable, macros::format_description, format_description::FormatItem};
 
 use crate::{Cookie, SameSite, CookieStr};
+
+// The three formats spec'd in http://tools.ietf.org/html/rfc2616#section-3.3.1.
+// Additional ones as encountered in the real world.
+pub static FMT1: &[FormatItem<'_>] = format_description!("[weekday repr:short], [day] [month repr:short] [year padding:none] [hour]:[minute]:[second] GMT");
+pub static FMT2: &[FormatItem<'_>] = format_description!("[weekday], [day]-[month repr:short]-[year repr:last_two] [hour]:[minute]:[second] GMT");
+pub static FMT3: &[FormatItem<'_>] = format_description!("[weekday repr:short] [month repr:short] [day padding:space] [hour]:[minute]:[second] [year padding:none]");
+pub static FMT4: &[FormatItem<'_>] = format_description!("[weekday repr:short], [day]-[month repr:short]-[year padding:none] [hour]:[minute]:[second] GMT");
 
 /// Enum corresponding to a parsing error.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -222,22 +227,11 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                 }
             }
             ("expires", Some(v)) => {
-                // Try strptime with three date formats according to
-                // http://tools.ietf.org/html/rfc2616#section-3.3.1. Try
-                // additional ones as encountered in the real world.
-                let tm = parse_gmt_date(
-                    v,
-                    &format_description!("[weekday repr:short], [day] [month repr:short] [year] [hour]:[minute]:[second] GMT")
-                ).or_else(|_| parse_gmt_date(
-                    v,
-                    &format_description!("[weekday repr:short], [day]-[month repr:short]-[year repr:last_two] [hour]:[minute]:[second] GMT")
-                )).or_else(|_| parse_gmt_date(
-                    v,
-                    &format_description!("[weekday repr:short], [day]-[month repr:short]-[year] [hour]:[minute]:[second] GMT")
-                )).or_else(|_| parse_gmt_date(
-                    v,
-                    &format_description!("[weekday repr:short] [month repr:short] [day] [hour]:[minute]:[second] [year]")
-                ));
+                let tm = parse_date(v, &FMT1)
+                    .or_else(|_| parse_date(v, &FMT2))
+                    .or_else(|_| parse_date(v, &FMT3))
+                    .or_else(|_| parse_date(v, &FMT4));
+                    // .or_else(|_| parse_date(v, &FMT5));
 
                 if let Ok(time) = tm {
                     cookie.expires = Some(time.into())
@@ -264,39 +258,27 @@ pub(crate) fn parse_cookie<'c, S>(cow: S, decode: bool) -> Result<Cookie<'c>, Pa
     Ok(cookie)
 }
 
-pub(crate) fn parse_gmt_date<T>(s: &str, format: &T) -> Result<OffsetDateTime, time::error::Parse>
-where
-    T: time::parsing::Parsable,
-{
-    format.parse(s.as_bytes())
-        .map(|mut parsed| {
-            // Handle malformed "abbreviated" dates like Chromium. See cookie#162.
-            parsed.year_last_two()
-                .map(|y| {
-                    let y = y as i32;
-                    let offset = match y {
-                        0..=68 => 2000,
-                        69..=99 => 1900,
-                        _ => 0,
-                    };
+pub(crate) fn parse_date(s: &str, format: &impl Parsable) -> Result<OffsetDateTime, time::Error> {
+    // Parse. Handle "abbreviated" dates like Chromium. See cookie#162.
+    let mut date = format.parse(s.as_bytes())?;
+    if let Some(y) = date.year().or_else(|| date.year_last_two().map(|v| v as i32)) {
+        let offset = match y {
+            0..=68 => 2000,
+            69..=99 => 1900,
+            _ => 0,
+        };
 
-                    parsed.set_year(y + offset)
-                });
+        date.set_year(y + offset);
+    }
 
-            parsed
-        })
-        .and_then(|parsed| <PrimitiveDateTime as TryFrom<Parsed>>::try_from(parsed)
-            .map_err(|err| Parse::TryFromParsed(err))
-        )
-        .map(|t| t.assume_utc().to_offset(UtcOffset::UTC))
+    Ok(PrimitiveDateTime::try_from(date)?.assume_utc())
 }
 
 #[cfg(test)]
 mod tests {
+    use super::parse_date;
     use crate::{Cookie, SameSite};
-    use super::parse_gmt_date;
-    use ::time::Duration;
-    use ::time::macros::format_description;
+    use time::Duration;
 
     macro_rules! assert_eq_parse {
         ($string:expr, $expected:expr) => (
@@ -468,19 +450,13 @@ mod tests {
             Domain=FOO.COM", unexpected);
 
         let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
-        let expires = parse_gmt_date(
-            time_str,
-            &format_description!("[weekday repr:short], [day] [month repr:short] [year] [hour]:[minute]:[second] GMT")
-        ).unwrap();
+        let expires = parse_date(time_str, &super::FMT1).unwrap();
         expected.set_expires(expires);
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
             Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", expected);
 
         unexpected.set_domain("foo.com");
-        let bad_expires = parse_gmt_date(
-            time_str,
-            &format_description!("[weekday repr:short], [day] [month repr:short] [year] [hour]:[minute]:[minute] GMT")
-        ).unwrap();
+        let bad_expires = parse_date(time_str, &super::FMT1).unwrap();
         expected.set_expires(bad_expires);
         assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
             Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", unexpected);
@@ -503,6 +479,22 @@ mod tests {
         let cookie_str = "foo=bar; expires=Thu, 10-Sep-99 20:00:00 GMT";
         let cookie = Cookie::parse(cookie_str).unwrap();
         assert_eq!(cookie.expires_datetime().unwrap().year(), 1999);
+
+        let cookie_str = "foo=bar; expires=Thu, 10-Sep-2069 20:00:00 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        assert_eq!(cookie.expires_datetime().unwrap().year(), 2069);
+    }
+
+    #[test]
+    fn parse_variant_date_fmts() {
+        let cookie_str = "foo=bar; expires=Sun, 06 Nov 1994 08:49:37 GMT";
+        Cookie::parse(cookie_str).unwrap().expires_datetime().unwrap();
+
+        let cookie_str = "foo=bar; expires=Sunday, 06-Nov-94 08:49:37 GMT";
+        Cookie::parse(cookie_str).unwrap().expires_datetime().unwrap();
+
+        let cookie_str = "foo=bar; expires=Sun Nov  6 08:49:37 1994";
+        Cookie::parse(cookie_str).unwrap().expires_datetime().unwrap();
     }
 
     #[test]

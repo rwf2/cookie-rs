@@ -79,9 +79,6 @@
 #![doc(html_root_url = "https://docs.rs/cookie/0.16")]
 #![deny(missing_docs)]
 
-#[cfg(feature = "percent-encode")] extern crate percent_encoding;
-extern crate time;
-
 mod builder;
 mod parse;
 mod jar;
@@ -101,7 +98,7 @@ use std::ascii::AsciiExt;
 
 #[cfg(feature = "percent-encode")]
 use percent_encoding::{AsciiSet, percent_encode as encode};
-use time::{Duration, OffsetDateTime, UtcOffset};
+use time::{Duration, OffsetDateTime, UtcOffset, macros::datetime};
 
 use crate::parse::parse_cookie;
 pub use crate::parse::ParseError;
@@ -826,11 +823,7 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.expires(), Some(Expiration::Session));
     /// ```
     pub fn set_expires<T: Into<Expiration>>(&mut self, time: T) {
-        use time::macros::{date, time, offset};
-        static MAX_DATETIME: OffsetDateTime = date!(9999-12-31)
-            .with_time(time!(23:59:59.999_999))
-            .assume_utc()
-            .to_offset(offset!(UTC));
+        static MAX_DATETIME: OffsetDateTime = datetime!(9999-12-31 23:59:59.999_999 UTC);
 
         // RFC 6265 requires dates not to exceed 9999 years.
         self.expires = Some(time.into()
@@ -945,9 +938,7 @@ impl<'c> Cookie<'c> {
 
         if let Some(time) = self.expires_datetime() {
             let time = time.to_offset(UtcOffset::UTC);
-            write!(f, "; Expires={}", time.format(&time::macros::format_description!(
-                    "[weekday repr:short], [day] [month repr:short] [year] [hour]:[minute]:[second] GMT"
-            )).unwrap())?;
+            write!(f, "; Expires={}", time.format(&crate::parse::FMT1).map_err(|_| fmt::Error)?)?;
         }
 
         Ok(())
@@ -1292,10 +1283,8 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Cookie, SameSite};
-    use crate::parse::parse_gmt_date;
-    use crate::{time::Duration, OffsetDateTime};
-    use crate::{time::macros::format_description};
+    use crate::{Cookie, SameSite, parse::parse_date};
+    use time::{Duration, OffsetDateTime};
 
     #[test]
     fn format() {
@@ -1323,10 +1312,7 @@ mod tests {
         assert_eq!(&cookie.to_string(), "foo=bar; Domain=www.rust-lang.org");
 
         let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
-        let expires = parse_gmt_date(
-            time_str,
-            &format_description!("[weekday repr:short], [day] [month repr:short] [year] [hour]:[minute]:[second] GMT")
-        ).unwrap();
+        let expires = parse_date(time_str, &crate::parse::FMT1).unwrap();
         let cookie = Cookie::build("foo", "bar")
             .expires(expires).finish();
         assert_eq!(&cookie.to_string(),
@@ -1360,10 +1346,12 @@ mod tests {
     #[ignore]
     fn format_date_wraps() {
         let expires = OffsetDateTime::UNIX_EPOCH + Duration::MAX;
-        let cookie = Cookie::build("foo", "bar")
-            .expires(expires).finish();
-        assert_eq!(&cookie.to_string(),
-                   "foo=bar; Expires=Fri, 31 Dec 9999 23:59:59 GMT");
+        let cookie = Cookie::build("foo", "bar").expires(expires).finish();
+        assert_eq!(&cookie.to_string(), "foo=bar; Expires=Fri, 31 Dec 9999 23:59:59 GMT");
+
+        let expires = time::macros::datetime!(9999-01-01 0:00 UTC) + Duration::days(1000);
+        let cookie = Cookie::build("foo", "bar").expires(expires).finish();
+        assert_eq!(&cookie.to_string(), "foo=bar; Expires=Fri, 31 Dec 9999 23:59:59 GMT");
     }
 
     #[test]
