@@ -14,10 +14,8 @@ use crate::{Cookie, SameSite, Expiration};
 ///
 /// ```rust
 /// # extern crate cookie;
-/// extern crate time;
-///
 /// use cookie::Cookie;
-/// use time::Duration;
+/// use cookie::time::Duration;
 ///
 /// # fn main() {
 /// let cookie: Cookie = Cookie::build("name", "value")
@@ -61,10 +59,8 @@ impl<'c> CookieBuilder<'c> {
     ///
     /// ```rust
     /// # extern crate cookie;
-    /// extern crate time;
-    /// use time::OffsetDateTime;
-    ///
     /// use cookie::{Cookie, Expiration};
+    /// use cookie::time::OffsetDateTime;
     ///
     /// # fn main() {
     /// let c = Cookie::build("foo", "bar")
@@ -92,10 +88,8 @@ impl<'c> CookieBuilder<'c> {
     ///
     /// ```rust
     /// # extern crate cookie;
-    /// extern crate time;
-    /// use time::Duration;
-    ///
     /// use cookie::Cookie;
+    /// use cookie::time::Duration;
     ///
     /// # fn main() {
     /// let c = Cookie::build("foo", "bar")
@@ -211,10 +205,8 @@ impl<'c> CookieBuilder<'c> {
     ///
     /// ```rust
     /// # extern crate cookie;
-    /// extern crate time;
-    ///
     /// use cookie::Cookie;
-    /// use time::Duration;
+    /// use cookie::time::Duration;
     ///
     /// # fn main() {
     /// let c = Cookie::build("foo", "bar")

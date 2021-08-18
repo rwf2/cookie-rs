@@ -186,10 +186,8 @@ impl CookieJar {
     ///
     /// ```rust
     /// # extern crate cookie;
-    /// extern crate time;
-    ///
     /// use cookie::{CookieJar, Cookie};
-    /// use time::Duration;
+    /// use cookie::time::Duration;
     ///
     /// # fn main() {
     /// let mut jar = CookieJar::new();
@@ -248,10 +246,8 @@ impl CookieJar {
     ///
     /// ```rust
     /// # extern crate cookie;
-    /// extern crate time;
-    ///
     /// use cookie::{CookieJar, Cookie};
-    /// use time::Duration;
+    /// use cookie::time::Duration;
     ///
     /// # fn main() {
     /// let mut jar = CookieJar::new();

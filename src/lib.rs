@@ -79,6 +79,8 @@
 #![doc(html_root_url = "https://docs.rs/cookie/0.16")]
 #![deny(missing_docs)]
 
+pub use time;
+
 mod builder;
 mod parse;
 mod jar;
@@ -704,10 +706,8 @@ impl<'c> Cookie<'c> {
     ///
     /// ```rust
     /// # extern crate cookie;
-    /// extern crate time;
-    ///
     /// use cookie::Cookie;
-    /// use time::Duration;
+    /// use cookie::time::Duration;
     ///
     /// # fn main() {
     /// let mut c = Cookie::new("name", "value");
@@ -806,9 +806,8 @@ impl<'c> Cookie<'c> {
     ///
     /// ```
     /// # extern crate cookie;
-    /// extern crate time;
     /// use cookie::{Cookie, Expiration};
-    /// use time::{Duration, OffsetDateTime};
+    /// use cookie::time::{Duration, OffsetDateTime};
     ///
     /// let mut c = Cookie::new("name", "value");
     /// assert_eq!(c.expires(), None);
@@ -857,10 +856,8 @@ impl<'c> Cookie<'c> {
     ///
     /// ```rust
     /// # extern crate cookie;
-    /// extern crate time;
-    ///
     /// use cookie::Cookie;
-    /// use time::Duration;
+    /// use cookie::time::Duration;
     ///
     /// # fn main() {
     /// let mut c = Cookie::new("foo", "bar");
@@ -885,10 +882,8 @@ impl<'c> Cookie<'c> {
     ///
     /// ```rust
     /// # extern crate cookie;
-    /// extern crate time;
-    ///
     /// use cookie::Cookie;
-    /// use time::Duration;
+    /// use cookie::time::Duration;
     ///
     /// # fn main() {
     /// let mut c = Cookie::new("foo", "bar");
