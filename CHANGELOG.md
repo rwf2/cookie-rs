@@ -1,3 +1,16 @@
+# Version 0.16
+
+## Version 0.16.0-rc.1 (Aug 19, 2021)
+
+### Breaking Changes
+
+  * The MSRV is now `1.48`, up from `1.41` in `0.15`.
+  * `time` has been updated to `0.3` and is reexported from the crate root.
+
+### General Changes
+
+  * `rust-crypto` dependencies were updated to their latest versions.
+
 # Version 0.15
 
 ## Version 0.15.1 (Jul 14, 2021)

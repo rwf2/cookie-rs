@@ -12,10 +12,17 @@ Add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-cookie = "0.15"
+cookie = "0.16"
 ```
 
 See the [documentation](http://docs.rs/cookie) for detailed usage information.
+
+# MSRV
+
+The minimum supported `rustc` version for cookie `0.16` is `1.48` _without_
+`secure` features enabled and `1.49` otherwise.
+
+The minimum supported `rustc` version for cookie `0.15` is `1.41`.
 
 # License
 
