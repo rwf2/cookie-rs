@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::borrow::{Borrow, BorrowMut};
 
 use sha2::Sha256;
-use hmac::{Hmac, Mac, NewMac};
+use hmac::{Hmac, Mac};
 
 use crate::secure::{base64, Key};
 use crate::{Cookie, CookieJar};
@@ -58,9 +58,10 @@ impl<J> SignedJar<J> {
         let digest = base64::decode(digest_str).map_err(|_| "bad base64 digest")?;
 
         // Perform the verification.
-        let mut mac = Hmac::<Sha256>::new_from_slice(&self.key).expect("good key");
+        let mut mac = Hmac::<Sha256>::new_from_slice(&self.key)
+            .expect("HMAC can be initialized with any key size");
         mac.update(value.as_bytes());
-        mac.verify(&digest)
+        mac.verify_slice(&digest)
             .map(|_| value.to_string())
             .map_err(|_| "value did not verify")
     }
