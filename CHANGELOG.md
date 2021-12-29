@@ -1,10 +1,10 @@
 # Version 0.16
 
-## Version 0.16.0-rc.1 (Aug 19, 2021)
+## Version 0.16.0 (Dec 28, 2021)
 
 ### Breaking Changes
 
-  * The MSRV is now `1.48`, up from `1.41` in `0.15`.
+  * The MSRV is now `1.53`, up from `1.41` in `0.15`.
   * `time` has been updated to `0.3` and is reexported from the crate root.
 
 ### General Changes

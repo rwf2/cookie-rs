@@ -13,12 +13,6 @@
 //! cookie = "0.16"
 //! ```
 //!
-//! Then add the following line to your crate root:
-//!
-//! ```
-//! extern crate cookie;
-//! ```
-//!
 //! # Features
 //!
 //! This crate exposes several features, all of which are disabled by default:
