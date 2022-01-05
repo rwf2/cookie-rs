@@ -329,7 +329,7 @@ impl CookieJar {
     /// // Delta contains two new cookies ("new", "yac") and a removal ("name").
     /// assert_eq!(jar.delta().count(), 3);
     /// ```
-    pub fn delta(&self) -> Delta {
+    pub fn delta(&self) -> Delta<'_> {
         Delta { iter: self.delta_cookies.iter() }
     }
 
@@ -363,7 +363,7 @@ impl CookieJar {
     ///     }
     /// }
     /// ```
-    pub fn iter(&self) -> Iter {
+    pub fn iter(&self) -> Iter<'_> {
         Iter {
             delta_cookies: self.delta_cookies.iter()
                 .chain(self.original_cookies.difference(&self.delta_cookies)),

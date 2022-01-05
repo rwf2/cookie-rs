@@ -71,7 +71,7 @@
 #![cfg_attr(all(nightly, doc), feature(doc_cfg))]
 
 #![doc(html_root_url = "https://docs.rs/cookie/0.16")]
-#![deny(missing_docs)]
+#![deny(missing_docs, rust_2018_idioms)]
 
 pub use time;
 
@@ -119,7 +119,7 @@ impl<'c> CookieStr<'c> {
     /// # Panics
     ///
     /// Panics if `self` is an indexed string and `string` is None.
-    fn to_str<'s>(&'s self, string: Option<&'s Cow<str>>) -> &'s str {
+    fn to_str<'s>(&'s self, string: Option<&'s Cow<'_, str>>) -> &'s str {
         match *self {
             CookieStr::Indexed(i, j) => {
                 let s = string.expect("`Some` base string must exist when \
@@ -884,7 +884,7 @@ impl<'c> Cookie<'c> {
         self.set_expires(OffsetDateTime::now_utc() - Duration::days(365));
     }
 
-    fn fmt_parameters(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt_parameters(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(true) = self.http_only() {
             write!(f, "; HttpOnly")?;
         }
@@ -1141,7 +1141,7 @@ assert_eq!(&c.stripped().encoded().to_string(), "my%20name=this%3B%20value%25%3F
 assert_eq!(&c.encoded().stripped().to_string(), "my%20name=this%3B%20value%25%3F");
 "##)]
 /// ```
-pub struct Display<'a, 'c: 'a> {
+pub struct Display<'a, 'c> {
     cookie: &'a Cookie<'c>,
     #[cfg(feature = "percent-encode")]
     encode: bool,
@@ -1149,7 +1149,7 @@ pub struct Display<'a, 'c: 'a> {
 }
 
 impl<'a, 'c: 'a> fmt::Display for Display<'a, 'c> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #[cfg(feature = "percent-encode")] {
             if self.encode {
                 let name = encode(self.cookie.name().as_bytes(), USERINFO_ENCODE_SET);
@@ -1215,7 +1215,7 @@ impl<'c> fmt::Display for Cookie<'c> {
     ///
     /// assert_eq!(&cookie.to_string(), "foo=bar; Path=/");
     /// ```
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}={}", self.name(), self.value())?;
         self.fmt_parameters(f)
     }
