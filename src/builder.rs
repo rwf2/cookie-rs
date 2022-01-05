@@ -13,11 +13,8 @@ use crate::{Cookie, SameSite, Expiration};
 /// # Example
 ///
 /// ```rust
-/// # extern crate cookie;
-/// use cookie::Cookie;
-/// use cookie::time::Duration;
+/// use cookie::{Cookie, time::Duration};
 ///
-/// # fn main() {
 /// let cookie: Cookie = Cookie::build("name", "value")
 ///     .domain("www.rust-lang.org")
 ///     .path("/")
@@ -25,7 +22,6 @@ use crate::{Cookie, SameSite, Expiration};
 ///     .http_only(true)
 ///     .max_age(Duration::days(1))
 ///     .finish();
-/// # }
 /// ```
 #[derive(Debug, Clone)]
 pub struct CookieBuilder<'c> {
@@ -58,11 +54,8 @@ impl<'c> CookieBuilder<'c> {
     /// # Example
     ///
     /// ```rust
-    /// # extern crate cookie;
-    /// use cookie::{Cookie, Expiration};
-    /// use cookie::time::OffsetDateTime;
+    /// use cookie::{Cookie, Expiration, time::OffsetDateTime};
     ///
-    /// # fn main() {
     /// let c = Cookie::build("foo", "bar")
     ///     .expires(OffsetDateTime::now_utc())
     ///     .finish();
@@ -74,7 +67,6 @@ impl<'c> CookieBuilder<'c> {
     ///     .finish();
     ///
     /// assert_eq!(c.expires(), Some(Expiration::Session));
-    /// # }
     /// ```
     #[inline]
     pub fn expires<E: Into<Expiration>>(mut self, when: E) -> Self {
@@ -87,17 +79,13 @@ impl<'c> CookieBuilder<'c> {
     /// # Example
     ///
     /// ```rust
-    /// # extern crate cookie;
-    /// use cookie::Cookie;
-    /// use cookie::time::Duration;
+    /// use cookie::{Cookie, time::Duration};
     ///
-    /// # fn main() {
     /// let c = Cookie::build("foo", "bar")
     ///     .max_age(Duration::minutes(30))
     ///     .finish();
     ///
     /// assert_eq!(c.max_age(), Some(Duration::seconds(30 * 60)));
-    /// # }
     /// ```
     #[inline]
     pub fn max_age(mut self, value: time::Duration) -> Self {
@@ -204,18 +192,14 @@ impl<'c> CookieBuilder<'c> {
     /// # Example
     ///
     /// ```rust
-    /// # extern crate cookie;
-    /// use cookie::Cookie;
-    /// use cookie::time::Duration;
+    /// use cookie::{Cookie, time::Duration};
     ///
-    /// # fn main() {
     /// let c = Cookie::build("foo", "bar")
     ///     .permanent()
     ///     .finish();
     ///
     /// assert_eq!(c.max_age(), Some(Duration::days(365 * 20)));
     /// # assert!(c.expires().is_some());
-    /// # }
     /// ```
     #[inline]
     pub fn permanent(mut self) -> Self {

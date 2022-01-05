@@ -185,11 +185,8 @@ impl CookieJar {
     /// Removing an _original_ cookie results in a _removal_ cookie:
     ///
     /// ```rust
-    /// # extern crate cookie;
-    /// use cookie::{CookieJar, Cookie};
-    /// use cookie::time::Duration;
+    /// use cookie::{CookieJar, Cookie, time::Duration};
     ///
-    /// # fn main() {
     /// let mut jar = CookieJar::new();
     ///
     /// // Assume this cookie originally had a path of "/" and domain of "a.b".
@@ -203,7 +200,6 @@ impl CookieJar {
     /// assert_eq!(delta.len(), 1);
     /// assert_eq!(delta[0].name(), "name");
     /// assert_eq!(delta[0].max_age(), Some(Duration::seconds(0)));
-    /// # }
     /// ```
     ///
     /// Removing a new cookie does not result in a _removal_ cookie unless
@@ -245,11 +241,9 @@ impl CookieJar {
     /// Removing an _original_ cookie; no _removal_ cookie is generated:
     ///
     /// ```rust
-    /// # extern crate cookie;
     /// use cookie::{CookieJar, Cookie};
     /// use cookie::time::Duration;
     ///
-    /// # fn main() {
     /// let mut jar = CookieJar::new();
     ///
     /// // Add an original cookie and a new cookie.
@@ -267,7 +261,6 @@ impl CookieJar {
     /// jar.force_remove(&Cookie::named("key"));
     /// assert_eq!(jar.delta().count(), 0);
     /// assert_eq!(jar.iter().count(), 0);
-    /// # }
     /// ```
     pub fn force_remove<'a>(&mut self, cookie: &Cookie<'a>) {
         self.original_cookies.remove(cookie.name());

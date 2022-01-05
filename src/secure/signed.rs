@@ -1,10 +1,11 @@
 use std::convert::TryInto;
 use std::borrow::{Borrow, BorrowMut};
 
-use sha2::Sha256;
-use hmac::{Hmac, Mac};
+use base64ct::{Base64, Encoding};
+use sha2::{Sha256};
+use hmac::{Hmac, Mac, digest::Output};
 
-use crate::secure::{base64, Key};
+use crate::secure::Key;
 use crate::{Cookie, CookieJar};
 
 // Keep these in sync, and keep the key len synced with the `signed` docs as
@@ -40,7 +41,8 @@ impl<J> SignedJar<J> {
         mac.update(cookie.value().as_bytes());
 
         // Cookie's new value is [MAC | original-value].
-        let mut new_value = base64::encode(&mac.finalize().into_bytes());
+        let tag = mac.finalize().into_bytes();
+        let mut new_value = Base64::encode_string(&tag);
         new_value.push_str(cookie.value());
         cookie.set_value(new_value);
     }
@@ -55,12 +57,13 @@ impl<J> SignedJar<J> {
 
         // Split [MAC | original-value] into its two parts.
         let (digest_str, value) = cookie_value.split_at(BASE64_DIGEST_LEN);
-        let digest = base64::decode(digest_str).map_err(|_| "bad base64 digest")?;
+        let mut digest: Output<Hmac<Sha256>> = Default::default();
+        Base64::decode(digest_str, &mut digest).map_err(|_| "bad base64 digest")?;
 
         // Perform the verification.
         let mut mac = Hmac::<Sha256>::new_from_slice(&self.key).expect("good key");
         mac.update(value.as_bytes());
-        mac.verify_slice(&digest)
+        mac.verify(&digest)
             .map(|_| value.to_string())
             .map_err(|_| "value did not verify")
     }

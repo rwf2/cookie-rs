@@ -699,11 +699,9 @@ impl<'c> Cookie<'c> {
     /// # Example
     ///
     /// ```rust
-    /// # extern crate cookie;
     /// use cookie::Cookie;
     /// use cookie::time::Duration;
     ///
-    /// # fn main() {
     /// let mut c = Cookie::new("name", "value");
     /// assert_eq!(c.max_age(), None);
     ///
@@ -712,7 +710,6 @@ impl<'c> Cookie<'c> {
     ///
     /// c.set_max_age(None);
     /// assert!(c.max_age().is_none());
-    /// # }
     /// ```
     #[inline]
     pub fn set_max_age<D: Into<Option<Duration>>>(&mut self, value: D) {
@@ -799,7 +796,6 @@ impl<'c> Cookie<'c> {
     /// # Example
     ///
     /// ```
-    /// # extern crate cookie;
     /// use cookie::{Cookie, Expiration};
     /// use cookie::time::{Duration, OffsetDateTime};
     ///
@@ -849,11 +845,8 @@ impl<'c> Cookie<'c> {
     /// # Example
     ///
     /// ```rust
-    /// # extern crate cookie;
-    /// use cookie::Cookie;
-    /// use cookie::time::Duration;
+    /// use cookie::{Cookie, time::Duration};
     ///
-    /// # fn main() {
     /// let mut c = Cookie::new("foo", "bar");
     /// assert!(c.expires().is_none());
     /// assert!(c.max_age().is_none());
@@ -861,7 +854,6 @@ impl<'c> Cookie<'c> {
     /// c.make_permanent();
     /// assert!(c.expires().is_some());
     /// assert_eq!(c.max_age(), Some(Duration::days(365 * 20)));
-    /// # }
     /// ```
     pub fn make_permanent(&mut self) {
         let twenty_years = Duration::days(365 * 20);
@@ -875,11 +867,8 @@ impl<'c> Cookie<'c> {
     /// # Example
     ///
     /// ```rust
-    /// # extern crate cookie;
-    /// use cookie::Cookie;
-    /// use cookie::time::Duration;
+    /// use cookie::{Cookie, time::Duration};
     ///
-    /// # fn main() {
     /// let mut c = Cookie::new("foo", "bar");
     /// c.make_permanent();
     /// assert_eq!(c.max_age(), Some(Duration::days(365 * 20)));
@@ -888,7 +877,6 @@ impl<'c> Cookie<'c> {
     /// c.make_removal();
     /// assert_eq!(c.value(), "");
     /// assert_eq!(c.max_age(), Some(Duration::ZERO));
-    /// # }
     /// ```
     pub fn make_removal(&mut self) {
         self.set_value("");

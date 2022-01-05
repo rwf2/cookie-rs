@@ -1,14 +1,13 @@
-extern crate aes_gcm;
-
 use std::convert::TryInto;
 use std::borrow::{Borrow, BorrowMut};
 
-use crate::secure::{base64, rand, Key};
+use crate::secure::Key;
 use crate::{Cookie, CookieJar};
 
-use self::aes_gcm::Aes256Gcm;
-use self::aes_gcm::aead::{Aead, AeadInPlace, NewAead, generic_array::GenericArray, Payload};
-use self::rand::RngCore;
+use aes_gcm::Aes256Gcm;
+use aes_gcm::aead::{Aead, AeadInPlace, NewAead, generic_array::GenericArray, Payload};
+use base64ct::{Base64, Encoding};
+use rand::RngCore;
 
 // Keep these in sync, and keep the key len synced with the `private` docs as
 // well as the `KEYS_INFO` const in secure::Key.
@@ -50,7 +49,7 @@ impl<J> PrivateJar<J> {
         in_out.copy_from_slice(cookie_val);
 
         // Fill nonce piece with random data.
-        let mut rng = self::rand::thread_rng();
+        let mut rng = rand::thread_rng();
         rng.try_fill_bytes(nonce).expect("couldn't random fill nonce");
         let nonce = GenericArray::clone_from_slice(nonce);
 
@@ -65,7 +64,7 @@ impl<J> PrivateJar<J> {
         tag.copy_from_slice(&aad_tag);
 
         // Base64 encode [nonce | encrypted value | tag].
-        cookie.set_value(base64::encode(&data));
+        cookie.set_value(Base64::encode_string(&data));
     }
 
     /// Given a sealed value `str` and a key name `name`, where the nonce is
@@ -73,7 +72,7 @@ impl<J> PrivateJar<J> {
     /// verifies and decrypts the sealed value and returns it. If there's a
     /// problem, returns an `Err` with a string describing the issue.
     fn unseal(&self, name: &str, value: &str) -> Result<String, &'static str> {
-        let data = base64::decode(value).map_err(|_| "bad base64 value")?;
+        let data = Base64::decode_vec(value).map_err(|_| "bad base64 value")?;
         if data.len() <= NONCE_LEN {
             return Err("length of decoded data is <= NONCE_LEN");
         }
