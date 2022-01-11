@@ -56,14 +56,17 @@ impl<J> SignedJar<J> {
         }
 
         // Split [MAC | original-value] into its two parts.
-        let (digest_str, value) = cookie_value.split_at(BASE64_DIGEST_LEN);
-        let mut digest: Output<Hmac<Sha256>> = Default::default();
-        Base64::decode(digest_str, &mut digest).map_err(|_| "bad base64 digest")?;
+        let (tag_str, value) = cookie_value.split_at(BASE64_DIGEST_LEN);
+        let mut tag: Output<Hmac<Sha256>> = Default::default();
+        let res = Base64::decode(tag_str, &mut tag).map_err(|_| "bad base64 digest")?;
+        if res.len() != tag.len() {
+            return Err("bad base64 digest");
+        }
 
         // Perform the verification.
         let mut mac = Hmac::<Sha256>::new_from_slice(&self.key).expect("good key");
         mac.update(value.as_bytes());
-        mac.verify(&digest)
+        mac.verify(&tag)
             .map(|_| value.to_string())
             .map_err(|_| "value did not verify")
     }
