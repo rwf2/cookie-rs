@@ -79,7 +79,7 @@ mod builder;
 mod parse;
 mod jar;
 mod delta;
-mod draft;
+pub mod draft;
 mod expiration;
 
 #[cfg(any(feature = "private", feature = "signed"))] #[macro_use] mod secure;
