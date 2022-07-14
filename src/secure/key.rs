@@ -1,3 +1,5 @@
+use core::convert::{TryFrom, TryInto};
+
 const SIGNING_KEY_LEN: usize = 32;
 const ENCRYPTION_KEY_LEN: usize = 32;
 const COMBINED_KEY_LENGTH: usize = SIGNING_KEY_LEN + ENCRYPTION_KEY_LEN;
@@ -23,6 +25,19 @@ impl PartialEq for Key {
         use subtle::ConstantTimeEq;
 
         self.0.ct_eq(&other.0).into()
+    }
+}
+
+impl TryFrom<&[u8]> for Key {
+    type Error = String;
+    fn try_from(key: &[u8]) -> Result<Self, Self::Error> {
+        if key.len() < 64 {
+            Err(format!("bad key length: expected >= 64 bytes, found {}", key.len()))
+        } else {
+            let mut output = Key::zero();
+            output.0.copy_from_slice(&key[..COMBINED_KEY_LENGTH]);
+            Ok(output)
+        }
     }
 }
 
@@ -54,13 +69,7 @@ impl Key {
     /// let key = Key::from(key);
     /// ```
     pub fn from(key: &[u8]) -> Key {
-        if key.len() < 64 {
-            panic!("bad key length: expected >= 64 bytes, found {}", key.len());
-        }
-
-        let mut output = Key::zero();
-        output.0.copy_from_slice(&key[..COMBINED_KEY_LENGTH]);
-        output
+        key.try_into().unwrap()
     }
 
     /// Derives new signing/encryption keys from a master key.
@@ -198,6 +207,17 @@ mod test {
 
         let encryption: Vec<u8> = (32..64).collect();
         assert_eq!(key.encryption(), &*encryption);
+    }
+
+    #[test]
+    fn try_from_works() {
+        use core::convert::TryInto;
+        let data = (0..64).collect::<Vec<_>>();
+        let key_res: Result<Key, _> = data[0..63].try_into();
+        assert!(key_res.is_err());
+
+        let key_res: Result<Key, _> = data.as_slice().try_into();
+        assert!(key_res.is_ok());
     }
 
     #[test]
