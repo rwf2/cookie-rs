@@ -1,4 +1,4 @@
-use core::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 
 const SIGNING_KEY_LEN: usize = 32;
 const ENCRYPTION_KEY_LEN: usize = 32;
@@ -28,19 +28,6 @@ impl PartialEq for Key {
     }
 }
 
-impl TryFrom<&[u8]> for Key {
-    type Error = String;
-    fn try_from(key: &[u8]) -> Result<Self, Self::Error> {
-        if key.len() < 64 {
-            Err(format!("bad key length: expected >= 64 bytes, found {}", key.len()))
-        } else {
-            let mut output = Key::zero();
-            output.0.copy_from_slice(&key[..COMBINED_KEY_LENGTH]);
-            Ok(output)
-        }
-    }
-}
-
 impl Key {
     // An empty key structure, to be filled.
     const fn zero() -> Self {
@@ -56,6 +43,9 @@ impl Key {
     ///
     /// Panics if `key` is less than 64 bytes in length.
     ///
+    /// For a non-panicking version, use [`Key::try_from()`] or generate a key with
+    /// [`Key::generate()`] or [`Key::try_generate()`].
+    ///
     /// # Example
     ///
     /// ```rust
@@ -68,8 +58,9 @@ impl Key {
     ///
     /// let key = Key::from(key);
     /// ```
+    #[inline]
     pub fn from(key: &[u8]) -> Key {
-        key.try_into().unwrap()
+        Key::try_from(key).unwrap()
     }
 
     /// Derives new signing/encryption keys from a master key.
@@ -191,6 +182,66 @@ impl Key {
     /// ```
     pub fn master(&self) -> &[u8] {
         &self.0
+    }
+}
+
+/// An error indicating an issue with generating or constructing a key.
+#[cfg_attr(all(nightly, doc), doc(cfg(any(feature = "private", feature = "signed"))))]
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum KeyError {
+    /// Too few bytes (`.0`) were provided to generate a key.
+    ///
+    /// See [`Key::from()`] for minimum requirements.
+    TooShort(usize),
+}
+
+impl std::error::Error for KeyError { }
+
+impl std::fmt::Display for KeyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            KeyError::TooShort(n) => {
+                write!(f, "key material is too short: expected >= {} bytes, got {} bytes",
+                       COMBINED_KEY_LENGTH, n)
+            }
+        }
+    }
+}
+
+impl TryFrom<&[u8]> for Key {
+    type Error = KeyError;
+
+    /// A fallible version of [`Key::from()`].
+    ///
+    /// Succeeds when [`Key::from()`] succeds and returns an error where
+    /// [`Key::from()`] panics, namely, if `key` is too short.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use std::convert::TryFrom;
+    /// use cookie::Key;
+    ///
+    /// # /*
+    /// let key = { /* a cryptographically random key >= 64 bytes */ };
+    /// # */
+    /// # let key: &Vec<u8> = &(0..64).collect();
+    /// # let key: &[u8] = &key[..];
+    /// assert!(Key::try_from(key).is_ok());
+    ///
+    /// // A key that's far too short to use.
+    /// let key = &[1, 2, 3, 4][..];
+    /// assert!(Key::try_from(key).is_err());
+    /// ```
+    fn try_from(key: &[u8]) -> Result<Self, Self::Error> {
+        if key.len() < COMBINED_KEY_LENGTH {
+            Err(KeyError::TooShort(key.len()))
+        } else {
+            let mut output = Key::zero();
+            output.0.copy_from_slice(&key[..COMBINED_KEY_LENGTH]);
+            Ok(output)
+        }
     }
 }
 
