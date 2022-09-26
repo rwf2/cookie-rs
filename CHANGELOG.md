@@ -1,5 +1,11 @@
 # Version 0.15
 
+## Version 0.15.2 (Sep 25, 2022)
+
+### Changes and Fixes
+
+  * The `,`, `(`, and `)` characters are percent-encoded when encoding is used.
+
 ## Version 0.15.1 (Jul 14, 2021)
 
 ### Changes and Fixes
