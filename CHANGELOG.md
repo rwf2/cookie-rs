@@ -1,5 +1,12 @@
 # Version 0.16
 
+## Version 0.16.1 (Sep 25, 2022)
+
+### Changes and Fixes
+
+  * The `,`, `(`, and `)` are percent-encoded/decoded when encoding is used.
+  * The `aes-gcm` dependency was updated to 0.10.
+
 ## Version 0.16.0 (Dec 28, 2021)
 
 ### Breaking Changes
