@@ -933,6 +933,12 @@ const USERINFO_ENCODE_SET: &AsciiSet = &PATH_ENCODE_SET
     .add(b'|')
     .add(b'%');
 
+#[cfg(feature = "percent-encode")]
+const COOKIE_ENCODE_SET: &AsciiSet = &USERINFO_ENCODE_SET
+    .add(b'(')
+    .add(b')')
+    .add(b',');
+
 /// Wrapper around `Cookie` whose `Display` implementation percent-encodes the
 /// cookie's name and value.
 ///
@@ -955,8 +961,8 @@ pub struct EncodedCookie<'a, 'c: 'a>(&'a Cookie<'c>);
 impl<'a, 'c: 'a> fmt::Display for EncodedCookie<'a, 'c> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // Percent-encode the name and value.
-        let name = percent_encode(self.0.name().as_bytes(), USERINFO_ENCODE_SET);
-        let value = percent_encode(self.0.value().as_bytes(), USERINFO_ENCODE_SET);
+        let name = percent_encode(self.0.name().as_bytes(), COOKIE_ENCODE_SET);
+        let value = percent_encode(self.0.value().as_bytes(), COOKIE_ENCODE_SET);
 
         // Write out the name/value pair and the cookie's parameters.
         write!(f, "{}={}", name, value)?;
@@ -1126,11 +1132,12 @@ mod tests {
     #[test]
     #[cfg(feature = "percent-encode")]
     fn format_encoded() {
-        let cookie = Cookie::build("foo !?=", "bar;; a").finish();
+        let cookie = Cookie::build("foo !%?=", "bar;;, a").finish();
+
         let cookie_str = cookie.encoded().to_string();
-        assert_eq!(&cookie_str, "foo%20!%3F%3D=bar%3B%3B%20a");
+        assert_eq!(&cookie_str, "foo%20!%25%3F%3D=bar%3B%3B%2C%20a");
 
         let cookie = Cookie::parse_encoded(cookie_str).unwrap();
-        assert_eq!(cookie.name_value(), ("foo !?=", "bar;; a"));
+        assert_eq!(cookie.name_value(), ("foo !%?=", "bar;;, a"));
     }
 }
