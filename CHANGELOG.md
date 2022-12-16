@@ -1,5 +1,11 @@
 # Version 0.16
 
+## Version 0.16.2 (Dec 16, 2022)
+
+### General Changes
+
+  * `base64` was updated to `0.20`.
+
 ## Version 0.16.1 (Sep 25, 2022)
 
 ### Changes and Fixes
