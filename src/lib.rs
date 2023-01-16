@@ -501,6 +501,10 @@ impl<'c> Cookie<'c> {
 
     /// Returns the `Domain` of the cookie if one was specified.
     ///
+    /// This does not consider whether the `Domain` is valid; validation is left
+    /// to higher-level libraries, as needed. However, if the `Domain` starts
+    /// with a leading `.`, the leading `.` is stripped.
+    ///
     /// # Example
     ///
     /// ```
@@ -511,11 +515,21 @@ impl<'c> Cookie<'c> {
     ///
     /// let c = Cookie::parse("name=value; Domain=crates.io").unwrap();
     /// assert_eq!(c.domain(), Some("crates.io"));
+    ///
+    /// let c = Cookie::parse("name=value; Domain=.crates.io").unwrap();
+    /// assert_eq!(c.domain(), Some("crates.io"));
+    ///
+    /// // Note that `..crates.io` is not a valid domain.
+    /// let c = Cookie::parse("name=value; Domain=..crates.io").unwrap();
+    /// assert_eq!(c.domain(), Some(".crates.io"));
     /// ```
     #[inline]
     pub fn domain(&self) -> Option<&str> {
         match self.domain {
-            Some(ref c) => Some(c.to_str(self.cookie_string.as_ref())),
+            Some(ref c) => {
+                let domain = c.to_str(self.cookie_string.as_ref());
+                domain.strip_prefix(".").or(Some(domain))
+            },
             None => None,
         }
     }
@@ -1029,6 +1043,10 @@ impl<'c> Cookie<'c> {
     /// from a raw string, or if `self` doesn't contain a `Domain`, or if the
     /// `Domain` has changed since parsing, returns `None`.
     ///
+    /// Like [`Cookie::domain()`], this does not consider whether `Domain` is
+    /// valid; validation is left to higher-level libraries, as needed. However,
+    /// if `Domain` starts with a leading `.`, the leading `.` is stripped.
+    ///
     /// This method differs from [`Cookie::domain()`] in that it returns a
     /// string with the same lifetime as the originally parsed string. This
     /// lifetime may outlive `self` struct. If a longer lifetime is not
@@ -1040,7 +1058,7 @@ impl<'c> Cookie<'c> {
     /// ```
     /// use cookie::Cookie;
     ///
-    /// let cookie_string = format!("{}={}; Domain=crates.io", "foo", "bar");
+    /// let cookie_string = format!("{}={}; Domain=.crates.io", "foo", "bar");
     ///
     /// //`c` will be dropped at the end of the scope, but `domain` will live on
     /// let domain = {
@@ -1053,7 +1071,10 @@ impl<'c> Cookie<'c> {
     #[inline]
     pub fn domain_raw(&self) -> Option<&'c str> {
         match (self.domain.as_ref(), self.cookie_string.as_ref()) {
-            (Some(domain), Some(string)) => domain.to_raw_str(string),
+            (Some(domain), Some(string)) => match domain.to_raw_str(string) {
+                Some(s) => s.strip_prefix(".").or(Some(s)),
+                None => None,
+            }
             _ => None,
         }
     }
@@ -1319,6 +1340,14 @@ mod tests {
         let cookie = Cookie::build("foo", "bar")
             .domain("www.rust-lang.org").finish();
         assert_eq!(&cookie.to_string(), "foo=bar; Domain=www.rust-lang.org");
+
+        let cookie = Cookie::build("foo", "bar")
+            .domain(".rust-lang.org").finish();
+        assert_eq!(&cookie.to_string(), "foo=bar; Domain=rust-lang.org");
+
+        let cookie = Cookie::build("foo", "bar")
+            .domain("rust-lang.org").finish();
+        assert_eq!(&cookie.to_string(), "foo=bar; Domain=rust-lang.org");
 
         let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
         let expires = parse_date(time_str, &crate::parse::FMT1).unwrap();

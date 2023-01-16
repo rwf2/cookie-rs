@@ -199,11 +199,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                         .unwrap_or_else(|_| Duration::seconds(i64::max_value())))
                 }
             },
-            ("domain", Some(mut domain)) if !domain.is_empty() => {
-                if domain.starts_with('.') {
-                    domain = &domain[1..];
-                }
-
+            ("domain", Some(domain)) if !domain.is_empty() => {
                 let (i, j) = indexes_of(domain, s).expect("domain sub");
                 cookie.domain = Some(CookieStr::Indexed(i, j));
             }
@@ -441,6 +437,12 @@ mod tests {
             Domain=foo.com", expected);
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
             Domain=FOO.COM", expected);
+
+        expected.set_domain(".foo.com");
+        assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
+            Domain=.foo.com", expected);
+        assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
+            Domain=.FOO.COM", expected);
 
         unexpected.set_path("/foo");
         unexpected.set_domain("bar.com");
