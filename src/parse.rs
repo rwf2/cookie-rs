@@ -64,23 +64,6 @@ impl Error for ParseError {
     }
 }
 
-fn indexes_of(needle: &str, haystack: &str) -> Option<(usize, usize)> {
-    let haystack_start = haystack.as_ptr() as usize;
-    let needle_start = needle.as_ptr() as usize;
-
-    if needle_start < haystack_start {
-        return None;
-    }
-
-    if (needle_start + needle.len()) > (haystack_start + haystack.len()) {
-        return None;
-    }
-
-    let start = needle_start - haystack_start;
-    let end = start + needle.len();
-    Some((start, end))
-}
-
 #[cfg(feature = "percent-encode")]
 fn name_val_decoded(
     name: &str,
@@ -140,10 +123,8 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
 
     // If there is nothing to decode, or we're not decoding, use indexes.
     let indexed_names = |s, name, value| {
-        let name_indexes = indexes_of(name, s).expect("name sub");
-        let value_indexes = indexes_of(value, s).expect("value sub");
-        let name = CookieStr::Indexed(name_indexes.0, name_indexes.1);
-        let value = CookieStr::Indexed(value_indexes.0, value_indexes.1);
+        let name = CookieStr::indexed(name, s).expect("name sub");
+        let value = CookieStr::indexed(value, s).expect("value sub");
         (name, value)
     };
 
@@ -199,14 +180,12 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                         .unwrap_or_else(|_| Duration::seconds(i64::max_value())))
                 }
             },
-            ("domain", Some(domain)) if !domain.is_empty() => {
-                let (i, j) = indexes_of(domain, s).expect("domain sub");
-                cookie.domain = Some(CookieStr::Indexed(i, j));
-            }
+            ("domain", Some(d)) if !d.is_empty() => {
+                cookie.domain = Some(CookieStr::indexed(d, s).expect("domain sub"));
+            },
             ("path", Some(v)) => {
-                let (i, j) = indexes_of(v, s).expect("path sub");
-                cookie.path = Some(CookieStr::Indexed(i, j));
-            }
+                cookie.path = Some(CookieStr::indexed(v, s).expect("path sub"));
+            },
             ("samesite", Some(v)) => {
                 if v.eq_ignore_ascii_case("strict") {
                     cookie.same_site = Some(SameSite::Strict);

@@ -110,8 +110,30 @@ enum CookieStr<'c> {
 }
 
 impl<'c> CookieStr<'c> {
+    /// Creates an indexed `CookieStr` that holds the start and end indices of
+    /// `needle` inside of `haystack`, if `needle` is a substring of `haystack`.
+    /// Otherwise returns `None`.
+    ///
+    /// The `needle` can later be retrieved via `to_str()`.
+    fn indexed(needle: &str, haystack: &str) -> Option<CookieStr<'static>> {
+        let haystack_start = haystack.as_ptr() as usize;
+        let needle_start = needle.as_ptr() as usize;
+
+        if needle_start < haystack_start {
+            return None;
+        }
+
+        if (needle_start + needle.len()) > (haystack_start + haystack.len()) {
+            return None;
+        }
+
+        let start = needle_start - haystack_start;
+        let end = start + needle.len();
+        Some(CookieStr::Indexed(start, end))
+    }
+
     /// Retrieves the string `self` corresponds to. If `self` is derived from
-    /// indexes, the corresponding subslice of `string` is returned. Otherwise,
+    /// indices, the corresponding subslice of `string` is returned. Otherwise,
     /// the concrete string is returned.
     ///
     /// # Panics
