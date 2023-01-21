@@ -300,6 +300,7 @@ impl<'c> Cookie<'c> {
     /// let c = Cookie::parse("foo=bar%20baz; HttpOnly").unwrap();
     /// assert_eq!(c.name_value(), ("foo", "bar%20baz"));
     /// assert_eq!(c.http_only(), Some(true));
+    /// assert_eq!(c.secure(), None);
     /// ```
     pub fn parse<S>(s: S) -> Result<Cookie<'c>, ParseError>
         where S: Into<Cow<'c, str>>
@@ -319,6 +320,7 @@ impl<'c> Cookie<'c> {
     /// let c = Cookie::parse_encoded("foo=bar%20baz; HttpOnly").unwrap();
     /// assert_eq!(c.name_value(), ("foo", "bar baz"));
     /// assert_eq!(c.http_only(), Some(true));
+    /// assert_eq!(c.secure(), None);
     /// ```
     #[cfg(feature = "percent-encode")]
     #[cfg_attr(all(nightly, doc), doc(cfg(feature = "percent-encode")))]
@@ -326,6 +328,86 @@ impl<'c> Cookie<'c> {
         where S: Into<Cow<'c, str>>
     {
         parse_cookie(s, true)
+    }
+
+    /// Parses the HTTP `Cookie` header, a series of cookie names and value
+    /// separated by `;`, returning an iterator over the parse results. Each
+    /// item returned by the iterator is a `Result<Cookie, ParseError>` of
+    /// parsing one name/value pair. Empty cookie values (i.e, in `a=1;;b=2`)
+    /// and any excess surrounding whitespace are ignored.
+    ///
+    /// Unlike [`Cookie::split_parse_encoded()`], this method _does **not**_
+    /// percent-decode keys and values.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::Cookie;
+    ///
+    /// let string = "name=value; other=key%20value";
+    /// # let values: Vec<_> = Cookie::split_parse(string).collect();
+    /// # assert_eq!(values.len(), 2);
+    /// # assert_eq!(values[0].as_ref().unwrap().name(), "name");
+    /// # assert_eq!(values[1].as_ref().unwrap().name(), "other");
+    /// for cookie in Cookie::split_parse(string) {
+    ///     let cookie = cookie.unwrap();
+    ///     match cookie.name() {
+    ///         "name" => assert_eq!(cookie.value(), "value"),
+    ///         "other" => assert_eq!(cookie.value(), "key%20value"),
+    ///         _ => unreachable!()
+    ///     }
+    /// }
+    /// ```
+    #[inline(always)]
+    pub fn split_parse<S>(string: S) -> SplitCookies<'c>
+        where S: Into<Cow<'c, str>>
+    {
+        SplitCookies {
+            string: string.into(),
+            last: 0,
+            decode: false,
+        }
+    }
+
+    /// Parses the HTTP `Cookie` header, a series of cookie names and value
+    /// separated by `;`, returning an iterator over the parse results. Each
+    /// item returned by the iterator is a `Result<Cookie, ParseError>` of
+    /// parsing one name/value pair. Empty cookie values (i.e, in `a=1;;b=2`)
+    /// and any excess surrounding whitespace are ignored.
+    ///
+    /// Unlike [`Cookie::split_parse()`], this method _does_ percent-decode keys
+    /// and values.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::Cookie;
+    ///
+    /// let string = "name=value; other=key%20value";
+    /// # let v: Vec<_> = Cookie::split_parse_encoded(string).collect();
+    /// # assert_eq!(v.len(), 2);
+    /// # assert_eq!(v[0].as_ref().unwrap().name_value(), ("name", "value"));
+    /// # assert_eq!(v[1].as_ref().unwrap().name_value(), ("other", "key value"));
+    /// for cookie in Cookie::split_parse_encoded(string) {
+    ///     let cookie = cookie.unwrap();
+    ///     match cookie.name() {
+    ///         "name" => assert_eq!(cookie.value(), "value"),
+    ///         "other" => assert_eq!(cookie.value(), "key value"),
+    ///         _ => unreachable!()
+    ///     }
+    /// }
+    /// ```
+    #[cfg(feature = "percent-encode")]
+    #[cfg_attr(all(nightly, doc), doc(cfg(feature = "percent-encode")))]
+    #[inline(always)]
+    pub fn split_parse_encoded<S>(string: S) -> SplitCookies<'c>
+        where S: Into<Cow<'c, str>>
+    {
+        SplitCookies {
+            string: string.into(),
+            last: 0,
+            decode: true,
+        }
     }
 
     /// Converts `self` into a `Cookie` with a static lifetime with as few
@@ -1149,6 +1231,44 @@ assert_eq!(&c.stripped().encoded().to_string(), "key%3F=value");
     }
 }
 
+/// An iterator over cookie parse `Result`s: `Result<Cookie, ParseError>`.
+///
+/// Returned by [`Cookie::split_parse()`] and [`Cookie::split_parse_encoded()`].
+pub struct SplitCookies<'c> {
+    // The source string, which we split and parse.
+    string: Cow<'c, str>,
+    // The index where we last split off.
+    last: usize,
+    // Whether we should percent-decode when parsing.
+    decode: bool,
+}
+
+impl<'c> Iterator for SplitCookies<'c> {
+    type Item = Result<Cookie<'c>, ParseError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.last < self.string.len() {
+            let i = self.last;
+            let j = self.string[i..]
+                .find(';')
+                .map(|k| i + k)
+                .unwrap_or(self.string.len());
+
+            self.last = j + 1;
+            if self.string[i..j].chars().all(|c| c.is_whitespace()) {
+                continue;
+            }
+
+            return Some(match self.string {
+                Cow::Borrowed(s) => parse_cookie(s[i..j].trim(), self.decode),
+                Cow::Owned(ref s) => parse_cookie(s[i..j].trim().to_owned(), self.decode),
+            })
+        }
+
+        None
+    }
+}
+
 #[cfg(feature = "percent-encode")]
 mod encoding {
     use percent_encoding::{AsciiSet, CONTROLS};
@@ -1469,5 +1589,66 @@ mod tests {
 
         let cookie = Cookie::parse_encoded(cookie_str).unwrap();
         assert_eq!(cookie.name_value(), ("foo !%?=", "bar;;, a"));
+    }
+
+    #[test]
+    fn split_parse() {
+        let cases = [
+            ("", vec![]),
+            (";;", vec![]),
+            ("name=value", vec![("name", "value")]),
+            ("a=%20", vec![("a", "%20")]),
+            ("a=d#$%^&*()_", vec![("a", "d#$%^&*()_")]),
+            ("  name=value  ", vec![("name", "value")]),
+            ("name=value  ", vec![("name", "value")]),
+            ("name=value;;other=key", vec![("name", "value"), ("other", "key")]),
+            ("name=value;  ;other=key", vec![("name", "value"), ("other", "key")]),
+            ("name=value ;  ;other=key", vec![("name", "value"), ("other", "key")]),
+            ("name=value ;  ; other=key", vec![("name", "value"), ("other", "key")]),
+            ("name=value ;  ; other=key ", vec![("name", "value"), ("other", "key")]),
+            ("name=value ;  ; other=key;; ", vec![("name", "value"), ("other", "key")]),
+            (";name=value ;  ; other=key ", vec![("name", "value"), ("other", "key")]),
+            (";a=1 ;  ; b=2 ", vec![("a", "1"), ("b", "2")]),
+            (";a=1 ;  ; b= ", vec![("a", "1"), ("b", "")]),
+            (";a=1 ;  ; =v ; c=", vec![("a", "1"), ("c", "")]),
+            (" ;   a=1 ;  ; =v ; ;;c=", vec![("a", "1"), ("c", "")]),
+            (" ;   a=1 ;  ; =v ; ;;c===  ", vec![("a", "1"), ("c", "==")]),
+        ];
+
+        for (string, expected) in cases {
+            let actual: Vec<_> = Cookie::split_parse(string)
+                .filter_map(|parse| parse.ok())
+                .map(|c| (c.name_raw().unwrap(), c.value_raw().unwrap()))
+                .collect();
+
+            assert_eq!(expected, actual);
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "percent-encode")]
+    fn split_parse_encoded() {
+        let cases = [
+            ("", vec![]),
+            (";;", vec![]),
+            ("name=val%20ue", vec![("name", "val ue")]),
+            ("foo%20!%25%3F%3D=bar%3B%3B%2C%20a", vec![("foo !%?=", "bar;;, a")]),
+            (
+                "name=val%20ue ; ; foo%20!%25%3F%3D=bar%3B%3B%2C%20a",
+                vec![("name", "val ue"), ("foo !%?=", "bar;;, a")]
+            ),
+        ];
+
+        for (string, expected) in cases {
+            let cookies: Vec<_> = Cookie::split_parse_encoded(string)
+                .filter_map(|parse| parse.ok())
+                .collect();
+
+            let actual: Vec<_> = cookies.iter()
+                .map(|c| c.name_value())
+                .collect();
+
+            assert_eq!(expected, actual);
+        }
     }
 }
