@@ -1,3 +1,31 @@
+# Version 0.17
+
+## Version 0.17.0 (Jan 22, 2022)
+
+### Breaking Changes
+
+  * Cookie parsing no longer removes a `.` `Domain` prefix. `Cookie::domain()`
+    now removes a `.` prefix before returning.
+
+    As these changes are inverses, they are not likely observable. The change
+    only affects manually set `domain` values via the `.domain()` builder
+    method, the `set_domain()` setter method, or similar, which will now have a
+    prefix of `.` removed when returned by `Cookie::domain()`. This results in
+    more consistent treatment of `Domain` values.
+
+### New Features
+
+  * Added `Cookie::split_parse()` and `Cookie::split_parse_encoded()` methods.
+
+    The methods split a `;`-joined cookie string and parse/decode the split
+    values. They return a newly introduced iterator value of type `SplitCookies`
+    over the parse results.
+
+### General Changes and Fixes
+
+  * Parsing fuzzers were introduced and run for 48 CPU hours without failure.
+  * `base64` was updated to `0.21`.
+
 # Version 0.16
 
 ## Version 0.16.2 (Dec 16, 2022)

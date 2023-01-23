@@ -10,7 +10,7 @@
 //! Add the following to the `[dependencies]` section of your `Cargo.toml`:
 //!
 //! ```toml
-//! cookie = "0.16"
+//! cookie = "0.17"
 //! ```
 //!
 //! # Features
@@ -70,7 +70,7 @@
 
 #![cfg_attr(all(nightly, doc), feature(doc_cfg))]
 
-#![doc(html_root_url = "https://docs.rs/cookie/0.16")]
+#![doc(html_root_url = "https://docs.rs/cookie/0.17")]
 #![deny(missing_docs)]
 
 pub use time;
