@@ -1,5 +1,18 @@
 extern crate rand;
-extern crate base64;
+
+mod base64 {
+    use base64::{DecodeError, Engine, prelude::BASE64_STANDARD};
+
+    /// Encode `input` as the standard base64 with padding.
+    pub(crate) fn encode<T: AsRef<[u8]>>(input: T) -> String {
+        BASE64_STANDARD.encode(input)
+    }
+
+    /// Decode `input` as the standard base64 with padding.
+    pub(crate) fn decode<T: AsRef<[u8]>>(input: T) -> Result<Vec<u8>, DecodeError> {
+        BASE64_STANDARD.decode(input)
+    }
+}
 
 #[macro_use]
 mod macros;
