@@ -148,7 +148,8 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
         path: None,
         secure: None,
         http_only: None,
-        same_site: None
+        same_site: None,
+        partitioned: None
     };
 
     for attr in attributes {
@@ -201,6 +202,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                     // http://httpwg.org/http-extensions/draft-ietf-httpbis-cookie-same-site.html.
                 }
             }
+            ("partitioned", _) => cookie.partitioned = Some(true),
             ("expires", Some(v)) => {
                 let tm = parse_date(v, &FMT1)
                     .or_else(|_| parse_date(v, &FMT2))
@@ -334,6 +336,11 @@ mod tests {
         assert_eq_parse!("foo=\"bar\"\"", expected);
         assert_eq_parse!("foo=\"  bar\"\"", expected);
         assert_eq_parse!("foo=\"  bar\"  \"  ", expected);
+
+        let expected = Cookie::build("foo", "bar").partitioned(true).finish();
+        assert_eq_parse!("foo=bar; partitioned", expected);
+        assert_eq_parse!("foo=bar; Partitioned", expected);
+        assert_eq_parse!("foo=bar; PARTITIONED", expected);
 
         let mut expected = Cookie::build("foo", "bar").finish();
         assert_eq_parse!("foo=bar", expected);

@@ -198,6 +198,25 @@ impl<'c> CookieBuilder<'c> {
         self
     }
 
+    /// Sets the `partitioned` field in the cookie being built.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::Cookie;
+    ///
+    /// let c = Cookie::build("foo", "bar")
+    ///     .partitioned(true)
+    ///     .finish();
+    ///
+    /// assert_eq!(c.partitioned(), Some(true));
+    /// ```
+    #[inline]
+    pub fn partitioned(mut self, value: bool) -> Self {
+        self.cookie.set_partitioned(value);
+        self
+    }
+
     /// Makes the cookie being built 'permanent' by extending its expiration and
     /// max age 20 years into the future.
     ///
