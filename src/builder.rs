@@ -185,6 +185,32 @@ impl<'c> CookieBuilder<'c> {
         self
     }
 
+    /// Sets the `partitioned` field in the cookie being built.
+    ///
+    /// **Note:** _Partitioned_ cookies require the `Secure` attribute to be
+    /// set. As such, `Partitioned` cookies are always rendered with the
+    /// `Secure` attribute, irrespective of the `Secure` attribute's setting.
+    ///
+    /// **Note:** This cookie attribute is an [HTTP draft]! Its meaning and
+    /// definition are not standardized and therefore subject to change.
+    ///
+    /// [HTTP draft]: https://www.ietf.org/id/draft-cutler-httpbis-partitioned-cookies-01.html
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::Cookie;
+    ///
+    /// let c = Cookie::build(("foo", "bar")).partitioned(true);
+    /// assert_eq!(c.inner().partitioned(), Some(true));
+    /// assert!(c.to_string().contains("Secure"));
+    /// ```
+    #[inline]
+    pub fn partitioned(mut self, value: bool) -> Self {
+        self.cookie.set_partitioned(value);
+        self
+    }
+
     /// Makes the cookie being built 'permanent' by extending its expiration and
     /// max age 20 years into the future.
     ///

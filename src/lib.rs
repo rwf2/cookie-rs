@@ -234,6 +234,8 @@ pub struct Cookie<'c> {
     http_only: Option<bool>,
     /// The draft `SameSite` attribute.
     same_site: Option<SameSite>,
+    /// The draft `Partitioned` attribute.
+    partitioned: Option<bool>,
 }
 
 impl<'c> Cookie<'c> {
@@ -266,6 +268,7 @@ impl<'c> Cookie<'c> {
             secure: None,
             http_only: None,
             same_site: None,
+            partitioned: None,
         }
     }
 
@@ -470,6 +473,7 @@ impl<'c> Cookie<'c> {
             secure: self.secure,
             http_only: self.http_only,
             same_site: self.same_site,
+            partitioned: self.partitioned,
         }
     }
 
@@ -664,6 +668,43 @@ impl<'c> Cookie<'c> {
     #[inline]
     pub fn same_site(&self) -> Option<SameSite> {
         self.same_site
+    }
+
+    /// Returns whether this cookie was marked `Partitioned` or not. Returns
+    /// `Some(true)` when the cookie was explicitly set (manually or parsed) as
+    /// `Partitioned`, `Some(false)` when `partitioned` was manually set to `false`,
+    /// and `None` otherwise.
+    ///
+    /// **Note:** This cookie attribute is an [HTTP draft]! Its meaning and
+    /// definition are not standardized and therefore subject to change.
+    ///
+    /// [HTTP draft]: https://www.ietf.org/id/draft-cutler-httpbis-partitioned-cookies-01.html
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::Cookie;
+    ///
+    /// let c = Cookie::parse("name=value; Partitioned").unwrap();
+    /// assert_eq!(c.partitioned(), Some(true));
+    ///
+    /// let mut c = Cookie::parse("name=value").unwrap();
+    /// assert_eq!(c.partitioned(), None);
+    ///
+    /// let mut c = Cookie::new("name", "value");
+    /// assert_eq!(c.partitioned(), None);
+    ///
+    /// // An explicitly set "false" value.
+    /// c.set_partitioned(false);
+    /// assert_eq!(c.partitioned(), Some(false));
+    ///
+    /// // An explicitly set "true" value.
+    /// c.set_partitioned(true);
+    /// assert_eq!(c.partitioned(), Some(true));
+    /// ```
+    #[inline]
+    pub fn partitioned(&self) -> Option<bool> {
+        self.partitioned
     }
 
     /// Returns the specified max-age of the cookie if one was specified.
@@ -914,6 +955,43 @@ impl<'c> Cookie<'c> {
         self.same_site = value.into();
     }
 
+    /// Sets the value of `partitioned` in `self` to `value`. If `value` is
+    /// `None`, the field is unset.
+    ///
+    /// **Note:** _Partitioned_ cookies require the `Secure` attribute to be
+    /// set. As such, `Partitioned` cookies are always rendered with the
+    /// `Secure` attribute, irrespective of the `Secure` attribute's setting.
+    ///
+    /// **Note:** This cookie attribute is an [HTTP draft]! Its meaning and
+    /// definition are not standardized and therefore subject to change.
+    ///
+    /// [HTTP draft]: https://www.ietf.org/id/draft-cutler-httpbis-partitioned-cookies-01.html
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::Cookie;
+    ///
+    /// let mut c = Cookie::new("name", "value");
+    /// assert_eq!(c.partitioned(), None);
+    ///
+    /// c.set_partitioned(true);
+    /// assert_eq!(c.partitioned(), Some(true));
+    /// assert!(c.to_string().contains("Secure"));
+    ///
+    /// c.set_partitioned(false);
+    /// assert_eq!(c.partitioned(), Some(false));
+    /// assert!(!c.to_string().contains("Secure"));
+    ///
+    /// c.set_partitioned(None);
+    /// assert_eq!(c.partitioned(), None);
+    /// assert!(!c.to_string().contains("Secure"));
+    /// ```
+    #[inline]
+    pub fn set_partitioned<T: Into<Option<bool>>>(&mut self, value: T) {
+        self.partitioned = value.into();
+    }
+
     /// Sets the value of `max_age` in `self` to `value`. If `value` is `None`,
     /// the field is unset.
     ///
@@ -1124,13 +1202,16 @@ impl<'c> Cookie<'c> {
 
         if let Some(same_site) = self.same_site() {
             write!(f, "; SameSite={}", same_site)?;
-
-            if same_site.is_none() && self.secure().is_none() {
-                write!(f, "; Secure")?;
-            }
         }
 
-        if let Some(true) = self.secure() {
+        if let Some(true) = self.partitioned() {
+            write!(f, "; Partitioned")?;
+        }
+
+        if self.secure() == Some(true)
+            || self.partitioned() == Some(true)
+            || self.secure().is_none() && self.same_site() == Some(SameSite::None)
+        {
             write!(f, "; Secure")?;
         }
 
@@ -1532,6 +1613,7 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
             && self.value() == other.value()
             && self.http_only() == other.http_only()
             && self.secure() == other.secure()
+            && self.partitioned() == other.partitioned()
             && self.max_age() == other.max_age()
             && self.expires() == other.expires();
 
@@ -1646,7 +1728,19 @@ mod tests {
         let mut cookie = Cookie::build(("foo", "bar")).same_site(SameSite::None).build();
         assert_eq!(&cookie.to_string(), "foo=bar; SameSite=None; Secure");
 
+        cookie.set_partitioned(true);
+        assert_eq!(&cookie.to_string(), "foo=bar; SameSite=None; Partitioned; Secure");
+
         cookie.set_same_site(None);
+        assert_eq!(&cookie.to_string(), "foo=bar; Partitioned; Secure");
+
+        cookie.set_secure(false);
+        assert_eq!(&cookie.to_string(), "foo=bar; Partitioned; Secure");
+
+        cookie.set_secure(None);
+        assert_eq!(&cookie.to_string(), "foo=bar; Partitioned; Secure");
+
+        cookie.set_partitioned(None);
         assert_eq!(&cookie.to_string(), "foo=bar");
 
         let mut c = Cookie::build(("foo", "bar")).same_site(SameSite::None).secure(false).build();
