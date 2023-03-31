@@ -1087,8 +1087,8 @@ impl<'c> Cookie<'c> {
         }
 
         if Some(true) == self.secure()
-            || (self.secure().is_none()
-                && (self.same_site() == Some(SameSite::None) || self.partitioned() == Some(true)))
+            || self.secure().is_none() && self.same_site() == Some(SameSite::None)
+            || self.partitioned() == Some(true)
         {
             write!(f, "; Secure")?;
         }
