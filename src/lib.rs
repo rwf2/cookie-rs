@@ -570,6 +570,11 @@ impl<'c> Cookie<'c> {
     /// `Partitioned`, `Some(false)` when `partitioned` was manually set to `false`,
     /// and `None` otherwise.
     ///
+    /// **Note:** This cookie attribute is an [HTTP draft]! Its meaning and
+    /// definition are not standardized and therefore subject to change.
+    ///
+    /// [HTTP draft]: https://www.ietf.org/id/draft-cutler-httpbis-partitioned-cookies-01.html
+    /// 
     /// # Example
     ///
     /// ```
@@ -847,7 +852,12 @@ impl<'c> Cookie<'c> {
 
     /// Sets the value of `partitioned` in `self` to `value`. If `value` is `None`,
     /// the field is unset.
+    /// 
+    /// **Note:** This cookie attribute is an [HTTP draft]! Its meaning and
+    /// definition are not standardized and therefore subject to change.
     ///
+    /// [HTTP draft]: https://www.ietf.org/id/draft-cutler-httpbis-partitioned-cookies-01.html
+    /// 
     /// # Example
     ///
     /// ```

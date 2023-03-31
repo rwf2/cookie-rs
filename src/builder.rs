@@ -200,6 +200,11 @@ impl<'c> CookieBuilder<'c> {
 
     /// Sets the `partitioned` field in the cookie being built.
     ///
+    /// **Note:** This cookie attribute is an [HTTP draft]! Its meaning and
+    /// definition are not standardized and therefore subject to change.
+    ///
+    /// [HTTP draft]: https://www.ietf.org/id/draft-cutler-httpbis-partitioned-cookies-01.html
+    /// 
     /// # Example
     ///
     /// ```rust
