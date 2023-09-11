@@ -1,8 +1,8 @@
-use std::convert::TryInto;
 use std::borrow::{Borrow, BorrowMut};
+use std::convert::TryInto;
 
-use sha2::Sha256;
 use hmac::{Hmac, Mac};
+use sha2::Sha256;
 
 use crate::secure::{base64, Key};
 use crate::{Cookie, CookieJar};
@@ -30,7 +30,10 @@ impl<J> SignedJar<J> {
     /// method is typically called indirectly via the `signed{_mut}` methods of
     /// `CookieJar`.
     pub(crate) fn new(parent: J, key: &Key) -> SignedJar<J> {
-        SignedJar { parent, key: key.signing().try_into().expect("sign key len") }
+        SignedJar {
+            parent,
+            key: key.signing().try_into().expect("sign key len"),
+        }
     }
 
     /// Signs the cookie's value providing integrity and authenticity.
@@ -121,7 +124,10 @@ impl<J: Borrow<CookieJar>> SignedJar<J> {
     /// assert_eq!(signed_jar.get("name").unwrap().value(), "value");
     /// ```
     pub fn get(&self, name: &str) -> Option<Cookie<'static>> {
-        self.parent.borrow().get(name).and_then(|c| self.verify(c.clone()))
+        self.parent
+            .borrow()
+            .get(name)
+            .and_then(|c| self.verify(c.clone()))
     }
 }
 
@@ -203,7 +209,7 @@ impl<J: BorrowMut<CookieJar>> SignedJar<J> {
 
 #[cfg(test)]
 mod test {
-    use crate::{CookieJar, Cookie, Key};
+    use crate::{Cookie, CookieJar, Key};
 
     #[test]
     fn simple() {
@@ -222,21 +228,32 @@ mod test {
     #[test]
     fn roundtrip() {
         // Secret is SHA-256 hash of 'Super secret!' passed through HKDF-SHA256.
-        let key = Key::from(&[89, 202, 200, 125, 230, 90, 197, 245, 166, 249,
-            34, 169, 135, 31, 20, 197, 94, 154, 254, 79, 60, 26, 8, 143, 254,
-            24, 116, 138, 92, 225, 159, 60, 157, 41, 135, 129, 31, 226, 196, 16,
-            198, 168, 134, 4, 42, 1, 196, 24, 57, 103, 241, 147, 201, 185, 233,
-            10, 180, 170, 187, 89, 252, 137, 110, 107]);
+        let key = Key::from(&[
+            89, 202, 200, 125, 230, 90, 197, 245, 166, 249, 34, 169, 135, 31, 20, 197, 94, 154,
+            254, 79, 60, 26, 8, 143, 254, 24, 116, 138, 92, 225, 159, 60, 157, 41, 135, 129, 31,
+            226, 196, 16, 198, 168, 134, 4, 42, 1, 196, 24, 57, 103, 241, 147, 201, 185, 233, 10,
+            180, 170, 187, 89, 252, 137, 110, 107,
+        ]);
 
         let mut jar = CookieJar::new();
-        jar.add(Cookie::new("signed_with_ring014",
-                "3tdHXEQ2kf6fxC7dWzBGmpSLMtJenXLKrZ9cHkSsl1w=Tamper-proof"));
-        jar.add(Cookie::new("signed_with_ring016",
-                "3tdHXEQ2kf6fxC7dWzBGmpSLMtJenXLKrZ9cHkSsl1w=Tamper-proof"));
+        jar.add(Cookie::new(
+            "signed_with_ring014",
+            "3tdHXEQ2kf6fxC7dWzBGmpSLMtJenXLKrZ9cHkSsl1w=Tamper-proof",
+        ));
+        jar.add(Cookie::new(
+            "signed_with_ring016",
+            "3tdHXEQ2kf6fxC7dWzBGmpSLMtJenXLKrZ9cHkSsl1w=Tamper-proof",
+        ));
 
         let signed = jar.signed(&key);
-        assert_eq!(signed.get("signed_with_ring014").unwrap().value(), "Tamper-proof");
-        assert_eq!(signed.get("signed_with_ring016").unwrap().value(), "Tamper-proof");
+        assert_eq!(
+            signed.get("signed_with_ring014").unwrap().value(),
+            "Tamper-proof"
+        );
+        assert_eq!(
+            signed.get("signed_with_ring016").unwrap().value(),
+            "Tamper-proof"
+        );
     }
 
     #[test]

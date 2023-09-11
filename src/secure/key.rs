@@ -16,9 +16,12 @@ const_assert!(crate::secure::private::KEY_LEN == ENCRYPTION_KEY_LEN);
 /// [`PrivateJar`](crate::PrivateJar) and [`SignedJar`](crate::SignedJar). A
 /// single instance of a `Key` can be used for both a `PrivateJar` and a
 /// `SignedJar` simultaneously with no notable security implications.
-#[cfg_attr(all(nightly, doc), doc(cfg(any(feature = "private", feature = "signed"))))]
+#[cfg_attr(
+    all(nightly, doc),
+    doc(cfg(any(feature = "private", feature = "signed")))
+)]
 #[derive(Clone)]
-pub struct Key([u8; COMBINED_KEY_LENGTH /* SIGNING | ENCRYPTION */]);
+pub struct Key([u8; COMBINED_KEY_LENGTH]);
 
 impl PartialEq for Key {
     fn eq(&self, other: &Self) -> bool {
@@ -89,14 +92,18 @@ impl Key {
     #[cfg_attr(all(nightly, doc), doc(cfg(feature = "key-expansion")))]
     pub fn derive_from(master_key: &[u8]) -> Self {
         if master_key.len() < 32 {
-            panic!("bad master key length: expected >= 32 bytes, found {}", master_key.len());
+            panic!(
+                "bad master key length: expected >= 32 bytes, found {}",
+                master_key.len()
+            );
         }
 
         // Expand the master key into two HKDF generated keys.
         const KEYS_INFO: &[u8] = b"COOKIE;SIGNED:HMAC-SHA256;PRIVATE:AEAD-AES-256-GCM";
         let mut both_keys = [0; COMBINED_KEY_LENGTH];
         let hk = hkdf::Hkdf::<sha2::Sha256>::from_prk(master_key).expect("key length prechecked");
-        hk.expand(KEYS_INFO, &mut both_keys).expect("expand into keys");
+        hk.expand(KEYS_INFO, &mut both_keys)
+            .expect("expand into keys");
         Key::from(&both_keys)
     }
 
@@ -186,7 +193,10 @@ impl Key {
 }
 
 /// An error indicating an issue with generating or constructing a key.
-#[cfg_attr(all(nightly, doc), doc(cfg(any(feature = "private", feature = "signed"))))]
+#[cfg_attr(
+    all(nightly, doc),
+    doc(cfg(any(feature = "private", feature = "signed")))
+)]
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum KeyError {
@@ -196,14 +206,17 @@ pub enum KeyError {
     TooShort(usize),
 }
 
-impl std::error::Error for KeyError { }
+impl std::error::Error for KeyError {}
 
 impl std::fmt::Display for KeyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             KeyError::TooShort(n) => {
-                write!(f, "key material is too short: expected >= {} bytes, got {} bytes",
-                       COMBINED_KEY_LENGTH, n)
+                write!(
+                    f,
+                    "key material is too short: expected >= {} bytes, got {} bytes",
+                    COMBINED_KEY_LENGTH, n
+                )
             }
         }
     }

@@ -1,7 +1,7 @@
 extern crate aes_gcm;
 
-use std::convert::TryInto;
 use std::borrow::{Borrow, BorrowMut};
+use std::convert::TryInto;
 
 use crate::secure::{base64, rand, Key};
 use crate::{Cookie, CookieJar};
@@ -26,7 +26,7 @@ pub(crate) const KEY_LEN: usize = 32;
 #[cfg_attr(all(nightly, doc), doc(cfg(feature = "private")))]
 pub struct PrivateJar<J> {
     parent: J,
-    key: [u8; KEY_LEN]
+    key: [u8; KEY_LEN],
 }
 
 impl<J> PrivateJar<J> {
@@ -34,7 +34,10 @@ impl<J> PrivateJar<J> {
     /// This method is typically called indirectly via the `signed` method of
     /// `CookieJar`.
     pub(crate) fn new(parent: J, key: &Key) -> PrivateJar<J> {
-        PrivateJar { parent, key: key.encryption().try_into().expect("enc key len") }
+        PrivateJar {
+            parent,
+            key: key.encryption().try_into().expect("enc key len"),
+        }
     }
 
     /// Encrypts the cookie's value with authenticated encryption providing
@@ -51,14 +54,16 @@ impl<J> PrivateJar<J> {
 
         // Fill nonce piece with random data.
         let mut rng = self::rand::thread_rng();
-        rng.try_fill_bytes(nonce).expect("couldn't random fill nonce");
+        rng.try_fill_bytes(nonce)
+            .expect("couldn't random fill nonce");
         let nonce = GenericArray::clone_from_slice(nonce);
 
         // Perform the actual sealing operation, using the cookie's name as
         // associated data to prevent value swapping.
         let aad = cookie.name().as_bytes();
         let aead = Aes256Gcm::new(GenericArray::from_slice(&self.key));
-        let aad_tag = aead.encrypt_in_place_detached(&nonce, aad, in_out)
+        let aad_tag = aead
+            .encrypt_in_place_detached(&nonce, aad, in_out)
             .expect("encryption failure!");
 
         // Copy the tag into the tag piece.
@@ -79,7 +84,10 @@ impl<J> PrivateJar<J> {
         }
 
         let (nonce, cipher) = data.split_at(NONCE_LEN);
-        let payload = Payload { msg: cipher, aad: name.as_bytes() };
+        let payload = Payload {
+            msg: cipher,
+            aad: name.as_bytes(),
+        };
 
         let aead = Aes256Gcm::new(GenericArray::from_slice(&self.key));
         aead.decrypt(GenericArray::from_slice(nonce), payload)
@@ -143,7 +151,10 @@ impl<J: Borrow<CookieJar>> PrivateJar<J> {
     /// assert_eq!(private_jar.get("name").unwrap().value(), "value");
     /// ```
     pub fn get(&self, name: &str) -> Option<Cookie<'static>> {
-        self.parent.borrow().get(name).and_then(|c| self.decrypt(c.clone()))
+        self.parent
+            .borrow()
+            .get(name)
+            .and_then(|c| self.decrypt(c.clone()))
     }
 }
 
@@ -226,7 +237,7 @@ impl<J: BorrowMut<CookieJar>> PrivateJar<J> {
 
 #[cfg(test)]
 mod test {
-    use crate::{CookieJar, Cookie, Key};
+    use crate::{Cookie, CookieJar, Key};
 
     #[test]
     fn simple() {
@@ -245,20 +256,31 @@ mod test {
     #[test]
     fn roundtrip() {
         // Secret is SHA-256 hash of 'Super secret!' passed through HKDF-SHA256.
-        let key = Key::from(&[89, 202, 200, 125, 230, 90, 197, 245, 166, 249,
-            34, 169, 135, 31, 20, 197, 94, 154, 254, 79, 60, 26, 8, 143, 254,
-            24, 116, 138, 92, 225, 159, 60, 157, 41, 135, 129, 31, 226, 196, 16,
-            198, 168, 134, 4, 42, 1, 196, 24, 57, 103, 241, 147, 201, 185, 233,
-            10, 180, 170, 187, 89, 252, 137, 110, 107]);
+        let key = Key::from(&[
+            89, 202, 200, 125, 230, 90, 197, 245, 166, 249, 34, 169, 135, 31, 20, 197, 94, 154,
+            254, 79, 60, 26, 8, 143, 254, 24, 116, 138, 92, 225, 159, 60, 157, 41, 135, 129, 31,
+            226, 196, 16, 198, 168, 134, 4, 42, 1, 196, 24, 57, 103, 241, 147, 201, 185, 233, 10,
+            180, 170, 187, 89, 252, 137, 110, 107,
+        ]);
 
         let mut jar = CookieJar::new();
-        jar.add(Cookie::new("encrypted_with_ring014",
-                "lObeZJorGVyeSWUA8khTO/8UCzFVBY9g0MGU6/J3NN1R5x11dn2JIA=="));
-        jar.add(Cookie::new("encrypted_with_ring016",
-                "SU1ujceILyMBg3fReqRmA9HUtAIoSPZceOM/CUpObROHEujXIjonkA=="));
+        jar.add(Cookie::new(
+            "encrypted_with_ring014",
+            "lObeZJorGVyeSWUA8khTO/8UCzFVBY9g0MGU6/J3NN1R5x11dn2JIA==",
+        ));
+        jar.add(Cookie::new(
+            "encrypted_with_ring016",
+            "SU1ujceILyMBg3fReqRmA9HUtAIoSPZceOM/CUpObROHEujXIjonkA==",
+        ));
 
         let private = jar.private(&key);
-        assert_eq!(private.get("encrypted_with_ring014").unwrap().value(), "Tamper-proof");
-        assert_eq!(private.get("encrypted_with_ring016").unwrap().value(), "Tamper-proof");
+        assert_eq!(
+            private.get("encrypted_with_ring014").unwrap().value(),
+            "Tamper-proof"
+        );
+        assert_eq!(
+            private.get("encrypted_with_ring016").unwrap().value(),
+            "Tamper-proof"
+        );
     }
 }
