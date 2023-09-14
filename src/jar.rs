@@ -609,7 +609,10 @@ mod test {
     #[test]
     fn delta() {
         use std::collections::HashMap;
+        #[cfg(feature = "time")]
         use time::Duration;
+        #[cfg(feature = "chrono")]
+        use chrono::Duration;
 
         let mut c = CookieJar::new();
 

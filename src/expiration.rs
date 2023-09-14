@@ -1,4 +1,10 @@
-use time::OffsetDateTime;
+/// The value of `Expiration::DateTime`, type-alised from `time`.
+#[cfg(feature = "time")]
+pub type DateTime = time::OffsetDateTime;
+
+/// The value of `Expiration::DateTime`, type-alised from `chrono`.
+#[cfg(feature = "chrono")]
+pub type DateTime = chrono::DateTime<chrono::FixedOffset>;
 
 /// A cookie's expiration: either session or a date-time.
 ///
@@ -26,7 +32,7 @@ use time::OffsetDateTime;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Expiration {
     /// Expiration for a "permanent" cookie at a specific date-time.
-    DateTime(OffsetDateTime),
+    DateTime(DateTime),
     /// Expiration for a "session" cookie. Browsers define the notion of a
     /// "session" and will automatically expire session cookies when they deem
     /// the "session" to be over. This is typically, but need not be, when the
@@ -92,7 +98,7 @@ impl Expiration {
     /// let expires = Expiration::from(now);
     /// assert_eq!(expires.datetime(), Some(now));
     /// ```
-    pub fn datetime(self) -> Option<OffsetDateTime> {
+    pub fn datetime(self) -> Option<DateTime> {
         match self {
             Expiration::Session => None,
             Expiration::DateTime(v) => Some(v)
@@ -118,7 +124,7 @@ impl Expiration {
     /// assert_eq!(expires.map(|t| t + one_week).datetime(), None);
     /// ```
     pub fn map<F>(self, f: F) -> Self
-        where F: FnOnce(OffsetDateTime) -> OffsetDateTime
+        where F: FnOnce(DateTime) -> DateTime
     {
         match self {
             Expiration::Session => Expiration::Session,
@@ -127,7 +133,7 @@ impl Expiration {
     }
 }
 
-impl<T: Into<Option<OffsetDateTime>>> From<T> for Expiration {
+impl<T: Into<Option<DateTime>>> From<T> for Expiration {
     fn from(option: T) -> Self {
         match option.into() {
             Some(value) => Expiration::DateTime(value),

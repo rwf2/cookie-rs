@@ -73,7 +73,9 @@
 #![doc(html_root_url = "https://docs.rs/cookie/0.17")]
 #![deny(missing_docs)]
 
+#[cfg(feature = "time")]
 pub use time;
+
 
 mod builder;
 mod parse;
@@ -92,7 +94,16 @@ use std::str::FromStr;
 #[allow(unused_imports, deprecated)]
 use std::ascii::AsciiExt;
 
-use time::{Duration, OffsetDateTime, UtcOffset, macros::datetime};
+#[cfg(not(any(feature = "time", feature = "chrono")))]
+compile_error!("either feature \"time\" or feature \"chrono\" must be enabled");
+#[cfg(all(feature = "time", feature = "chrono"))]
+compile_error!("features \"time\" and \"chrono\" cannot be enabled at the same time");
+
+#[cfg(feature = "time")]
+use time::{Duration, UtcOffset, macros::datetime};
+
+#[cfg(feature = "chrono")]
+use chrono::{Datelike as _, Duration};
 
 use crate::parse::parse_cookie;
 pub use crate::parse::ParseError;
@@ -682,7 +693,7 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.expires_datetime().map(|t| t.year()), Some(2017));
     /// ```
     #[inline]
-    pub fn expires_datetime(&self) -> Option<OffsetDateTime> {
+    pub fn expires_datetime(&self) -> Option<expiration::DateTime> {
         self.expires.and_then(|e| e.datetime())
     }
 
@@ -932,11 +943,24 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.expires(), Some(Expiration::Session));
     /// ```
     pub fn set_expires<T: Into<Expiration>>(&mut self, time: T) {
-        static MAX_DATETIME: OffsetDateTime = datetime!(9999-12-31 23:59:59.999_999 UTC);
-
         // RFC 6265 requires dates not to exceed 9999 years.
-        self.expires = Some(time.into()
-            .map(|time| std::cmp::min(time, MAX_DATETIME)));
+        self.expires = Some(time.into().map(|dt| {
+            #[cfg(feature = "time")]
+            {
+                static MAX_DATETIME: expiration::DateTime = datetime!(9999-12-31 23:59:59.999_999 UTC);
+                std::cmp::min(dt, MAX_DATETIME)
+            }
+            #[cfg(feature = "chrono")]
+            if dt.naive_utc().year() > 9999 {
+                chrono::NaiveDate::from_ymd_opt(9999, 12, 31)
+                    .and_then(|d| d.and_hms_micro_opt(23, 59, 59, 999_999))
+                    .unwrap()
+                    .and_utc()
+                    .fixed_offset()
+            } else {
+                dt
+            }
+        }));
     }
 
     /// Unsets the `expires` of `self`.
@@ -982,7 +1006,10 @@ impl<'c> Cookie<'c> {
     pub fn make_permanent(&mut self) {
         let twenty_years = Duration::days(365 * 20);
         self.set_max_age(twenty_years);
-        self.set_expires(OffsetDateTime::now_utc() + twenty_years);
+        #[cfg(feature = "time")]
+        self.set_expires(expiration::DateTime::now_utc() + twenty_years);
+        #[cfg(feature = "chrono")]
+        self.set_expires(chrono::Utc::now().fixed_offset() + twenty_years);
     }
 
     /// Make `self` a "removal" cookie by clearing its value, setting a max-age
@@ -1009,7 +1036,11 @@ impl<'c> Cookie<'c> {
     pub fn make_removal(&mut self) {
         self.set_value("");
         self.set_max_age(Duration::seconds(0));
-        self.set_expires(OffsetDateTime::now_utc() - Duration::days(365));
+        let one_year = Duration::days(365);
+        #[cfg(feature = "time")]
+        self.set_expires(expiration::DateTime::now_utc() - one_year);
+        #[cfg(feature = "chrono")]
+        self.set_expires(chrono::Utc::now().fixed_offset() - one_year);
     }
 
     fn fmt_parameters(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -1038,12 +1069,21 @@ impl<'c> Cookie<'c> {
         }
 
         if let Some(max_age) = self.max_age() {
-            write!(f, "; Max-Age={}", max_age.whole_seconds())?;
+            #[cfg(feature = "time")]
+            let seconds = max_age.whole_seconds();
+            #[cfg(feature = "chrono")]
+            let seconds = max_age.num_seconds();
+            write!(f, "; Max-Age={}", seconds)?;
         }
 
         if let Some(time) = self.expires_datetime() {
-            let time = time.to_offset(UtcOffset::UTC);
-            write!(f, "; Expires={}", time.format(&crate::parse::FMT1).map_err(|_| fmt::Error)?)?;
+            #[cfg(feature = "time")]
+            let time = time.to_offset(UtcOffset::UTC)
+                .format(&crate::parse::FMT1)
+                .map_err(|_| fmt::Error)?;
+            #[cfg(feature = "chrono")]
+            let time = time.naive_utc().format(&crate::parse::FMT1);
+            write!(f, "; Expires={}", time)?;
         }
 
         Ok(())
@@ -1456,7 +1496,10 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
 #[cfg(test)]
 mod tests {
     use crate::{Cookie, SameSite, parse::parse_date};
+    #[cfg(feature = "time")]
     use time::{Duration, OffsetDateTime};
+    #[cfg(feature = "chrono")]
+    use chrono::{DateTime, Duration, FixedOffset, NaiveDateTime};
 
     #[test]
     fn format() {
@@ -1525,11 +1568,21 @@ mod tests {
     #[test]
     #[ignore]
     fn format_date_wraps() {
+        #[cfg(feature = "time")]
         let expires = OffsetDateTime::UNIX_EPOCH + Duration::MAX;
+        #[cfg(feature = "chrono")]
+        let expires = DateTime::<FixedOffset>::MAX_UTC.fixed_offset();
         let cookie = Cookie::build("foo", "bar").expires(expires).finish();
         assert_eq!(&cookie.to_string(), "foo=bar; Expires=Fri, 31 Dec 9999 23:59:59 GMT");
 
+        #[cfg(feature = "time")]
         let expires = time::macros::datetime!(9999-01-01 0:00 UTC) + Duration::days(1000);
+        #[cfg(feature = "chrono")]
+        let expires: DateTime<FixedOffset> = chrono::NaiveDate::from_ymd_opt(9999, 1, 1)
+            .map(|d| NaiveDateTime::new(d, Default::default()))
+            .unwrap()
+            .and_utc().fixed_offset();
+
         let cookie = Cookie::build("foo", "bar").expires(expires).finish();
         assert_eq!(&cookie.to_string(), "foo=bar; Expires=Fri, 31 Dec 9999 23:59:59 GMT");
     }

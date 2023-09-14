@@ -2,6 +2,11 @@ use std::borrow::Cow;
 
 use crate::{Cookie, SameSite, Expiration};
 
+#[cfg(feature = "time")]
+use time::Duration;
+#[cfg(feature = "chrono")]
+use chrono::Duration;
+
 /// Structure that follows the builder pattern for building `Cookie` structs.
 ///
 /// To construct a cookie:
@@ -100,7 +105,7 @@ impl<'c> CookieBuilder<'c> {
     /// # }
     /// ```
     #[inline]
-    pub fn max_age(mut self, value: time::Duration) -> Self {
+    pub fn max_age(mut self, value: Duration) -> Self {
         self.cookie.set_max_age(value);
         self
     }
