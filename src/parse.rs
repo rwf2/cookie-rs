@@ -291,13 +291,14 @@ pub(crate) fn parse_date(s: &str, format: &impl Parsable) -> Result<OffsetDateTi
 #[cfg(feature = "chrono")]
 pub(crate) fn parse_date(s: &str, fmt: &str) -> Result<DateTime<FixedOffset>, chrono::ParseError> {
     use chrono::format::{Parsed, StrftimeItems, parse};
+    use crate::{ChronoDateTimeExt as _, ChronoNaiveDateTimeExt};
 
     // let res = NaiveDateTime::parse_from_str(s, fmt);
     let mut parsed = Parsed::new();
     match parse(&mut parsed, s, StrftimeItems::new(fmt)) {
         Ok(()) => {
             fn ok(parsed: Parsed) -> Result<DateTime<FixedOffset>, chrono::ParseError> {
-                Ok(parsed.to_naive_datetime_with_offset(0)?.and_utc().fixed_offset())
+                Ok(parsed.to_naive_datetime_with_offset(0)?.ext_and_utc().ext_fixed_offset())
             }
             let year = match parsed.year_mod_100 {
                 Some(year_mod_100 @ 0..=68) => 2000 + year_mod_100,

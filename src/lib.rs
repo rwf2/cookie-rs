@@ -970,8 +970,8 @@ impl<'c> Cookie<'c> {
                 chrono::NaiveDate::from_ymd_opt(9999, 12, 31)
                     .and_then(|d| d.and_hms_micro_opt(23, 59, 59, 999_999))
                     .unwrap()
-                    .and_utc()
-                    .fixed_offset()
+                    .ext_and_utc()
+                    .ext_fixed_offset()
             } else {
                 dt
             }
@@ -1027,7 +1027,7 @@ impl<'c> Cookie<'c> {
         #[cfg(feature = "time")]
         self.set_expires(expiration::DateTime::now_utc() + twenty_years);
         #[cfg(feature = "chrono")]
-        self.set_expires(chrono::Utc::now().fixed_offset() + twenty_years);
+        self.set_expires(chrono::Utc::now().ext_fixed_offset() + twenty_years);
     }
 
     /// Make `self` a "removal" cookie by clearing its value, setting a max-age
@@ -1060,7 +1060,7 @@ impl<'c> Cookie<'c> {
         #[cfg(feature = "time")]
         self.set_expires(expiration::DateTime::now_utc() - one_year);
         #[cfg(feature = "chrono")]
-        self.set_expires(chrono::Utc::now().fixed_offset() - one_year);
+        self.set_expires(chrono::Utc::now().ext_fixed_offset() - one_year);
     }
 
     fn fmt_parameters(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -1517,6 +1517,33 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
     }
 }
 
+/// This can be removed in favor of `fixed_offset` implemented in Chrono v0.4.25.
+#[cfg(feature = "chrono")]
+pub(crate) trait ChronoDateTimeExt {
+    fn ext_fixed_offset(&self) -> chrono::DateTime<chrono::FixedOffset>;
+}
+
+#[cfg(feature = "chrono")]
+impl<Tz: chrono::TimeZone> ChronoDateTimeExt for chrono::DateTime<Tz> {
+    fn ext_fixed_offset(&self) -> chrono::DateTime<chrono::FixedOffset> {
+        use chrono::Offset as _;
+        self.with_timezone(&self.offset().fix())
+    }
+}
+
+/// This can be removed in favor of `and_utc` implemented in Chrono v0.4.25.
+#[cfg(feature = "chrono")]
+pub(crate) trait ChronoNaiveDateTimeExt {
+    fn ext_and_utc(&self) -> chrono::DateTime<chrono::Utc>;
+}
+
+#[cfg(feature = "chrono")]
+impl ChronoNaiveDateTimeExt for chrono::NaiveDateTime {
+    fn ext_and_utc(&self) -> chrono::DateTime<chrono::Utc> {
+        chrono::DateTime::from_utc(*self, chrono::Utc)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{Cookie, SameSite};
@@ -1526,6 +1553,8 @@ mod tests {
     use time::{Duration, OffsetDateTime};
     #[cfg(feature = "chrono")]
     use chrono::{DateTime, Duration, FixedOffset, NaiveDateTime};
+    #[cfg(feature = "chrono")]
+    use super::{ChronoDateTimeExt as _, ChronoNaiveDateTimeExt as _};
 
     #[test]
     fn format() {
@@ -1604,7 +1633,7 @@ mod tests {
         #[cfg(feature = "time")]
         let expires = OffsetDateTime::UNIX_EPOCH + Duration::MAX;
         #[cfg(feature = "chrono")]
-        let expires = DateTime::<FixedOffset>::MAX_UTC.fixed_offset();
+        let expires = DateTime::<FixedOffset>::MAX_UTC.ext_fixed_offset();
         let cookie = Cookie::build("foo", "bar").expires(expires).finish();
         assert_eq!(&cookie.to_string(), "foo=bar; Expires=Fri, 31 Dec 9999 23:59:59 GMT");
 
@@ -1614,7 +1643,8 @@ mod tests {
         let expires: DateTime<FixedOffset> = chrono::NaiveDate::from_ymd_opt(9999, 1, 1)
             .map(|d| NaiveDateTime::new(d, Default::default()))
             .unwrap()
-            .and_utc().fixed_offset();
+            .ext_and_utc()
+            .ext_fixed_offset();
 
         let cookie = Cookie::build("foo", "bar").expires(expires).finish();
         assert_eq!(&cookie.to_string(), "foo=bar; Expires=Fri, 31 Dec 9999 23:59:59 GMT");
