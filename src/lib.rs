@@ -576,7 +576,8 @@ impl<'c> Cookie<'c> {
     ///
     /// # Example
     ///
-    /// ```
+    #[cfg_attr(not(feature = "time"), doc = "```ignore")]
+    #[cfg_attr(feature = "time", doc = "```")]
     /// use cookie::Cookie;
     ///
     /// let c = Cookie::parse("name=value").unwrap();
@@ -653,7 +654,8 @@ impl<'c> Cookie<'c> {
     ///
     /// # Example
     ///
-    /// ```
+    #[cfg_attr(not(feature = "time"), doc = "```rust,ignore")]
+    #[cfg_attr(feature = "time", doc = "```rust")]
     /// use cookie::{Cookie, Expiration};
     ///
     /// let c = Cookie::parse("name=value").unwrap();
@@ -677,7 +679,8 @@ impl<'c> Cookie<'c> {
     ///
     /// # Example
     ///
-    /// ```
+    #[cfg_attr(not(feature = "time"), doc = "```ignore")]
+    #[cfg_attr(feature = "time", doc = "```")]
     /// use cookie::Cookie;
     ///
     /// let c = Cookie::parse("name=value").unwrap();
@@ -825,7 +828,8 @@ impl<'c> Cookie<'c> {
     ///
     /// # Example
     ///
-    /// ```rust
+    #[cfg_attr(not(feature = "time"), doc = "```rust,ignore")]
+    #[cfg_attr(feature = "time", doc = "```rust")]
     /// # extern crate cookie;
     /// use cookie::Cookie;
     /// use cookie::time::Duration;
@@ -925,7 +929,8 @@ impl<'c> Cookie<'c> {
     ///
     /// # Example
     ///
-    /// ```
+    #[cfg_attr(not(feature = "time"), doc = "```ignore")]
+    #[cfg_attr(feature = "time", doc = "```")]
     /// # extern crate cookie;
     /// use cookie::{Cookie, Expiration};
     /// use cookie::time::{Duration, OffsetDateTime};
@@ -988,7 +993,8 @@ impl<'c> Cookie<'c> {
     ///
     /// # Example
     ///
-    /// ```rust
+    #[cfg_attr(not(feature = "time"), doc = "```rust,ignore")]
+    #[cfg_attr(feature = "time", doc = "```rust")]
     /// # extern crate cookie;
     /// use cookie::Cookie;
     /// use cookie::time::Duration;
@@ -1017,7 +1023,8 @@ impl<'c> Cookie<'c> {
     ///
     /// # Example
     ///
-    /// ```rust
+    #[cfg_attr(not(feature = "time"), doc = "```rust,ignore")]
+    #[cfg_attr(feature = "time", doc = "```rust")]
     /// # extern crate cookie;
     /// use cookie::Cookie;
     /// use cookie::time::Duration;

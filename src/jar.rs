@@ -184,7 +184,8 @@ impl CookieJar {
     ///
     /// Removing an _original_ cookie results in a _removal_ cookie:
     ///
-    /// ```rust
+    #[cfg_attr(not(feature = "time"), doc = "```rust,ignore")]
+    #[cfg_attr(feature = "time", doc = "```rust")]
     /// # extern crate cookie;
     /// use cookie::{CookieJar, Cookie};
     /// use cookie::time::Duration;
@@ -244,7 +245,8 @@ impl CookieJar {
     ///
     /// Removing an _original_ cookie; no _removal_ cookie is generated:
     ///
-    /// ```rust
+    #[cfg_attr(not(feature = "time"), doc = "```rust,ignore")]
+    #[cfg_attr(feature = "time", doc = "```rust")]
     /// # extern crate cookie;
     /// use cookie::{CookieJar, Cookie};
     /// use cookie::time::Duration;

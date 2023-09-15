@@ -17,7 +17,8 @@ use chrono::Duration;
 ///
 /// # Example
 ///
-/// ```rust
+#[cfg_attr(not(feature = "time"), doc = "```rust,ignore")]
+#[cfg_attr(feature = "time", doc = "```rust")]
 /// # extern crate cookie;
 /// use cookie::Cookie;
 /// use cookie::time::Duration;
@@ -62,7 +63,8 @@ impl<'c> CookieBuilder<'c> {
     ///
     /// # Example
     ///
-    /// ```rust
+    #[cfg_attr(not(feature = "time"), doc = "```rust,ignore")]
+    #[cfg_attr(feature = "time", doc = "```rust")]
     /// # extern crate cookie;
     /// use cookie::{Cookie, Expiration};
     /// use cookie::time::OffsetDateTime;
@@ -91,7 +93,8 @@ impl<'c> CookieBuilder<'c> {
     ///
     /// # Example
     ///
-    /// ```rust
+    #[cfg_attr(not(feature = "time"), doc = "```rust,ignore")]
+    #[cfg_attr(feature = "time", doc = "```rust")]
     /// # extern crate cookie;
     /// use cookie::Cookie;
     /// use cookie::time::Duration;
@@ -208,7 +211,8 @@ impl<'c> CookieBuilder<'c> {
     ///
     /// # Example
     ///
-    /// ```rust
+    #[cfg_attr(not(feature = "time"), doc = "```rust,ignore")]
+    #[cfg_attr(feature = "time", doc = "```rust")]
     /// # extern crate cookie;
     /// use cookie::Cookie;
     /// use cookie::time::Duration;

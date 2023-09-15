@@ -15,7 +15,8 @@ pub type DateTime = chrono::DateTime<chrono::FixedOffset>;
 ///   * `Some(OffsetDateTime)` -> `Expiration::DateTime`
 ///   * `OffsetDateTime` -> `Expiration::DateTime`
 ///
-/// ```rust
+#[cfg_attr(not(feature = "time"), doc = "```rust,ignore")]
+#[cfg_attr(feature = "time", doc = "```rust")]
 /// use cookie::Expiration;
 /// use time::OffsetDateTime;
 ///
@@ -45,7 +46,8 @@ impl Expiration {
     ///
     /// # Example
     ///
-    /// ```rust
+    #[cfg_attr(not(feature = "time"), doc = "```rust,ignore")]
+    #[cfg_attr(feature = "time", doc = "```rust")]
     /// use cookie::Expiration;
     /// use time::OffsetDateTime;
     ///
@@ -66,7 +68,8 @@ impl Expiration {
     ///
     /// # Example
     ///
-    /// ```rust
+    #[cfg_attr(not(feature = "time"), doc = "```rust,ignore")]
+    #[cfg_attr(feature = "time", doc = "```rust")]
     /// use cookie::Expiration;
     /// use time::OffsetDateTime;
     ///
@@ -87,7 +90,8 @@ impl Expiration {
     ///
     /// # Example
     ///
-    /// ```rust
+    #[cfg_attr(not(feature = "time"), doc = "```rust,ignore")]
+    #[cfg_attr(feature = "time", doc = "```rust")]
     /// use cookie::Expiration;
     /// use time::OffsetDateTime;
     ///
@@ -110,7 +114,8 @@ impl Expiration {
     ///
     /// # Example
     ///
-    /// ```rust
+    #[cfg_attr(not(feature = "time"), doc = "```rust,ignore")]
+    #[cfg_attr(feature = "time", doc = "```rust")]
     /// use cookie::Expiration;
     /// use time::{OffsetDateTime, Duration};
     ///
