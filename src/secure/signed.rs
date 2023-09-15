@@ -196,6 +196,7 @@ impl<J: BorrowMut<CookieJar>> SignedJar<J> {
     /// signed_jar.remove(Cookie::named("name"));
     /// assert!(signed_jar.get("name").is_none());
     /// ```
+    #[cfg(any(feature = "time", feature = "chrono"))]
     pub fn remove(&mut self, cookie: Cookie<'static>) {
         self.parent.borrow_mut().remove(cookie);
     }

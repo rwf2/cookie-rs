@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 
-use crate::{Cookie, SameSite, Expiration};
+use crate::{Cookie, SameSite};
+#[cfg(any(feature = "time", feature = "chrono"))]
+use crate::Expiration;
 
 #[cfg(feature = "time")]
 use time::Duration;
@@ -84,6 +86,7 @@ impl<'c> CookieBuilder<'c> {
     /// # }
     /// ```
     #[inline]
+    #[cfg(any(feature = "time", feature = "chrono"))]
     pub fn expires<E: Into<Expiration>>(mut self, when: E) -> Self {
         self.cookie.set_expires(when);
         self
@@ -108,6 +111,7 @@ impl<'c> CookieBuilder<'c> {
     /// # }
     /// ```
     #[inline]
+    #[cfg(any(feature = "time", feature = "chrono"))]
     pub fn max_age(mut self, value: Duration) -> Self {
         self.cookie.set_max_age(value);
         self
@@ -226,6 +230,7 @@ impl<'c> CookieBuilder<'c> {
     /// # assert!(c.expires().is_some());
     /// # }
     /// ```
+    #[cfg(any(feature = "time", feature = "chrono"))]
     #[inline]
     pub fn permanent(mut self) -> Self {
         self.cookie.make_permanent();

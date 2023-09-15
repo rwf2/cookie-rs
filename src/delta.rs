@@ -24,6 +24,7 @@ impl DeltaCookie {
 
     /// Create a new `DeltaCookie` that is being removed from a jar. The
     /// `cookie` should be a "removal" cookie.
+    #[cfg(any(feature = "time", feature = "chrono"))]
     #[inline]
     pub fn removed(cookie: Cookie<'static>) -> DeltaCookie {
         DeltaCookie { cookie, removed: true, }

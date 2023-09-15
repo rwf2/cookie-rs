@@ -82,7 +82,7 @@ mod parse;
 mod jar;
 mod delta;
 mod draft;
-mod expiration;
+#[cfg(any(feature = "time", feature = "chrono"))] mod expiration;
 
 #[cfg(any(feature = "private", feature = "signed"))] #[macro_use] mod secure;
 #[cfg(any(feature = "private", feature = "signed"))] pub use secure::*;
@@ -94,8 +94,6 @@ use std::str::FromStr;
 #[allow(unused_imports, deprecated)]
 use std::ascii::AsciiExt;
 
-#[cfg(not(any(feature = "time", feature = "chrono")))]
-compile_error!("either feature \"time\" or feature \"chrono\" must be enabled");
 #[cfg(all(feature = "time", feature = "chrono"))]
 compile_error!("features \"time\" and \"chrono\" cannot be enabled at the same time");
 
@@ -110,6 +108,7 @@ pub use crate::parse::ParseError;
 pub use crate::builder::CookieBuilder;
 pub use crate::jar::{CookieJar, Delta, Iter};
 pub use crate::draft::*;
+#[cfg(any(feature = "time", feature = "chrono"))]
 pub use crate::expiration::*;
 
 #[derive(Debug, Clone)]
@@ -221,8 +220,10 @@ pub struct Cookie<'c> {
     /// The cookie's value.
     value: CookieStr<'c>,
     /// The cookie's expiration, if any.
+    #[cfg(any(feature = "time", feature = "chrono"))]
     expires: Option<Expiration>,
     /// The cookie's maximum age, if any.
+    #[cfg(any(feature = "time", feature = "chrono"))]
     max_age: Option<Duration>,
     /// The cookie's domain, if any.
     domain: Option<CookieStr<'c>>,
@@ -255,7 +256,9 @@ impl<'c> Cookie<'c> {
             cookie_string: None,
             name: CookieStr::Concrete(name.into()),
             value: CookieStr::Concrete(value.into()),
+            #[cfg(any(feature = "time", feature = "chrono"))]
             expires: None,
+            #[cfg(any(feature = "time", feature = "chrono"))]
             max_age: None,
             domain: None,
             path: None,
@@ -438,7 +441,9 @@ impl<'c> Cookie<'c> {
             cookie_string: self.cookie_string.map(|s| s.into_owned().into()),
             name: self.name.into_owned(),
             value: self.value.into_owned(),
+            #[cfg(any(feature = "time", feature = "chrono"))]
             expires: self.expires,
+            #[cfg(any(feature = "time", feature = "chrono"))]
             max_age: self.max_age,
             domain: self.domain.map(|s| s.into_owned()),
             path: self.path.map(|s| s.into_owned()),
@@ -586,6 +591,7 @@ impl<'c> Cookie<'c> {
     /// let c = Cookie::parse("name=value; Max-Age=3600").unwrap();
     /// assert_eq!(c.max_age().map(|age| age.whole_hours()), Some(1));
     /// ```
+    #[cfg(any(feature = "time", feature = "chrono"))]
     #[inline]
     pub fn max_age(&self) -> Option<Duration> {
         self.max_age
@@ -670,6 +676,7 @@ impl<'c> Cookie<'c> {
     /// let c = Cookie::parse(cookie_str).unwrap();
     /// assert_eq!(c.expires().and_then(|e| e.datetime()).map(|t| t.year()), Some(2017));
     /// ```
+    #[cfg(any(feature = "time", feature = "chrono"))]
     #[inline]
     pub fn expires(&self) -> Option<Expiration> {
         self.expires
@@ -695,6 +702,7 @@ impl<'c> Cookie<'c> {
     /// let c = Cookie::parse(cookie_str).unwrap();
     /// assert_eq!(c.expires_datetime().map(|t| t.year()), Some(2017));
     /// ```
+    #[cfg(any(feature = "time", feature = "chrono"))]
     #[inline]
     pub fn expires_datetime(&self) -> Option<expiration::DateTime> {
         self.expires.and_then(|e| e.datetime())
@@ -845,6 +853,7 @@ impl<'c> Cookie<'c> {
     /// assert!(c.max_age().is_none());
     /// # }
     /// ```
+    #[cfg(any(feature = "time", feature = "chrono"))]
     #[inline]
     pub fn set_max_age<D: Into<Option<Duration>>>(&mut self, value: D) {
         self.max_age = value.into();
@@ -947,6 +956,7 @@ impl<'c> Cookie<'c> {
     /// c.set_expires(None);
     /// assert_eq!(c.expires(), Some(Expiration::Session));
     /// ```
+    #[cfg(any(feature = "time", feature = "chrono"))]
     pub fn set_expires<T: Into<Expiration>>(&mut self, time: T) {
         // RFC 6265 requires dates not to exceed 9999 years.
         self.expires = Some(time.into().map(|dt| {
@@ -984,6 +994,7 @@ impl<'c> Cookie<'c> {
     /// c.unset_expires();
     /// assert_eq!(c.expires(), None);
     /// ```
+    #[cfg(any(feature = "time", feature = "chrono"))]
     pub fn unset_expires(&mut self) {
         self.expires = None;
     }
@@ -1009,6 +1020,7 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.max_age(), Some(Duration::days(365 * 20)));
     /// # }
     /// ```
+    #[cfg(any(feature = "time", feature = "chrono"))]
     pub fn make_permanent(&mut self) {
         let twenty_years = Duration::days(365 * 20);
         self.set_max_age(twenty_years);
@@ -1040,6 +1052,7 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.max_age(), Some(Duration::ZERO));
     /// # }
     /// ```
+    #[cfg(any(feature = "time", feature = "chrono"))]
     pub fn make_removal(&mut self) {
         self.set_value("");
         self.set_max_age(Duration::seconds(0));
@@ -1075,6 +1088,7 @@ impl<'c> Cookie<'c> {
             write!(f, "; Domain={}", domain)?;
         }
 
+        #[cfg(any(feature = "time", feature = "chrono"))]
         if let Some(max_age) = self.max_age() {
             #[cfg(feature = "time")]
             let seconds = max_age.whole_seconds();
@@ -1083,6 +1097,7 @@ impl<'c> Cookie<'c> {
             write!(f, "; Max-Age={}", seconds)?;
         }
 
+        #[cfg(any(feature = "time", feature = "chrono"))]
         if let Some(time) = self.expires_datetime() {
             #[cfg(feature = "time")]
             let time = time.to_offset(UtcOffset::UTC)
@@ -1476,9 +1491,11 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
         let so_far_so_good = self.name() == other.name()
             && self.value() == other.value()
             && self.http_only() == other.http_only()
-            && self.secure() == other.secure()
-            && self.max_age() == other.max_age()
-            && self.expires() == other.expires();
+            && self.secure() == other.secure();
+        #[cfg(any(feature = "time", feature = "chrono"))]
+        let so_far_so_good = so_far_so_good && self.max_age() == other.max_age();
+        #[cfg(any(feature = "time", feature = "chrono"))]
+        let so_far_so_good = so_far_so_good && self.expires() == other.expires();
 
         if !so_far_so_good {
             return false;
@@ -1502,7 +1519,9 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Cookie, SameSite, parse::parse_date};
+    use crate::{Cookie, SameSite};
+    #[cfg(any(feature = "time", feature = "chrono"))]
+    use crate::parse::parse_date;
     #[cfg(feature = "time")]
     use time::{Duration, OffsetDateTime};
     #[cfg(feature = "chrono")]
@@ -1517,9 +1536,12 @@ mod tests {
             .http_only(true).finish();
         assert_eq!(&cookie.to_string(), "foo=bar; HttpOnly");
 
-        let cookie = Cookie::build("foo", "bar")
-            .max_age(Duration::seconds(10)).finish();
-        assert_eq!(&cookie.to_string(), "foo=bar; Max-Age=10");
+        #[cfg(any(feature = "time", feature = "chrono"))]
+        {
+            let cookie = Cookie::build("foo", "bar")
+                .max_age(Duration::seconds(10)).finish();
+            assert_eq!(&cookie.to_string(), "foo=bar; Max-Age=10");
+        }
 
         let cookie = Cookie::build("foo", "bar")
             .secure(true).finish();
@@ -1541,12 +1563,15 @@ mod tests {
             .domain("rust-lang.org").finish();
         assert_eq!(&cookie.to_string(), "foo=bar; Domain=rust-lang.org");
 
-        let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
-        let expires = parse_date(time_str, &crate::parse::FMT1).unwrap();
-        let cookie = Cookie::build("foo", "bar")
-            .expires(expires).finish();
-        assert_eq!(&cookie.to_string(),
-                   "foo=bar; Expires=Wed, 21 Oct 2015 07:28:00 GMT");
+        #[cfg(any(feature = "time", feature = "chrono"))]
+        {
+            let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
+            let expires = parse_date(time_str, &crate::parse::FMT1).unwrap();
+            let cookie = Cookie::build("foo", "bar")
+                .expires(expires).finish();
+            assert_eq!(&cookie.to_string(),
+                    "foo=bar; Expires=Wed, 21 Oct 2015 07:28:00 GMT");
+        }
 
         let cookie = Cookie::build("foo", "bar")
             .same_site(SameSite::Strict).finish();
@@ -1574,6 +1599,7 @@ mod tests {
 
     #[test]
     #[ignore]
+    #[cfg(any(feature = "time", feature = "chrono"))]
     fn format_date_wraps() {
         #[cfg(feature = "time")]
         let expires = OffsetDateTime::UNIX_EPOCH + Duration::MAX;

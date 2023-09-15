@@ -30,7 +30,8 @@ use crate::Cookie;
 /// [remove](#method.remove). Finally, cookies can be looked up via
 /// [get](#method.get):
 ///
-/// ```rust
+#[cfg_attr(any(feature = "time", feature = "chrono"), doc = "```rust")]
+#[cfg_attr(not(any(feature = "time", feature = "chrono")), doc = "```rust,ignore")]
 /// # use cookie::{Cookie, CookieJar};
 /// let mut jar = CookieJar::new();
 /// jar.add(Cookie::new("a", "one"));
@@ -57,7 +58,8 @@ use crate::Cookie;
 /// Deltas are typically used to create `Set-Cookie` headers corresponding to
 /// the changes made to a cookie jar over a period of time.
 ///
-/// ```rust
+#[cfg_attr(any(feature = "time", feature = "chrono"), doc = "```rust")]
+#[cfg_attr(not(any(feature = "time", feature = "chrono")), doc = "```rust,ignore")]
 /// # use cookie::{Cookie, CookieJar};
 /// let mut jar = CookieJar::new();
 ///
@@ -227,6 +229,7 @@ impl CookieJar {
     /// jar.remove(Cookie::named("name"));
     /// assert_eq!(jar.delta().count(), 1);
     /// ```
+    #[cfg(any(feature = "time", feature = "chrono"))]
     pub fn remove(&mut self, mut cookie: Cookie<'static>) {
         if self.original_cookies.contains(cookie.name()) {
             cookie.make_removal();
@@ -283,7 +286,8 @@ impl CookieJar {
     ///
     /// # Example
     ///
-    /// ```rust
+    #[cfg_attr(any(feature = "time", feature = "chrono"), doc = "```rust")]
+    #[cfg_attr(not(any(feature = "time", feature = "chrono")), doc = "```rust,ignore")]
     /// use cookie::{CookieJar, Cookie};
     ///
     /// let mut jar = CookieJar::new();
@@ -319,7 +323,8 @@ impl CookieJar {
     ///
     /// # Example
     ///
-    /// ```rust
+    #[cfg_attr(any(feature = "time", feature = "chrono"), doc = "```rust")]
+    #[cfg_attr(not(any(feature = "time", feature = "chrono")), doc = "```rust,ignore")]
     /// use cookie::{CookieJar, Cookie};
     ///
     /// let mut jar = CookieJar::new();
@@ -346,7 +351,8 @@ impl CookieJar {
     ///
     /// # Example
     ///
-    /// ```rust
+    #[cfg_attr(any(feature = "time", feature = "chrono"), doc = "```rust")]
+    #[cfg_attr(not(any(feature = "time", feature = "chrono")), doc = "```rust,ignore")]
     /// use cookie::{CookieJar, Cookie};
     ///
     /// let mut jar = CookieJar::new();
@@ -422,7 +428,8 @@ impl CookieJar {
     ///
     /// # Example
     ///
-    /// ```rust
+    #[cfg_attr(any(feature = "time", feature = "chrono"), doc = "```rust")]
+    #[cfg_attr(not(any(feature = "time", feature = "chrono")), doc = "```rust,ignore")]
     /// use cookie::{Cookie, CookieJar, Key};
     ///
     /// // Generate a secure key.
@@ -484,7 +491,8 @@ impl CookieJar {
     ///
     /// # Example
     ///
-    /// ```rust
+    #[cfg_attr(any(feature = "time", feature = "chrono"), doc = "```rust")]
+    #[cfg_attr(not(any(feature = "time", feature = "chrono")), doc = "```rust,ignore")]
     /// use cookie::{Cookie, CookieJar, Key};
     ///
     /// // Generate a secure key.
@@ -549,6 +557,7 @@ mod test {
 
     #[test]
     #[allow(deprecated)]
+    #[cfg(any(feature = "time", feature = "chrono"))]
     fn simple() {
         let mut c = CookieJar::new();
 
@@ -594,21 +603,25 @@ mod test {
         c.private_mut(&key).add(Cookie::new("encrypted", "encrypted"));
         assert_eq!(c.iter().count(), 6);
 
-        c.remove(Cookie::named("test"));
-        assert_eq!(c.iter().count(), 5);
+        #[cfg(any(feature = "time", feature = "chrono"))]
+        {
+            c.remove(Cookie::named("test"));
+            assert_eq!(c.iter().count(), 5);
 
-        c.remove(Cookie::named("signed"));
-        c.remove(Cookie::named("test2"));
-        assert_eq!(c.iter().count(), 3);
+            c.remove(Cookie::named("signed"));
+            c.remove(Cookie::named("test2"));
+            assert_eq!(c.iter().count(), 3);
 
-        c.add(Cookie::new("test2", "test2"));
-        assert_eq!(c.iter().count(), 4);
+            c.add(Cookie::new("test2", "test2"));
+            assert_eq!(c.iter().count(), 4);
 
-        c.remove(Cookie::named("test2"));
-        assert_eq!(c.iter().count(), 3);
+            c.remove(Cookie::named("test2"));
+            assert_eq!(c.iter().count(), 3);
+        }
     }
 
     #[test]
+    #[cfg(any(feature = "time", feature = "chrono"))]
     fn delta() {
         use std::collections::HashMap;
         #[cfg(feature = "time")]
@@ -653,6 +666,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(any(feature = "time", feature = "chrono"))]
     fn empty_delta() {
         let mut jar = CookieJar::new();
         jar.add(Cookie::new("name", "val"));
@@ -675,6 +689,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(any(feature = "time", feature = "chrono"))]
     fn add_remove_add() {
         let mut jar = CookieJar::new();
         jar.add_original(Cookie::new("name", "val"));
@@ -703,6 +718,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(any(feature = "time", feature = "chrono"))]
     fn replace_remove() {
         let mut jar = CookieJar::new();
         jar.add_original(Cookie::new("name", "val"));
@@ -717,6 +733,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(any(feature = "time", feature = "chrono"))]
     fn remove_with_path() {
         let mut jar = CookieJar::new();
         jar.add_original(Cookie::build("name", "val").finish());

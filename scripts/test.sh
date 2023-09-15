@@ -25,7 +25,6 @@ if cargo test --verbose --features 'time,chrono' > /dev/null 2>&1; then
 fi
 
 cargo test --verbose
-# TODO: Compile even without `time`?
-#cargo test --verbose --no-default-features
+cargo test --verbose --no-default-features
 
 rustdoc --test README.md -L target
