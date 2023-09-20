@@ -454,6 +454,9 @@ impl<'c> Cookie<'c> {
 
     /// Returns the value of `self`.
     ///
+    /// Does not strip surrounding quotes. See [`Cookie::value_trimmed()`] for a
+    /// version that does.
+    ///
     /// # Example
     ///
     /// ```
@@ -461,10 +464,60 @@ impl<'c> Cookie<'c> {
     ///
     /// let c = Cookie::new("name", "value");
     /// assert_eq!(c.value(), "value");
+    ///
+    /// let c = Cookie::new("name", "\"value\"");
+    /// assert_eq!(c.value(), "\"value\"");
     /// ```
     #[inline]
     pub fn value(&self) -> &str {
         self.value.to_str(self.cookie_string.as_ref())
+    }
+
+    /// Returns the value of `self` with surrounding double-quotes trimmed.
+    ///
+    /// This is _not_ the value of the cookie (_that_ is [`Cookie::value()`]).
+    /// Instead, this is the value with a surrounding pair of double-quotes, if
+    /// any, trimmed away. Quotes are only trimmed when they form a pair and
+    /// never otherwise. The trimmed value is never used for any other
+    /// operations, including equality checking and hashing.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::Cookie;
+    /// let c0 = Cookie::new("name", "value");
+    /// assert_eq!(c0.value_trimmed(), "value");
+    ///
+    /// let c = Cookie::new("name", "\"value\"");
+    /// assert_eq!(c.value_trimmed(), "value");
+    /// assert!(c != c0);
+    ///
+    /// let c = Cookie::new("name", "\"value");
+    /// assert_eq!(c.value(), "\"value");
+    /// assert_eq!(c.value_trimmed(), "\"value");
+    /// assert!(c != c0);
+    ///
+    /// let c = Cookie::new("name", "\"value\"\"");
+    /// assert_eq!(c.value(), "\"value\"\"");
+    /// assert_eq!(c.value_trimmed(), "value\"");
+    /// assert!(c != c0);
+    /// ```
+    #[inline]
+    pub fn value_trimmed(&self) -> &str {
+        #[inline(always)]
+        fn trim_quotes(s: &str) -> &str {
+            if s.len() < 2 {
+                return s;
+            }
+
+            let bytes = s.as_bytes();
+            match (bytes.first(), bytes.last()) {
+                (Some(b'"'), Some(b'"')) => &s[1..(s.len() - 1)],
+                _ => s
+            }
+        }
+
+        trim_quotes(self.value())
     }
 
     /// Returns the name and value of `self` as a tuple of `(name, value)`.
