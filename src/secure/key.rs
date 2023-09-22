@@ -28,6 +28,12 @@ impl PartialEq for Key {
     }
 }
 
+impl std::fmt::Debug for Key {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Key").finish()
+    }
+}
+
 impl Key {
     // An empty key structure, to be filled.
     const fn zero() -> Self {
@@ -297,5 +303,12 @@ mod test {
 
         assert_ne!(key_a.signing(), key_b.signing());
         assert_ne!(key_a.encryption(), key_b.encryption());
+    }
+
+    #[test]
+    fn debug_does_not_leak_key() {
+        let key = Key::generate();
+
+        assert_eq!(format!("{:?}", key), "Key");
     }
 }
