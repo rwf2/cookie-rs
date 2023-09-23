@@ -9,10 +9,10 @@ use std::ascii::AsciiExt;
 
 #[cfg(feature = "percent-encode")]
 use percent_encoding::percent_decode;
-use time::{PrimitiveDateTime, Duration, OffsetDateTime};
+use time::{PrimitiveDateTime, OffsetDateTime};
 use time::{parsing::Parsable, macros::format_description, format_description::FormatItem};
 
-use crate::{Cookie, SameSite, CookieStr};
+use crate::{Cookie, SameSite, CookieStr, max_age};
 
 // The three formats spec'd in http://tools.ietf.org/html/rfc2616#section-3.3.1.
 // Additional ones as encountered in the real world.
@@ -173,11 +173,11 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                 // From RFC 6265 5.2.2: neg values indicate that the earliest
                 // expiration should be used, so set the max age to 0 seconds.
                 if is_negative {
-                    Some(Duration::ZERO)
+                    Some(max_age::Duration::ZERO)
                 } else {
-                    Some(v.parse::<i64>()
-                        .map(Duration::seconds)
-                        .unwrap_or_else(|_| Duration::seconds(i64::max_value())))
+                    Some(v.parse::<u32>()
+                        .map(max_age::Duration::from_secs)
+                        .unwrap_or_else(|_| max_age::Duration::MAX))
                 }
             },
             ("domain", Some(d)) if !d.is_empty() => {
@@ -252,8 +252,7 @@ pub(crate) fn parse_date(s: &str, format: &impl Parsable) -> Result<OffsetDateTi
 #[cfg(test)]
 mod tests {
     use super::parse_date;
-    use crate::{Cookie, SameSite};
-    use time::Duration;
+    use crate::{Cookie, SameSite, max_age::Duration};
 
     macro_rules! assert_eq_parse {
         ($string:expr, $expected:expr) => (
@@ -376,16 +375,16 @@ mod tests {
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=-1", expected);
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age = -1 ", expected);
 
-        expected.set_max_age(Duration::minutes(1));
+        expected.set_max_age(Duration::from_mins(1));
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=60", expected);
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age =   60 ", expected);
 
-        expected.set_max_age(Duration::seconds(4));
+        expected.set_max_age(Duration::from_secs(4));
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4", expected);
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age = 4 ", expected);
 
         unexpected.set_secure(true);
-        unexpected.set_max_age(Duration::minutes(1));
+        unexpected.set_max_age(Duration::from_mins(1));
         assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=122", unexpected);
         assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age = 38 ", unexpected);
         assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=51", unexpected);
@@ -402,7 +401,7 @@ mod tests {
         assert_eq_parse!("foo=bar;HttpOnly; Secure; Max-Age=4;path=/foo", expected);
         assert_eq_parse!("foo=bar;HttpOnly; Secure; Max-Age=4;path = /foo", expected);
 
-        unexpected.set_max_age(Duration::seconds(4));
+        unexpected.set_max_age(Duration::from_secs(4));
         unexpected.set_path("/bar");
         assert_ne_parse!("foo=bar;HttpOnly; Secure; Max-Age=4; Path=/foo", unexpected);
         assert_ne_parse!("foo=bar;HttpOnly; Secure; Max-Age=4;Path=/baz", unexpected);
@@ -481,13 +480,13 @@ mod tests {
     #[test]
     fn parse_very_large_max_ages() {
         let mut expected = Cookie::build("foo", "bar")
-            .max_age(Duration::seconds(i64::max_value()))
+            .max_age(Duration::MAX)
             .finish();
 
         let string = format!("foo=bar; Max-Age={}", 1u128 << 100);
         assert_eq_parse!(&string, expected);
 
-        expected.set_max_age(Duration::seconds(0));
+        expected.set_max_age(Duration::from_secs(0));
         assert_eq_parse!("foo=bar; Max-Age=-129", expected);
 
         let string = format!("foo=bar; Max-Age=-{}", 1u128 << 100);
@@ -497,7 +496,7 @@ mod tests {
         assert_eq_parse!(&string, expected);
 
         let string = format!("foo=bar; Max-Age={}", i64::max_value());
-        expected.set_max_age(Duration::seconds(i64::max_value()));
+        expected.set_max_age(Duration::MAX);
         assert_eq_parse!(&string, expected);
     }
 
@@ -521,9 +520,9 @@ mod tests {
 
     #[test]
     fn do_not_panic_on_large_max_ages() {
-        let max_seconds = Duration::MAX.whole_seconds();
+        let max_seconds = Duration::MAX.as_secs();
         let expected = Cookie::build("foo", "bar")
-            .max_age(Duration::seconds(max_seconds))
+            .max_age(Duration::from_secs(max_seconds))
             .finish();
         let too_many_seconds = (max_seconds as u64) + 1;
         assert_eq_parse!(format!(" foo=bar; Max-Age={:?}", too_many_seconds), expected);

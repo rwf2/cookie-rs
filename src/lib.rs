@@ -81,6 +81,7 @@ mod jar;
 mod delta;
 mod draft;
 mod expiration;
+pub mod max_age;
 
 #[cfg(any(feature = "private", feature = "signed"))] #[macro_use] mod secure;
 #[cfg(any(feature = "private", feature = "signed"))] pub use secure::*;
@@ -92,7 +93,7 @@ use std::str::FromStr;
 #[allow(unused_imports, deprecated)]
 use std::ascii::AsciiExt;
 
-use time::{Duration, OffsetDateTime, UtcOffset, macros::datetime};
+use time::{OffsetDateTime, UtcOffset, macros::datetime};
 
 use crate::parse::parse_cookie;
 pub use crate::parse::ParseError;
@@ -212,7 +213,7 @@ pub struct Cookie<'c> {
     /// The cookie's expiration, if any.
     expires: Option<Expiration>,
     /// The cookie's maximum age, if any.
-    max_age: Option<Duration>,
+    max_age: Option<max_age::Duration>,
     /// The cookie's domain, if any.
     domain: Option<CookieStr<'c>>,
     /// The cookie's path domain, if any.
@@ -561,7 +562,9 @@ impl<'c> Cookie<'c> {
         self.same_site
     }
 
-    /// Returns the specified max-age of the cookie if one was specified.
+    /// Returns the specified max-age [`Duration`][duration] of the cookie if one was specified.
+    ///
+    /// [duration]: crate::max_age::Duration
     ///
     /// # Example
     ///
@@ -572,10 +575,10 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.max_age(), None);
     ///
     /// let c = Cookie::parse("name=value; Max-Age=3600").unwrap();
-    /// assert_eq!(c.max_age().map(|age| age.whole_hours()), Some(1));
+    /// assert_eq!(c.max_age().map(|age| age.as_hours()), Some(1));
     /// ```
     #[inline]
-    pub fn max_age(&self) -> Option<Duration> {
+    pub fn max_age(&self) -> Option<max_age::Duration> {
         self.max_age
     }
 
@@ -817,21 +820,21 @@ impl<'c> Cookie<'c> {
     /// ```rust
     /// # extern crate cookie;
     /// use cookie::Cookie;
-    /// use cookie::time::Duration;
+    /// use cookie::max_age::Duration;
     ///
     /// # fn main() {
     /// let mut c = Cookie::new("name", "value");
     /// assert_eq!(c.max_age(), None);
     ///
-    /// c.set_max_age(Duration::hours(10));
-    /// assert_eq!(c.max_age(), Some(Duration::hours(10)));
+    /// c.set_max_age(Duration::from_hours(10));
+    /// assert_eq!(c.max_age(), Some(Duration::from_hours(10)));
     ///
     /// c.set_max_age(None);
     /// assert!(c.max_age().is_none());
     /// # }
     /// ```
     #[inline]
-    pub fn set_max_age<D: Into<Option<Duration>>>(&mut self, value: D) {
+    pub fn set_max_age<D: Into<Option<max_age::Duration>>>(&mut self, value: D) {
         self.max_age = value.into();
     }
 
@@ -967,7 +970,7 @@ impl<'c> Cookie<'c> {
     /// ```rust
     /// # extern crate cookie;
     /// use cookie::Cookie;
-    /// use cookie::time::Duration;
+    /// use cookie::max_age::Duration;
     ///
     /// # fn main() {
     /// let mut c = Cookie::new("foo", "bar");
@@ -976,12 +979,12 @@ impl<'c> Cookie<'c> {
     ///
     /// c.make_permanent();
     /// assert!(c.expires().is_some());
-    /// assert_eq!(c.max_age(), Some(Duration::days(365 * 20)));
+    /// assert_eq!(c.max_age(), Some(Duration::from_naive_days(365 * 20)));
     /// # }
     /// ```
     pub fn make_permanent(&mut self) {
-        let twenty_years = Duration::days(365 * 20);
-        self.set_max_age(twenty_years);
+        let twenty_years = time::Duration::days(365 * 20);
+        self.set_max_age(Some(twenty_years.into()));
         self.set_expires(OffsetDateTime::now_utc() + twenty_years);
     }
 
@@ -993,12 +996,12 @@ impl<'c> Cookie<'c> {
     /// ```rust
     /// # extern crate cookie;
     /// use cookie::Cookie;
-    /// use cookie::time::Duration;
+    /// use cookie::max_age::Duration;
     ///
     /// # fn main() {
     /// let mut c = Cookie::new("foo", "bar");
     /// c.make_permanent();
-    /// assert_eq!(c.max_age(), Some(Duration::days(365 * 20)));
+    /// assert_eq!(c.max_age(), Some(Duration::from_naive_days(365 * 20)));
     /// assert_eq!(c.value(), "bar");
     ///
     /// c.make_removal();
@@ -1008,8 +1011,8 @@ impl<'c> Cookie<'c> {
     /// ```
     pub fn make_removal(&mut self) {
         self.set_value("");
-        self.set_max_age(Duration::seconds(0));
-        self.set_expires(OffsetDateTime::now_utc() - Duration::days(365));
+        self.set_max_age(max_age::Duration::from_secs(0));
+        self.set_expires(OffsetDateTime::now_utc() - max_age::Duration::from_secs(365 * 24 * 60 * 60));
     }
 
     fn fmt_parameters(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -1038,7 +1041,7 @@ impl<'c> Cookie<'c> {
         }
 
         if let Some(max_age) = self.max_age() {
-            write!(f, "; Max-Age={}", max_age.whole_seconds())?;
+            write!(f, "; Max-Age={}", max_age.as_secs())?;
         }
 
         if let Some(time) = self.expires_datetime() {
@@ -1456,7 +1459,8 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
 #[cfg(test)]
 mod tests {
     use crate::{Cookie, SameSite, parse::parse_date};
-    use time::{Duration, OffsetDateTime};
+    use time::OffsetDateTime;
+    use crate::max_age::Duration;
 
     #[test]
     fn format() {
@@ -1468,7 +1472,7 @@ mod tests {
         assert_eq!(&cookie.to_string(), "foo=bar; HttpOnly");
 
         let cookie = Cookie::build("foo", "bar")
-            .max_age(Duration::seconds(10)).finish();
+            .max_age(Duration::from_secs(10)).finish();
         assert_eq!(&cookie.to_string(), "foo=bar; Max-Age=10");
 
         let cookie = Cookie::build("foo", "bar")
@@ -1529,7 +1533,7 @@ mod tests {
         let cookie = Cookie::build("foo", "bar").expires(expires).finish();
         assert_eq!(&cookie.to_string(), "foo=bar; Expires=Fri, 31 Dec 9999 23:59:59 GMT");
 
-        let expires = time::macros::datetime!(9999-01-01 0:00 UTC) + Duration::days(1000);
+        let expires = time::macros::datetime!(9999-01-01 0:00 UTC) + Duration::from_naive_days(1000);
         let cookie = Cookie::build("foo", "bar").expires(expires).finish();
         assert_eq!(&cookie.to_string(), "foo=bar; Expires=Fri, 31 Dec 9999 23:59:59 GMT");
     }

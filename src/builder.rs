@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use crate::{Cookie, SameSite, Expiration};
+use crate::{Cookie, SameSite, Expiration, max_age};
 
 /// Structure that follows the builder pattern for building `Cookie` structs.
 ///
@@ -15,7 +15,7 @@ use crate::{Cookie, SameSite, Expiration};
 /// ```rust
 /// # extern crate cookie;
 /// use cookie::Cookie;
-/// use cookie::time::Duration;
+/// use cookie::max_age::Duration;
 ///
 /// # fn main() {
 /// let cookie: Cookie = Cookie::build("name", "value")
@@ -23,7 +23,7 @@ use crate::{Cookie, SameSite, Expiration};
 ///     .path("/")
 ///     .secure(true)
 ///     .http_only(true)
-///     .max_age(Duration::days(1))
+///     .max_age(Duration::from_naive_days(1))
 ///     .finish();
 /// # }
 /// ```
@@ -89,18 +89,18 @@ impl<'c> CookieBuilder<'c> {
     /// ```rust
     /// # extern crate cookie;
     /// use cookie::Cookie;
-    /// use cookie::time::Duration;
+    /// use cookie::max_age::Duration;
     ///
     /// # fn main() {
     /// let c = Cookie::build("foo", "bar")
-    ///     .max_age(Duration::minutes(30))
+    ///     .max_age(Duration::from_mins(30))
     ///     .finish();
     ///
-    /// assert_eq!(c.max_age(), Some(Duration::seconds(30 * 60)));
+    /// assert_eq!(c.max_age(), Some(Duration::from_secs(30 * 60)));
     /// # }
     /// ```
     #[inline]
-    pub fn max_age(mut self, value: time::Duration) -> Self {
+    pub fn max_age(mut self, value: max_age::Duration) -> Self {
         self.cookie.set_max_age(value);
         self
     }
@@ -206,14 +206,14 @@ impl<'c> CookieBuilder<'c> {
     /// ```rust
     /// # extern crate cookie;
     /// use cookie::Cookie;
-    /// use cookie::time::Duration;
+    /// use cookie::max_age::Duration;
     ///
     /// # fn main() {
     /// let c = Cookie::build("foo", "bar")
     ///     .permanent()
     ///     .finish();
     ///
-    /// assert_eq!(c.max_age(), Some(Duration::days(365 * 20)));
+    /// assert_eq!(c.max_age(), Some(Duration::from_naive_days(365 * 20)));
     /// # assert!(c.expires().is_some());
     /// # }
     /// ```

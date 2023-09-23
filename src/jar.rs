@@ -187,7 +187,7 @@ impl CookieJar {
     /// ```rust
     /// # extern crate cookie;
     /// use cookie::{CookieJar, Cookie};
-    /// use cookie::time::Duration;
+    /// use cookie::max_age::Duration;
     ///
     /// # fn main() {
     /// let mut jar = CookieJar::new();
@@ -202,7 +202,7 @@ impl CookieJar {
     /// let delta: Vec<_> = jar.delta().collect();
     /// assert_eq!(delta.len(), 1);
     /// assert_eq!(delta[0].name(), "name");
-    /// assert_eq!(delta[0].max_age(), Some(Duration::seconds(0)));
+    /// assert_eq!(delta[0].max_age(), Some(Duration::from_secs(0)));
     /// # }
     /// ```
     ///
@@ -609,7 +609,7 @@ mod test {
     #[test]
     fn delta() {
         use std::collections::HashMap;
-        use time::Duration;
+        use crate::max_age::Duration;
 
         let mut c = CookieJar::new();
 
@@ -633,7 +633,7 @@ mod test {
         assert!(names.get("test2").unwrap().is_none());
         assert!(names.get("test3").unwrap().is_none());
         assert!(names.get("test4").unwrap().is_none());
-        assert_eq!(names.get("original").unwrap(), &Some(Duration::seconds(0)));
+        assert_eq!(names.get("original").unwrap(), &Some(Duration::from_secs(0)));
     }
 
     #[test]
