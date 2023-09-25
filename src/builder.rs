@@ -14,8 +14,7 @@ use crate::{Cookie, SameSite, Expiration, max_age};
 ///
 /// ```rust
 /// # extern crate cookie;
-/// use cookie::Cookie;
-/// use cookie::max_age::Duration;
+/// use cookie::{Cookie, max_age::Duration};
 ///
 /// # fn main() {
 /// let cookie: Cookie = Cookie::build("name", "value")
@@ -88,8 +87,7 @@ impl<'c> CookieBuilder<'c> {
     ///
     /// ```rust
     /// # extern crate cookie;
-    /// use cookie::Cookie;
-    /// use cookie::max_age::Duration;
+    /// use cookie::{Cookie, max_age::Duration};
     ///
     /// # fn main() {
     /// let c = Cookie::build("foo", "bar")
@@ -205,8 +203,7 @@ impl<'c> CookieBuilder<'c> {
     ///
     /// ```rust
     /// # extern crate cookie;
-    /// use cookie::Cookie;
-    /// use cookie::max_age::Duration;
+    /// use cookie::{Cookie, max_age::Duration};
     ///
     /// # fn main() {
     /// let c = Cookie::build("foo", "bar")

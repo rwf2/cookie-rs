@@ -819,8 +819,7 @@ impl<'c> Cookie<'c> {
     ///
     /// ```rust
     /// # extern crate cookie;
-    /// use cookie::Cookie;
-    /// use cookie::max_age::Duration;
+    /// use cookie::{Cookie, max_age::Duration};
     ///
     /// # fn main() {
     /// let mut c = Cookie::new("name", "value");
@@ -969,8 +968,7 @@ impl<'c> Cookie<'c> {
     ///
     /// ```rust
     /// # extern crate cookie;
-    /// use cookie::Cookie;
-    /// use cookie::max_age::Duration;
+    /// use cookie::{Cookie, max_age::Duration};
     ///
     /// # fn main() {
     /// let mut c = Cookie::new("foo", "bar");
@@ -995,8 +993,7 @@ impl<'c> Cookie<'c> {
     ///
     /// ```rust
     /// # extern crate cookie;
-    /// use cookie::Cookie;
-    /// use cookie::max_age::Duration;
+    /// use cookie::{Cookie, max_age::Duration};
     ///
     /// # fn main() {
     /// let mut c = Cookie::new("foo", "bar");
@@ -1458,9 +1455,8 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Cookie, SameSite, parse::parse_date};
+    use crate::{Cookie, SameSite, max_age, parse::parse_date};
     use time::OffsetDateTime;
-    use crate::max_age::Duration;
 
     #[test]
     fn format() {
@@ -1472,7 +1468,7 @@ mod tests {
         assert_eq!(&cookie.to_string(), "foo=bar; HttpOnly");
 
         let cookie = Cookie::build("foo", "bar")
-            .max_age(Duration::from_secs(10)).finish();
+            .max_age(max_age::Duration::from_secs(10)).finish();
         assert_eq!(&cookie.to_string(), "foo=bar; Max-Age=10");
 
         let cookie = Cookie::build("foo", "bar")
@@ -1529,11 +1525,11 @@ mod tests {
     #[test]
     #[ignore]
     fn format_date_wraps() {
-        let expires = OffsetDateTime::UNIX_EPOCH + Duration::MAX;
+        let expires = time::OffsetDateTime::UNIX_EPOCH + max_age::Duration::MAX;
         let cookie = Cookie::build("foo", "bar").expires(expires).finish();
         assert_eq!(&cookie.to_string(), "foo=bar; Expires=Fri, 31 Dec 9999 23:59:59 GMT");
 
-        let expires = time::macros::datetime!(9999-01-01 0:00 UTC) + Duration::from_naive_days(1000);
+        let expires = time::macros::datetime!(9999-01-01 0:00 UTC) + max_age::Duration::from_naive_days(1000);
         let cookie = Cookie::build("foo", "bar").expires(expires).finish();
         assert_eq!(&cookie.to_string(), "foo=bar; Expires=Fri, 31 Dec 9999 23:59:59 GMT");
     }
