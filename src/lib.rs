@@ -1456,7 +1456,6 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
 #[cfg(test)]
 mod tests {
     use crate::{Cookie, SameSite, max_age, parse::parse_date};
-    use time::OffsetDateTime;
 
     #[test]
     fn format() {

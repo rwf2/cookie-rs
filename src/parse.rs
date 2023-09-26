@@ -525,6 +525,6 @@ mod tests {
             .max_age(Duration::from_secs(max_seconds))
             .finish();
         let too_many_seconds = (max_seconds as u64) + 1;
-        assert_eq_parse!(format!(" foo=bar; Max-Age={:?}", too_many_seconds), expected);
+        assert_eq_parse!(format!(" foo=bar; Max-Age={too_many_seconds}",), expected);
     }
 }
