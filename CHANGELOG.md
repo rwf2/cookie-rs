@@ -1,3 +1,76 @@
+# Version 0.18
+
+## Version 0.18.0.rc.0 (Sep 27, 2023)
+
+### Breaking Changes
+
+  * The MSRV is now 1.56.
+
+  * `Cookie::value()` no longer trims surrounding double quotes. (71cf34)
+
+    Use `Cookie::value_trimmed()` for the previous behavior.
+
+  * Many methods now expect a `T: Into<Cookie>` in place of `Cookie`. (352f8c)
+
+    Functions and methods that previously accepted a `Cookie` now accept any `T:
+    Into<Cookie>`. This particularly affects the `CookieJar` API, which now allows
+    simpler addition and removal of cookies:
+
+      * `jar.add(("foo", "bar"));`
+      * `jar.add(Cookie::build(("foo", "bar")).path("/"));`
+      * `jar.remove("foo");`
+      * `jar.remove(Cookie::build("foo").path("/"));`
+
+  * `CookieJar::force_remove()` now expects a `T: AsRef<str>` in place of
+    `&Cookie`.
+
+    Force removal never requires more information than a cookie's name. The API
+    has been simplified to reflect this.
+
+  * `CookieBuilder::finish()` was deprecated in favor of
+    `CookieBuilder::build()`.
+
+    This largely serves as a compile-time notice that calling `finish()` or
+    `build()` is largely unnecessary given that `CookieBuilder` implements
+    `Into<Cookie>`.
+
+  * `Cookie::named()` was deprecated in favor of using `Cookie::build()` or
+    `Cookie::from()`.
+
+      * `Cookie::named("foo")` is equivalent to `Cookie::from("foo")`.
+      * `Cookie::build("foo")` begins building a cookie equivalent to
+        `Cookie::named("foo")`.
+
+### New Features
+
+  * Added `Cookie::value_trimmed()` and `Cookie::name_value_trimmed()`.
+
+    These versions of `Cookie::value()` and `Cookie::name_value()`,
+    respectively, trim a matching pair of surrounding double quotes from the
+    cookie's value, if any are present.
+
+  * String-like types, tuples of string-like types, and `CookieBuilder`
+    implement `Into<Cookie>`.
+
+    Implementations of `Into<Cookie>` for string-like types (`&str`, `String`,
+    `Cow<str>`), tuples of string-like types `(name string, value string)`, and
+    `CookieBuilder` were added. The former implementations create a cookie with
+    a name corresponding to the string and an empty value. The tuple
+    implementation creates a cookie with the given name and value strings. The
+    `CookieBuilder` implementation simply unwraps the in-process cookie.
+
+  * `Key` now implements `Debug`.
+
+    So as to not leak sensitive information, the debug representation is simply
+    `"Key"`.
+
+  * `CookieBuilder` implements `Borrow{Mut}<Cookie>`, `As{Ref,Mut}<Cookie>`,
+    `Display`.
+
+  * Added `CookieBuilder::inner{_mut}()` to (mutably) borrow cookies being
+    built.
+
+
 # Version 0.17
 
 ## Version 0.17.0 (Jan 22, 2022)
