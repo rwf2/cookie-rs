@@ -10,7 +10,7 @@ use crate::Cookie;
 /// that when sent to the client removes the named cookie on the client's
 /// machine.
 #[derive(Clone, Debug)]
-pub struct DeltaCookie {
+pub(crate) struct DeltaCookie {
     pub cookie: Cookie<'static>,
     pub removed: bool,
 }
