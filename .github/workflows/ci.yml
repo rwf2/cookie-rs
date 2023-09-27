@@ -4,6 +4,7 @@ on: [push, pull_request]
 
 env:
   CARGO_TERM_COLOR: always
+  MSRV: "1.56"
 
 jobs:
   test:
@@ -29,5 +30,27 @@ jobs:
           toolchain: ${{ matrix.toolchain }}
 
       - name: Run Tests
-        run: ./scripts/test.sh
+        run: "cargo update && ./scripts/test.sh"
         shell: bash
+
+  msrv:
+    name: Check MSRV
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Sources
+        uses: actions/checkout@v4
+
+      - name: Install Rust Nightly
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Downgrade Dependencies to Minimal Versions
+        run: cargo update -Z minimal-versions
+
+      - name: Install MSRV (${{ env.MSRV }})
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.MSRV }}
+
+      - name: Run Tests
+        run: ./scripts/test.sh
