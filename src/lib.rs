@@ -72,7 +72,7 @@
 
 #![deny(missing_docs)]
 
-pub use time;
+pub mod time;
 
 mod builder;
 mod parse;
@@ -91,7 +91,7 @@ use std::str::FromStr;
 #[allow(unused_imports, deprecated)]
 use std::ascii::AsciiExt;
 
-use time::{Duration, OffsetDateTime, UtcOffset, macros::datetime};
+use time::{Duration, DateTime, InternalDateTime};
 
 use crate::parse::parse_cookie;
 pub use crate::parse::ParseError;
@@ -781,8 +781,9 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.expires_datetime().map(|t| t.year()), Some(2017));
     /// ```
     #[inline]
-    pub fn expires_datetime(&self) -> Option<OffsetDateTime> {
-        self.expires.and_then(|e| e.datetime())
+    pub fn expires_datetime(&self) -> Option<DateTime> {
+        todo!()
+        // self.expires.and_then(|e| e.datetime())
     }
 
     /// Sets the name of `self` to `name`.
@@ -931,7 +932,8 @@ impl<'c> Cookie<'c> {
     /// ```
     #[inline]
     pub fn set_max_age<D: Into<Option<Duration>>>(&mut self, value: D) {
-        self.max_age = value.into();
+        todo!()
+        // self.max_age = value.into();
     }
 
     /// Sets the `path` of `self` to `path`.
@@ -1031,11 +1033,9 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.expires(), Some(Expiration::Session));
     /// ```
     pub fn set_expires<T: Into<Expiration>>(&mut self, time: T) {
-        static MAX_DATETIME: OffsetDateTime = datetime!(9999-12-31 23:59:59.999_999 UTC);
-
         // RFC 6265 requires dates not to exceed 9999 years.
         self.expires = Some(time.into()
-            .map(|time| std::cmp::min(time, MAX_DATETIME)));
+            .map(|time| std::cmp::min(time, DateTime::MAX)));
     }
 
     /// Unsets the `expires` of `self`.
@@ -1081,7 +1081,7 @@ impl<'c> Cookie<'c> {
     pub fn make_permanent(&mut self) {
         let twenty_years = Duration::days(365 * 20);
         self.set_max_age(twenty_years);
-        self.set_expires(OffsetDateTime::now_utc() + twenty_years);
+        self.set_expires(DateTime::now() + twenty_years);
     }
 
     /// Make `self` a "removal" cookie by clearing its value, setting a max-age
@@ -1107,8 +1107,8 @@ impl<'c> Cookie<'c> {
     /// ```
     pub fn make_removal(&mut self) {
         self.set_value("");
-        self.set_max_age(Duration::seconds(0));
-        self.set_expires(OffsetDateTime::now_utc() - Duration::days(365));
+        self.set_max_age(Duration::ZERO);
+        self.set_expires(DateTime::now_utc() - Duration::days(365));
     }
 
     fn fmt_parameters(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -1137,12 +1137,11 @@ impl<'c> Cookie<'c> {
         }
 
         if let Some(max_age) = self.max_age() {
-            write!(f, "; Max-Age={}", max_age.whole_seconds())?;
+            write!(f, "; Max-Age={}", max_age.seconds())?;
         }
 
         if let Some(time) = self.expires_datetime() {
-            let time = time.to_offset(UtcOffset::UTC);
-            write!(f, "; Expires={}", time.format(&crate::parse::FMT1).map_err(|_| fmt::Error)?)?;
+            write!(f, "; Expires={}", time.expiration_format().ok_or(fmt::Error)?)?;
         }
 
         Ok(())
