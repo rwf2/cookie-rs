@@ -5,6 +5,7 @@ use std::collections::HashSet;
 #[cfg(any(feature = "signed", feature = "private"))] use crate::secure::Key;
 
 use crate::delta::DeltaCookie;
+use crate::prefix::{Prefix, PrefixedJar};
 use crate::Cookie;
 
 /// A collection of cookies that tracks its modifications.
@@ -486,7 +487,7 @@ impl CookieJar {
     /// # Example
     ///
     /// ```rust
-    /// use cookie::{Cookie, CookieJar, Key};
+    /// use cookie::{CookieJar, Key};
     ///
     /// // Generate a secure key.
     /// let key = Key::generate();
@@ -502,6 +503,86 @@ impl CookieJar {
     #[cfg_attr(all(nightly, doc), doc(cfg(feature = "signed")))]
     pub fn signed_mut<'a>(&'a mut self, key: &Key) -> SignedJar<&'a mut Self> {
         SignedJar::new(self, key)
+    }
+
+    /// Returns a read-only `PrefixedJar` with `self` as its parent jar that
+    /// prefixes the name of cookies with `prefix`. Any retrievals from the
+    /// child jar will be made from the parent jar.
+    ///
+    /// **Note:** Cookie prefixes are specified in an [HTTP draft]! Their
+    /// meaning and definition are subject to change.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::CookieJar;
+    /// use cookie::prefix::{Host, Secure};
+    ///
+    /// // Add a `Host` prefixed cookie.
+    /// let mut jar = CookieJar::new();
+    /// jar.prefixed_mut(Host).add(("h0st", "value"));
+    /// jar.prefixed_mut(Secure).add(("secur3", "value"));
+    ///
+    /// // The cookie's name is prefixed in the parent jar.
+    /// assert!(matches!(jar.get("h0st"), None));
+    /// assert!(matches!(jar.get("__Host-h0st"), Some(_)));
+    /// assert!(matches!(jar.get("secur3"), None));
+    /// assert!(matches!(jar.get("__Secure-secur3"), Some(_)));
+    ///
+    /// // The prefixed jar automatically removes the prefix.
+    /// assert_eq!(jar.prefixed(Host).get("h0st").unwrap().name(), "h0st");
+    /// assert_eq!(jar.prefixed(Host).get("h0st").unwrap().value(), "value");
+    /// assert_eq!(jar.prefixed(Secure).get("secur3").unwrap().name(), "secur3");
+    /// assert_eq!(jar.prefixed(Secure).get("secur3").unwrap().value(), "value");
+    ///
+    /// // Only the correct prefixed jar retrieves the cookie.
+    /// assert!(matches!(jar.prefixed(Host).get("secur3"), None));
+    /// assert!(matches!(jar.prefixed(Secure).get("h0st"), None));
+    /// ```
+    #[inline(always)]
+    pub fn prefixed<'a, P: Prefix>(&'a self, prefix: P) -> PrefixedJar<P, &'a Self> {
+        let _ = prefix;
+        PrefixedJar::new(self)
+    }
+
+    /// Returns a read/write `PrefixedJar` with `self` as its parent jar that
+    /// prefixes the name of cookies with `prefix` and makes the cookie conform
+    /// to the prefix's requirements. This means that added cookies:
+    ///
+    ///   1. Have the [`Prefix::PREFIX`] prepended to their name.
+    ///   2. Modify the cookie via [`Prefix::conform()`] so that it conforms to
+    ///      the prefix's requirements.
+    ///
+    /// Any modifications to the child jar will be reflected on the parent jar,
+    /// and any retrievals from the child jar will be made from the parent jar.
+    ///
+    /// **Note:** Cookie prefixes are specified in an [HTTP draft]! Their
+    /// meaning and definition are subject to change.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::CookieJar;
+    /// use cookie::prefix::{Host, Secure};
+    ///
+    /// // Add some prefixed cookies.
+    /// let mut jar = CookieJar::new();
+    /// jar.prefixed_mut(Host).add(("one", "1"));
+    /// jar.prefixed_mut(Secure).add((2.to_string(), "2"));
+    /// jar.prefixed_mut(Host).add((format!("{:0b}", 3), "0b11"));
+    ///
+    /// // Fetch cookies with either `prefixed()` or `prefixed_mut()`.
+    /// assert_eq!(jar.prefixed(Host).get("one").unwrap().value(), "1");
+    /// assert_eq!(jar.prefixed(Secure).get("2").unwrap().value(), "2");
+    /// assert_eq!(jar.prefixed_mut(Host).get("11").unwrap().value(), "0b11");
+    ///
+    /// // Remove cookies.
+    /// jar.prefixed_mut(Host).remove("one");
+    /// assert!(jar.prefixed(Host).get("one").is_none());
+    /// ```
+    pub fn prefixed_mut<'a, P: Prefix>(&'a mut self, prefix: P) -> PrefixedJar<P, &'a mut Self> {
+        let _ = prefix;
+        PrefixedJar::new(self)
     }
 }
 

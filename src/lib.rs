@@ -78,8 +78,14 @@ mod builder;
 mod parse;
 mod jar;
 mod delta;
-mod draft;
+mod same_site;
 mod expiration;
+
+/// Implementation of [HTTP RFC6265 draft] cookie prefixes.
+///
+/// [HTTP RFC6265 draft]:
+/// https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#name-cookie-name-prefixes
+pub mod prefix;
 
 #[cfg(any(feature = "private", feature = "signed"))] #[macro_use] mod secure;
 #[cfg(any(feature = "private", feature = "signed"))] pub use secure::*;
@@ -97,7 +103,7 @@ use crate::parse::parse_cookie;
 pub use crate::parse::ParseError;
 pub use crate::builder::CookieBuilder;
 pub use crate::jar::{CookieJar, Delta, Iter};
-pub use crate::draft::*;
+pub use crate::same_site::*;
 pub use crate::expiration::*;
 
 #[derive(Debug, Clone)]

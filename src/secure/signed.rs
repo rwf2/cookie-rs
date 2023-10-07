@@ -136,7 +136,7 @@ impl<J: BorrowMut<CookieJar>> SignedJar<J> {
     ///
     /// let key = Key::generate();
     /// let mut jar = CookieJar::new();
-    /// jar.signed_mut(&key).add(Cookie::new("name", "value"));
+    /// jar.signed_mut(&key).add(("name", "value"));
     ///
     /// assert_ne!(jar.get("name").unwrap().value(), "value");
     /// assert!(jar.get("name").unwrap().value().contains("value"));
@@ -164,7 +164,7 @@ impl<J: BorrowMut<CookieJar>> SignedJar<J> {
     ///
     /// let key = Key::generate();
     /// let mut jar = CookieJar::new();
-    /// jar.signed_mut(&key).add_original(Cookie::new("name", "value"));
+    /// jar.signed_mut(&key).add_original(("name", "value"));
     ///
     /// assert_eq!(jar.iter().count(), 1);
     /// assert_eq!(jar.delta().count(), 0);
@@ -192,7 +192,7 @@ impl<J: BorrowMut<CookieJar>> SignedJar<J> {
     /// let mut jar = CookieJar::new();
     /// let mut signed_jar = jar.signed_mut(&key);
     ///
-    /// signed_jar.add(Cookie::new("name", "value"));
+    /// signed_jar.add(("name", "value"));
     /// assert!(signed_jar.get("name").is_some());
     ///
     /// signed_jar.remove("name");
