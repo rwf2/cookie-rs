@@ -1,16 +1,16 @@
 # Version 0.18
 
-## Version 0.18.0.rc.0 (Sep 27, 2023)
+## Version 0.18.0 (Oct 9, 2023)
 
 ### Breaking Changes
 
   * The MSRV is now 1.56.
 
-  * `Cookie::value()` no longer trims surrounding double quotes. (71cf34)
+  * `Cookie::value()` no longer trims surrounding double quotes. (89eddd)
 
     Use `Cookie::value_trimmed()` for the previous behavior.
 
-  * Many methods now expect a `T: Into<Cookie>` in place of `Cookie`. (352f8c)
+  * Many methods now expect a `T: Into<Cookie>` in place of `Cookie`. (49ff7b)
 
     Functions and methods that previously accepted a `Cookie` now accept any `T:
     Into<Cookie>`. This particularly affects the `CookieJar` API, which now allows
@@ -24,7 +24,7 @@
   * `CookieJar::force_remove()` now expects a `T: AsRef<str>` in place of
     `&Cookie`.
 
-    Force removal never requires more information than a cookie's name. The API
+    Force-removal never requires more information than a cookie's name. The API
     has been simplified to reflect this.
 
   * `CookieBuilder::finish()` was deprecated in favor of
@@ -53,16 +53,15 @@
     implement `Into<Cookie>`.
 
     Implementations of `Into<Cookie>` for string-like types (`&str`, `String`,
-    `Cow<str>`), tuples of string-like types `(name string, value string)`, and
-    `CookieBuilder` were added. The former implementations create a cookie with
-    a name corresponding to the string and an empty value. The tuple
+    `Cow<str>`), tuples of string-like types `(name: string, value: string)`,
+    and `CookieBuilder` were added. The former implementations create a cookie
+    with a name corresponding to the string and an empty value. The tuple
     implementation creates a cookie with the given name and value strings. The
-    `CookieBuilder` implementation simply unwraps the in-process cookie.
+    `CookieBuilder` implementation returns the built cookie.
 
-  * `Key` now implements `Debug`.
+  * `Key` implements `Debug`.
 
-    So as to not leak sensitive information, the debug representation is simply
-    `"Key"`.
+    To not leak sensitive information, the representation is simply `"Key"`.
 
   * `CookieBuilder` implements `Borrow{Mut}<Cookie>`, `As{Ref,Mut}<Cookie>`,
     `Display`.
@@ -70,6 +69,12 @@
   * Added `CookieBuilder::inner{_mut}()` to (mutably) borrow cookies being
     built.
 
+  * Added `PrefixedJar` and `CookieJar::prefixed{_mut}()`, which implement the
+    cookie prefixes HTTP draft.
+
+## Version 0.18.0.rc.0 (Sep 27, 2023)
+
+See the entry above for 0.18.0.
 
 # Version 0.17
 
