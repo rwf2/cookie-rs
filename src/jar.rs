@@ -509,8 +509,8 @@ impl CookieJar {
     /// prefixes the name of cookies with `prefix`. Any retrievals from the
     /// child jar will be made from the parent jar.
     ///
-    /// **Note:** Cookie prefixes are specified in an [HTTP draft]! Their
-    /// meaning and definition are subject to change.
+    /// **Note:** Cookie prefixes are specified in an HTTP draft! Their meaning
+    /// and definition are subject to change.
     ///
     /// # Example
     ///
@@ -556,8 +556,8 @@ impl CookieJar {
     /// Any modifications to the child jar will be reflected on the parent jar,
     /// and any retrievals from the child jar will be made from the parent jar.
     ///
-    /// **Note:** Cookie prefixes are specified in an [HTTP draft]! Their
-    /// meaning and definition are subject to change.
+    /// **Note:** Cookie prefixes are specified in an HTTP draft! Their meaning
+    /// and definition are subject to change.
     ///
     /// # Example
     ///

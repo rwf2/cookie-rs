@@ -35,8 +35,8 @@ pub struct Host;
 ///
 /// See [`Prefix`] and [`PrefixedJar`] for usage details.
 ///
-/// [`"__Prefix-"`]:
-/// https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#name-the-__prefix-prefix
+/// [`"__Secure-"`]:
+/// https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#name-the-__secure-prefix
 pub struct Secure;
 
 /// Trait identifying [HTTP RFC6265 draft] cookie prefixes.
@@ -67,7 +67,7 @@ pub trait Prefix: private::Sealed {
     #[allow(non_upper_case_globals)]
     const Secure: Secure = Secure;
 
-    /// Modify `cookie` so it confirms with the requirements of `self`.
+    /// Modify `cookie` so it conforms to the requirements of `self`.
     ///
     /// See [`Host::conform()`] and [`Secure::conform()`] for specifics.
     //
@@ -244,7 +244,7 @@ impl Prefix for Host {
     /// https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#name-the-__host-prefix
     const PREFIX: &'static str = "__Host-";
 
-    /// Modify `cookie` so it conforms with the prefix requirements.
+    /// Modify `cookie` so it conforms to the prefix's requirements.
     ///
     /// **Note: this method is called automatically by [`PrefixedJar`]. It _does
     /// not need to_ and _should not_ be called manually under normal
@@ -307,7 +307,7 @@ impl Prefix for Secure {
     /// https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#name-the-__secure-prefix
     const PREFIX: &'static str = "__Secure-";
 
-    /// Modify `cookie` so it conforms with the prefix requirements.
+    /// Modify `cookie` so it conforms to the prefix's requirements.
     ///
     /// **Note: this method is called automatically by [`PrefixedJar`]. It _does
     /// not need to_ and _should not_ be called manually under normal
