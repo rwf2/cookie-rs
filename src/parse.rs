@@ -320,7 +320,6 @@ mod tests {
         assert_eq_parse!("foo=bar; PARTITIONED", expected);
 
         let mut expected = Cookie::new("foo", "bar");
-
         assert_eq_parse!("foo=bar", expected);
         assert_eq_parse!("foo = bar", expected);
         assert_eq_parse!(" foo=bar ", expected);
