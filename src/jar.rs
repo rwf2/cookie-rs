@@ -5,41 +5,45 @@ use std::collections::HashSet;
 #[cfg(any(feature = "signed", feature = "private"))] use crate::secure::Key;
 
 use crate::delta::DeltaCookie;
+use crate::prefix::{Prefix, PrefixedJar};
 use crate::Cookie;
 
 /// A collection of cookies that tracks its modifications.
 ///
 /// A `CookieJar` provides storage for any number of cookies. Any changes made
 /// to the jar are tracked; the changes can be retrieved via the
-/// [delta](#method.delta) method which returns an iterator over the changes.
+/// [`delta`](#method.delta) method which returns an iterator over the changes.
 ///
 /// # Usage
 ///
-/// A jar's life begins via [new](#method.new) and calls to
-/// [`add_original`](#method.add_original):
+/// A jar's life begins via [`CookieJar::new()`] and calls to
+/// [`add_original()`](#method.add_original):
 ///
 /// ```rust
 /// use cookie::{Cookie, CookieJar};
 ///
 /// let mut jar = CookieJar::new();
-/// jar.add_original(Cookie::new("name", "value"));
-/// jar.add_original(Cookie::new("second", "another"));
+/// jar.add_original(("name", "value"));
+/// jar.add_original(("second", "another"));
+/// jar.add_original(Cookie::build(("third", "again")).path("/"));
 /// ```
 ///
-/// Cookies can be added via [add](#method.add) and removed via
-/// [remove](#method.remove). Finally, cookies can be looked up via
-/// [get](#method.get):
+/// Cookies can be added via [`CookieJar::add()`] and removed via
+/// [`CookieJar::remove()`]. Note that any `T: Into<Cookie>` can be passed into
+/// these methods; see [`Cookie::build()`] for a table of implementing types.
+///
+/// Finally, cookies can be retrieved with [`CookieJar::get()`].
 ///
 /// ```rust
 /// # use cookie::{Cookie, CookieJar};
 /// let mut jar = CookieJar::new();
-/// jar.add(Cookie::new("a", "one"));
-/// jar.add(Cookie::new("b", "two"));
+/// jar.add(("a", "one"));
+/// jar.add(("b", "two"));
 ///
 /// assert_eq!(jar.get("a").map(|c| c.value()), Some("one"));
 /// assert_eq!(jar.get("b").map(|c| c.value()), Some("two"));
 ///
-/// jar.remove(Cookie::named("b"));
+/// jar.remove("b");
 /// assert!(jar.get("b").is_none());
 /// ```
 ///
@@ -62,20 +66,20 @@ use crate::Cookie;
 /// let mut jar = CookieJar::new();
 ///
 /// // original cookies don't affect the delta
-/// jar.add_original(Cookie::new("original", "value"));
+/// jar.add_original(("original", "value"));
 /// assert_eq!(jar.delta().count(), 0);
 ///
 /// // new cookies result in an equivalent `Cookie` in the delta
-/// jar.add(Cookie::new("a", "one"));
-/// jar.add(Cookie::new("b", "two"));
+/// jar.add(("a", "one"));
+/// jar.add(("b", "two"));
 /// assert_eq!(jar.delta().count(), 2);
 ///
 /// // removing an original cookie adds a "removal" cookie to the delta
-/// jar.remove(Cookie::named("original"));
+/// jar.remove("original");
 /// assert_eq!(jar.delta().count(), 3);
 ///
 /// // removing a new cookie that was added removes that `Cookie` from the delta
-/// jar.remove(Cookie::named("a"));
+/// jar.remove("a");
 /// assert_eq!(jar.delta().count(), 2);
 /// ```
 #[derive(Default, Debug, Clone)]
@@ -110,7 +114,7 @@ impl CookieJar {
     /// let mut jar = CookieJar::new();
     /// assert!(jar.get("name").is_none());
     ///
-    /// jar.add(Cookie::new("name", "value"));
+    /// jar.add(("name", "value"));
     /// assert_eq!(jar.get("name").map(|c| c.value()), Some("value"));
     /// ```
     pub fn get(&self, name: &str) -> Option<&Cookie<'static>> {
@@ -137,16 +141,16 @@ impl CookieJar {
     /// use cookie::{CookieJar, Cookie};
     ///
     /// let mut jar = CookieJar::new();
-    /// jar.add_original(Cookie::new("name", "value"));
-    /// jar.add_original(Cookie::new("second", "two"));
+    /// jar.add_original(("name", "value"));
+    /// jar.add_original(("second", "two"));
     ///
     /// assert_eq!(jar.get("name").map(|c| c.value()), Some("value"));
     /// assert_eq!(jar.get("second").map(|c| c.value()), Some("two"));
     /// assert_eq!(jar.iter().count(), 2);
     /// assert_eq!(jar.delta().count(), 0);
     /// ```
-    pub fn add_original(&mut self, cookie: Cookie<'static>) {
-        self.original_cookies.replace(DeltaCookie::added(cookie));
+    pub fn add_original<C: Into<Cookie<'static>>>(&mut self, cookie: C) {
+        self.original_cookies.replace(DeltaCookie::added(cookie.into()));
     }
 
     /// Adds `cookie` to this jar. If a cookie with the same name already
@@ -158,23 +162,23 @@ impl CookieJar {
     /// use cookie::{CookieJar, Cookie};
     ///
     /// let mut jar = CookieJar::new();
-    /// jar.add(Cookie::new("name", "value"));
-    /// jar.add(Cookie::new("second", "two"));
+    /// jar.add(("name", "value"));
+    /// jar.add(("second", "two"));
     ///
     /// assert_eq!(jar.get("name").map(|c| c.value()), Some("value"));
     /// assert_eq!(jar.get("second").map(|c| c.value()), Some("two"));
     /// assert_eq!(jar.iter().count(), 2);
     /// assert_eq!(jar.delta().count(), 2);
     /// ```
-    pub fn add(&mut self, cookie: Cookie<'static>) {
-        self.delta_cookies.replace(DeltaCookie::added(cookie));
+    pub fn add<C: Into<Cookie<'static>>>(&mut self, cookie: C) {
+        self.delta_cookies.replace(DeltaCookie::added(cookie.into()));
     }
 
     /// Removes `cookie` from this jar. If an _original_ cookie with the same
     /// name as `cookie` is present in the jar, a _removal_ cookie will be
-    /// present in the `delta` computation. To properly generate the removal
+    /// present in the `delta` computation. **To properly generate the removal
     /// cookie, `cookie` must contain the same `path` and `domain` as the cookie
-    /// that was initially set.
+    /// that was initially set.**
     ///
     /// A "removal" cookie is a cookie that has the same name as the original
     /// cookie but has an empty value, a max-age of 0, and an expiration date
@@ -185,25 +189,22 @@ impl CookieJar {
     /// Removing an _original_ cookie results in a _removal_ cookie:
     ///
     /// ```rust
-    /// # extern crate cookie;
     /// use cookie::{CookieJar, Cookie};
     /// use cookie::time::Duration;
     ///
-    /// # fn main() {
     /// let mut jar = CookieJar::new();
     ///
     /// // Assume this cookie originally had a path of "/" and domain of "a.b".
-    /// jar.add_original(Cookie::new("name", "value"));
+    /// jar.add_original(("name", "value"));
     ///
     /// // If the path and domain were set, they must be provided to `remove`.
-    /// jar.remove(Cookie::build("name", "").path("/").domain("a.b").finish());
+    /// jar.remove(Cookie::build("name").path("/").domain("a.b"));
     ///
     /// // The delta will contain the removal cookie.
     /// let delta: Vec<_> = jar.delta().collect();
     /// assert_eq!(delta.len(), 1);
     /// assert_eq!(delta[0].name(), "name");
     /// assert_eq!(delta[0].max_age(), Some(Duration::seconds(0)));
-    /// # }
     /// ```
     ///
     /// Removing a new cookie does not result in a _removal_ cookie unless
@@ -213,20 +214,21 @@ impl CookieJar {
     /// use cookie::{CookieJar, Cookie};
     ///
     /// let mut jar = CookieJar::new();
-    /// jar.add(Cookie::new("name", "value"));
+    /// jar.add(("name", "value"));
     /// assert_eq!(jar.delta().count(), 1);
     ///
-    /// jar.remove(Cookie::named("name"));
+    /// jar.remove("name");
     /// assert_eq!(jar.delta().count(), 0);
     ///
-    /// jar.add_original(Cookie::new("name", "value"));
-    /// jar.add(Cookie::new("name", "value"));
+    /// jar.add_original(("name", "value"));
+    /// jar.add(("name", "value"));
     /// assert_eq!(jar.delta().count(), 1);
     ///
-    /// jar.remove(Cookie::named("name"));
+    /// jar.remove("name");
     /// assert_eq!(jar.delta().count(), 1);
     /// ```
-    pub fn remove(&mut self, mut cookie: Cookie<'static>) {
+    pub fn remove<C: Into<Cookie<'static>>>(&mut self, cookie: C) {
+        let mut cookie = cookie.into();
         if self.original_cookies.contains(cookie.name()) {
             cookie.make_removal();
             self.delta_cookies.replace(DeltaCookie::removed(cookie));
@@ -235,10 +237,12 @@ impl CookieJar {
         }
     }
 
-    /// Removes `cookie` from this jar completely. This method differs from
-    /// `remove` in that no delta cookie is created under any condition. Neither
-    /// the `delta` nor `iter` methods will return a cookie that is removed
-    /// using this method.
+    /// Removes `cookie` from this jar completely.
+    ///
+    /// This method differs from `remove` in that no delta cookie is created
+    /// under any condition. Thus, no path or domain are needed: only the
+    /// cookie's name. Neither the `delta` nor `iter` methods will return a
+    /// cookie that is removed using this method.
     ///
     /// # Example
     ///
@@ -253,25 +257,25 @@ impl CookieJar {
     /// let mut jar = CookieJar::new();
     ///
     /// // Add an original cookie and a new cookie.
-    /// jar.add_original(Cookie::new("name", "value"));
-    /// jar.add(Cookie::new("key", "value"));
+    /// jar.add_original(("name", "value"));
+    /// jar.add(("key", "value"));
     /// assert_eq!(jar.delta().count(), 1);
     /// assert_eq!(jar.iter().count(), 2);
     ///
     /// // Now force remove the original cookie.
-    /// jar.force_remove(&Cookie::named("name"));
+    /// jar.force_remove("name");
     /// assert_eq!(jar.delta().count(), 1);
     /// assert_eq!(jar.iter().count(), 1);
     ///
-    /// // Now force remove the new cookie.
-    /// jar.force_remove(&Cookie::named("key"));
+    /// // Now force remove the new cookie. `to_string()` for illustration only.
+    /// jar.force_remove("key".to_string());
     /// assert_eq!(jar.delta().count(), 0);
     /// assert_eq!(jar.iter().count(), 0);
     /// # }
     /// ```
-    pub fn force_remove<'a>(&mut self, cookie: &Cookie<'a>) {
-        self.original_cookies.remove(cookie.name());
-        self.delta_cookies.remove(cookie.name());
+    pub fn force_remove<N: AsRef<str>>(&mut self, name: N) {
+        self.original_cookies.remove(name.as_ref());
+        self.delta_cookies.remove(name.as_ref());
     }
 
     /// Removes all delta cookies, i.e. all cookies not added via
@@ -287,12 +291,12 @@ impl CookieJar {
     /// let mut jar = CookieJar::new();
     ///
     /// // Only original cookies will remain after calling `reset_delta`.
-    /// jar.add_original(Cookie::new("name", "value"));
-    /// jar.add_original(Cookie::new("language", "Rust"));
+    /// jar.add_original(("name", "value"));
+    /// jar.add_original(("language", "Rust"));
     ///
     /// // These operations, represented by delta cookies, will be reset.
-    /// jar.add(Cookie::new("language", "C++"));
-    /// jar.remove(Cookie::named("name"));
+    /// jar.add(("language", "C++"));
+    /// jar.remove("name");
     ///
     /// // All is normal.
     /// assert_eq!(jar.get("name"), None);
@@ -321,17 +325,17 @@ impl CookieJar {
     /// use cookie::{CookieJar, Cookie};
     ///
     /// let mut jar = CookieJar::new();
-    /// jar.add_original(Cookie::new("name", "value"));
-    /// jar.add_original(Cookie::new("second", "two"));
+    /// jar.add_original(("name", "value"));
+    /// jar.add_original(("second", "two"));
     ///
     /// // Add new cookies.
-    /// jar.add(Cookie::new("new", "third"));
-    /// jar.add(Cookie::new("another", "fourth"));
-    /// jar.add(Cookie::new("yac", "fifth"));
+    /// jar.add(("new", "third"));
+    /// jar.add(("another", "fourth"));
+    /// jar.add(("yac", "fifth"));
     ///
     /// // Remove some cookies.
-    /// jar.remove(Cookie::named("name"));
-    /// jar.remove(Cookie::named("another"));
+    /// jar.remove(("name"));
+    /// jar.remove(("another"));
     ///
     /// // Delta contains two new cookies ("new", "yac") and a removal ("name").
     /// assert_eq!(jar.delta().count(), 3);
@@ -349,15 +353,15 @@ impl CookieJar {
     ///
     /// let mut jar = CookieJar::new();
     ///
-    /// jar.add_original(Cookie::new("name", "value"));
-    /// jar.add_original(Cookie::new("second", "two"));
+    /// jar.add_original(("name", "value"));
+    /// jar.add_original(("second", "two"));
     ///
-    /// jar.add(Cookie::new("new", "third"));
-    /// jar.add(Cookie::new("another", "fourth"));
-    /// jar.add(Cookie::new("yac", "fifth"));
+    /// jar.add(("new", "third"));
+    /// jar.add(("another", "fourth"));
+    /// jar.add(("yac", "fifth"));
     ///
-    /// jar.remove(Cookie::named("name"));
-    /// jar.remove(Cookie::named("another"));
+    /// jar.remove("name");
+    /// jar.remove("another");
     ///
     /// // There are three cookies in the jar: "second", "new", and "yac".
     /// # assert_eq!(jar.iter().count(), 3);
@@ -391,7 +395,7 @@ impl CookieJar {
     ///
     /// // Add a private (signed + encrypted) cookie.
     /// let mut jar = CookieJar::new();
-    /// jar.private_mut(&key).add(Cookie::new("private", "text"));
+    /// jar.private_mut(&key).add(("private", "text"));
     ///
     /// // The cookie's contents are encrypted.
     /// assert_ne!(jar.get("private").unwrap().value(), "text");
@@ -401,7 +405,7 @@ impl CookieJar {
     ///
     /// // A tampered with cookie does not validate but still exists.
     /// let mut cookie = jar.get("private").unwrap().clone();
-    /// jar.add(Cookie::new("private", cookie.value().to_string() + "!"));
+    /// jar.add(("private", cookie.value().to_string() + "!"));
     /// assert!(jar.private(&key).get("private").is_none());
     /// assert!(jar.get("private").is_some());
     /// ```
@@ -428,10 +432,10 @@ impl CookieJar {
     ///
     /// // Add a private (signed + encrypted) cookie.
     /// let mut jar = CookieJar::new();
-    /// jar.private_mut(&key).add(Cookie::new("private", "text"));
+    /// jar.private_mut(&key).add(("private", "text"));
     ///
     /// // Remove a cookie using the child jar.
-    /// jar.private_mut(&key).remove(Cookie::named("private"));
+    /// jar.private_mut(&key).remove("private");
     /// ```
     #[cfg(feature = "private")]
     #[cfg_attr(all(nightly, doc), doc(cfg(feature = "private")))]
@@ -453,7 +457,7 @@ impl CookieJar {
     ///
     /// // Add a signed cookie.
     /// let mut jar = CookieJar::new();
-    /// jar.signed_mut(&key).add(Cookie::new("signed", "text"));
+    /// jar.signed_mut(&key).add(("signed", "text"));
     ///
     /// // The cookie's contents are signed but still in plaintext.
     /// assert_ne!(jar.get("signed").unwrap().value(), "text");
@@ -464,7 +468,7 @@ impl CookieJar {
     ///
     /// // A tampered with cookie does not validate but still exists.
     /// let mut cookie = jar.get("signed").unwrap().clone();
-    /// jar.add(Cookie::new("signed", cookie.value().to_string() + "!"));
+    /// jar.add(("signed", cookie.value().to_string() + "!"));
     /// assert!(jar.signed(&key).get("signed").is_none());
     /// assert!(jar.get("signed").is_some());
     /// ```
@@ -483,22 +487,102 @@ impl CookieJar {
     /// # Example
     ///
     /// ```rust
-    /// use cookie::{Cookie, CookieJar, Key};
+    /// use cookie::{CookieJar, Key};
     ///
     /// // Generate a secure key.
     /// let key = Key::generate();
     ///
     /// // Add a signed cookie.
     /// let mut jar = CookieJar::new();
-    /// jar.signed_mut(&key).add(Cookie::new("signed", "text"));
+    /// jar.signed_mut(&key).add(("signed", "text"));
     ///
     /// // Remove a cookie.
-    /// jar.signed_mut(&key).remove(Cookie::named("signed"));
+    /// jar.signed_mut(&key).remove("signed");
     /// ```
     #[cfg(feature = "signed")]
     #[cfg_attr(all(nightly, doc), doc(cfg(feature = "signed")))]
     pub fn signed_mut<'a>(&'a mut self, key: &Key) -> SignedJar<&'a mut Self> {
         SignedJar::new(self, key)
+    }
+
+    /// Returns a read-only `PrefixedJar` with `self` as its parent jar that
+    /// prefixes the name of cookies with `prefix`. Any retrievals from the
+    /// child jar will be made from the parent jar.
+    ///
+    /// **Note:** Cookie prefixes are specified in an HTTP draft! Their meaning
+    /// and definition are subject to change.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::CookieJar;
+    /// use cookie::prefix::{Host, Secure};
+    ///
+    /// // Add a `Host` prefixed cookie.
+    /// let mut jar = CookieJar::new();
+    /// jar.prefixed_mut(Host).add(("h0st", "value"));
+    /// jar.prefixed_mut(Secure).add(("secur3", "value"));
+    ///
+    /// // The cookie's name is prefixed in the parent jar.
+    /// assert!(matches!(jar.get("h0st"), None));
+    /// assert!(matches!(jar.get("__Host-h0st"), Some(_)));
+    /// assert!(matches!(jar.get("secur3"), None));
+    /// assert!(matches!(jar.get("__Secure-secur3"), Some(_)));
+    ///
+    /// // The prefixed jar automatically removes the prefix.
+    /// assert_eq!(jar.prefixed(Host).get("h0st").unwrap().name(), "h0st");
+    /// assert_eq!(jar.prefixed(Host).get("h0st").unwrap().value(), "value");
+    /// assert_eq!(jar.prefixed(Secure).get("secur3").unwrap().name(), "secur3");
+    /// assert_eq!(jar.prefixed(Secure).get("secur3").unwrap().value(), "value");
+    ///
+    /// // Only the correct prefixed jar retrieves the cookie.
+    /// assert!(matches!(jar.prefixed(Host).get("secur3"), None));
+    /// assert!(matches!(jar.prefixed(Secure).get("h0st"), None));
+    /// ```
+    #[inline(always)]
+    pub fn prefixed<'a, P: Prefix>(&'a self, prefix: P) -> PrefixedJar<P, &'a Self> {
+        let _ = prefix;
+        PrefixedJar::new(self)
+    }
+
+    /// Returns a read/write `PrefixedJar` with `self` as its parent jar that
+    /// prefixes the name of cookies with `prefix` and makes the cookie conform
+    /// to the prefix's requirements. This means that added cookies:
+    ///
+    ///   1. Have the [`Prefix::PREFIX`] prepended to their name.
+    ///   2. Modify the cookie via [`Prefix::conform()`] so that it conforms to
+    ///      the prefix's requirements.
+    ///
+    /// Any modifications to the child jar will be reflected on the parent jar,
+    /// and any retrievals from the child jar will be made from the parent jar.
+    ///
+    /// **Note:** Cookie prefixes are specified in an HTTP draft! Their meaning
+    /// and definition are subject to change.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::CookieJar;
+    /// use cookie::prefix::{Host, Secure};
+    ///
+    /// // Add some prefixed cookies.
+    /// let mut jar = CookieJar::new();
+    /// jar.prefixed_mut(Host).add(("one", "1"));
+    /// jar.prefixed_mut(Secure).add((2.to_string(), "2"));
+    /// jar.prefixed_mut(Host).add((format!("{:0b}", 3), "0b11"));
+    ///
+    /// // Fetch cookies with either `prefixed()` or `prefixed_mut()`.
+    /// assert_eq!(jar.prefixed(Host).get("one").unwrap().value(), "1");
+    /// assert_eq!(jar.prefixed(Secure).get("2").unwrap().value(), "2");
+    /// assert_eq!(jar.prefixed_mut(Host).get("11").unwrap().value(), "0b11");
+    ///
+    /// // Remove cookies.
+    /// jar.prefixed_mut(Host).remove("one");
+    /// assert!(jar.prefixed(Host).get("one").is_none());
+    /// ```
+    pub fn prefixed_mut<'a, P: Prefix>(&'a mut self, prefix: P) -> PrefixedJar<P, &'a mut Self> {
+        let _ = prefix;
+        PrefixedJar::new(self)
     }
 }
 
@@ -550,16 +634,16 @@ mod test {
     fn simple() {
         let mut c = CookieJar::new();
 
-        c.add(Cookie::new("test", ""));
-        c.add(Cookie::new("test2", ""));
-        c.remove(Cookie::named("test"));
+        c.add(("test", ""));
+        c.add(("test2", ""));
+        c.remove("test");
 
         assert!(c.get("test").is_none());
         assert!(c.get("test2").is_some());
 
-        c.add(Cookie::new("test3", ""));
-        c.remove(Cookie::named("test2"));
-        c.remove(Cookie::named("test3"));
+        c.add(("test3", ""));
+        c.remove("test2");
+        c.remove("test3");
 
         assert!(c.get("test").is_none());
         assert!(c.get("test2").is_none());
@@ -592,17 +676,17 @@ mod test {
         c.private_mut(&key).add(Cookie::new("encrypted", "encrypted"));
         assert_eq!(c.iter().count(), 6);
 
-        c.remove(Cookie::named("test"));
+        c.remove("test");
         assert_eq!(c.iter().count(), 5);
 
-        c.remove(Cookie::named("signed"));
-        c.remove(Cookie::named("test2"));
+        c.remove("signed");
+        c.remove("test2");
         assert_eq!(c.iter().count(), 3);
 
-        c.add(Cookie::new("test2", "test2"));
+        c.add(("test2", "test2"));
         assert_eq!(c.iter().count(), 4);
 
-        c.remove(Cookie::named("test2"));
+        c.remove("test2");
         assert_eq!(c.iter().count(), 3);
     }
 
@@ -621,8 +705,8 @@ mod test {
         c.add(Cookie::new("test3", "test3"));
         c.add(Cookie::new("test4", "test4"));
 
-        c.remove(Cookie::named("test"));
-        c.remove(Cookie::named("original"));
+        c.remove("test");
+        c.remove("original");
 
         assert_eq!(c.delta().count(), 4);
 
@@ -653,19 +737,19 @@ mod test {
         jar.add(Cookie::new("name", "val"));
         assert_eq!(jar.delta().count(), 1);
 
-        jar.remove(Cookie::named("name"));
+        jar.remove("name");
         assert_eq!(jar.delta().count(), 0);
 
         jar.add_original(Cookie::new("name", "val"));
         assert_eq!(jar.delta().count(), 0);
 
-        jar.remove(Cookie::named("name"));
+        jar.remove("name");
         assert_eq!(jar.delta().count(), 1);
 
         jar.add(Cookie::new("name", "val"));
         assert_eq!(jar.delta().count(), 1);
 
-        jar.remove(Cookie::named("name"));
+        jar.remove("name");
         assert_eq!(jar.delta().count(), 1);
     }
 
@@ -675,7 +759,7 @@ mod test {
         jar.add_original(Cookie::new("name", "val"));
         assert_eq!(jar.delta().count(), 0);
 
-        jar.remove(Cookie::named("name"));
+        jar.remove("name");
         assert_eq!(jar.delta().filter(|c| c.value().is_empty()).count(), 1);
         assert_eq!(jar.delta().count(), 1);
 
@@ -684,7 +768,7 @@ mod test {
         assert_eq!(jar.delta().filter(|c| c.value().is_empty()).count(), 1);
         assert_eq!(jar.delta().count(), 1);
 
-        jar.remove(Cookie::named("name"));
+        jar.remove("name");
         assert_eq!(jar.delta().filter(|c| c.value().is_empty()).count(), 1);
         assert_eq!(jar.delta().count(), 1);
 
@@ -692,7 +776,7 @@ mod test {
         assert_eq!(jar.delta().filter(|c| !c.value().is_empty()).count(), 1);
         assert_eq!(jar.delta().count(), 1);
 
-        jar.remove(Cookie::named("name"));
+        jar.remove("name");
         assert_eq!(jar.delta().filter(|c| c.value().is_empty()).count(), 1);
         assert_eq!(jar.delta().count(), 1);
     }
@@ -707,19 +791,19 @@ mod test {
         assert_eq!(jar.delta().count(), 1);
         assert_eq!(jar.delta().filter(|c| !c.value().is_empty()).count(), 1);
 
-        jar.remove(Cookie::named("name"));
+        jar.remove("name");
         assert_eq!(jar.delta().filter(|c| c.value().is_empty()).count(), 1);
     }
 
     #[test]
     fn remove_with_path() {
         let mut jar = CookieJar::new();
-        jar.add_original(Cookie::build("name", "val").finish());
+        jar.add_original(("name", "val"));
         assert_eq!(jar.iter().count(), 1);
         assert_eq!(jar.delta().count(), 0);
         assert_eq!(jar.iter().filter(|c| c.path().is_none()).count(), 1);
 
-        jar.remove(Cookie::build("name", "").path("/").finish());
+        jar.remove(Cookie::build("name").path("/"));
         assert_eq!(jar.iter().count(), 0);
         assert_eq!(jar.delta().count(), 1);
         assert_eq!(jar.delta().filter(|c| c.value().is_empty()).count(), 1);

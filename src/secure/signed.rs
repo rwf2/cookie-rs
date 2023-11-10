@@ -79,7 +79,7 @@ impl<J> SignedJar<J> {
     /// let mut jar = CookieJar::new();
     /// assert!(jar.signed(&key).get("name").is_none());
     ///
-    /// jar.signed_mut(&key).add(Cookie::new("name", "value"));
+    /// jar.signed_mut(&key).add(("name", "value"));
     /// assert_eq!(jar.signed(&key).get("name").unwrap().value(), "value");
     ///
     /// let plain = jar.get("name").cloned().unwrap();
@@ -136,13 +136,14 @@ impl<J: BorrowMut<CookieJar>> SignedJar<J> {
     ///
     /// let key = Key::generate();
     /// let mut jar = CookieJar::new();
-    /// jar.signed_mut(&key).add(Cookie::new("name", "value"));
+    /// jar.signed_mut(&key).add(("name", "value"));
     ///
     /// assert_ne!(jar.get("name").unwrap().value(), "value");
     /// assert!(jar.get("name").unwrap().value().contains("value"));
     /// assert_eq!(jar.signed(&key).get("name").unwrap().value(), "value");
     /// ```
-    pub fn add(&mut self, mut cookie: Cookie<'static>) {
+    pub fn add<C: Into<Cookie<'static>>>(&mut self, cookie: C) {
+        let mut cookie = cookie.into();
         self.sign_cookie(&mut cookie);
         self.parent.borrow_mut().add(cookie);
     }
@@ -163,12 +164,13 @@ impl<J: BorrowMut<CookieJar>> SignedJar<J> {
     ///
     /// let key = Key::generate();
     /// let mut jar = CookieJar::new();
-    /// jar.signed_mut(&key).add_original(Cookie::new("name", "value"));
+    /// jar.signed_mut(&key).add_original(("name", "value"));
     ///
     /// assert_eq!(jar.iter().count(), 1);
     /// assert_eq!(jar.delta().count(), 0);
     /// ```
-    pub fn add_original(&mut self, mut cookie: Cookie<'static>) {
+    pub fn add_original<C: Into<Cookie<'static>>>(&mut self, cookie: C) {
+        let mut cookie = cookie.into();
         self.sign_cookie(&mut cookie);
         self.parent.borrow_mut().add_original(cookie);
     }
@@ -190,14 +192,14 @@ impl<J: BorrowMut<CookieJar>> SignedJar<J> {
     /// let mut jar = CookieJar::new();
     /// let mut signed_jar = jar.signed_mut(&key);
     ///
-    /// signed_jar.add(Cookie::new("name", "value"));
+    /// signed_jar.add(("name", "value"));
     /// assert!(signed_jar.get("name").is_some());
     ///
-    /// signed_jar.remove(Cookie::named("name"));
+    /// signed_jar.remove("name");
     /// assert!(signed_jar.get("name").is_none());
     /// ```
-    pub fn remove(&mut self, cookie: Cookie<'static>) {
-        self.parent.borrow_mut().remove(cookie);
+    pub fn remove<C: Into<Cookie<'static>>>(&mut self, cookie: C) {
+        self.parent.borrow_mut().remove(cookie.into());
     }
 }
 
