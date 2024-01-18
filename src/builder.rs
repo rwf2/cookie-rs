@@ -212,7 +212,7 @@ impl<'c> CookieBuilder<'c> {
     }
 
     /// Makes the cookie being built 'permanent' by extending its expiration and
-    /// max age 20 years into the future.
+    /// max age 20 years into the future. See also [`Cookie::make_permanent()`].
     ///
     /// # Example
     ///
@@ -230,6 +230,32 @@ impl<'c> CookieBuilder<'c> {
     #[inline]
     pub fn permanent(mut self) -> Self {
         self.cookie.make_permanent();
+        self
+    }
+
+    /// Makes the cookie being built 'removal' by clearing its value, setting a
+    /// max-age of `0`, and setting an expiration date far in the past. See also
+    /// [`Cookie::make_removal()`].
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate cookie;
+    /// use cookie::Cookie;
+    /// use cookie::time::Duration;
+    ///
+    /// # fn main() {
+    /// let mut builder = Cookie::build("foo").removal();
+    /// assert_eq!(builder.inner().max_age(), Some(Duration::ZERO));
+    ///
+    /// let mut builder = Cookie::build(("name", "value")).removal();
+    /// assert_eq!(builder.inner().value(), "");
+    /// assert_eq!(builder.inner().max_age(), Some(Duration::ZERO));
+    /// # }
+    /// ```
+    #[inline]
+    pub fn removal(mut self) -> Self {
+        self.cookie.make_removal();
         self
     }
 
