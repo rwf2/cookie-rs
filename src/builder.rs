@@ -1,6 +1,6 @@
-use std::borrow::{Cow, Borrow, BorrowMut};
+use std::borrow::{Borrow, BorrowMut, Cow};
 
-use crate::{Cookie, SameSite, Expiration};
+use crate::{Cookie, Expiration, SameSite};
 
 /// Structure that follows the builder pattern for building `Cookie` structs.
 ///
@@ -59,10 +59,28 @@ impl<'c> CookieBuilder<'c> {
     /// assert_eq!(c.name_value(), ("foo", "bar"));
     /// ```
     pub fn new<N, V>(name: N, value: V) -> Self
-        where N: Into<Cow<'c, str>>,
-              V: Into<Cow<'c, str>>
+    where
+        N: Into<Cow<'c, str>>,
+        V: Into<Cow<'c, str>>,
     {
-        CookieBuilder { cookie: Cookie::new(name, value) }
+        CookieBuilder {
+            cookie: Cookie::new(name, value),
+        }
+    }
+
+    /// Sets the `value` field in the cookie being built.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::Cookie;
+    ///
+    /// let c = Cookie::build("foo").value("bar");
+    /// assert_eq!(c.inner().name_value(), ("foo", "bar"));
+    /// ```
+    pub fn value<V: Into<Cow<'c, str>>>(mut self, value: V) -> Self {
+        self.cookie.set_value(value);
+        self
     }
 
     /// Sets the `expires` field in the cookie being built.
@@ -353,7 +371,10 @@ impl<'c> CookieBuilder<'c> {
     /// Instead of using this method, pass a `CookieBuilder` directly into
     /// methods expecting a `T: Into<Cookie>`. For other cases, use
     /// [`CookieBuilder::build()`].
-    #[deprecated(since="0.18.0", note="`CookieBuilder` can be passed in to methods expecting a `Cookie`; for other cases, use `CookieBuilder::build()`")]
+    #[deprecated(
+        since = "0.18.0",
+        note = "`CookieBuilder` can be passed in to methods expecting a `Cookie`; for other cases, use `CookieBuilder::build()`"
+    )]
     pub fn finish(self) -> Cookie<'c> {
         self.cookie
     }
