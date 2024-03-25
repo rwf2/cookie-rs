@@ -1,5 +1,17 @@
 # Version 0.18
 
+## Version 0.18.1 (Mar 25, 2024)
+
+### New Features
+
+  * Added support for the draft `Partitioned` attribute.
+
+    The new `CookieBuilder::partition()`, `Cookie::partitioned()`, and
+    `Cookie::set_partitioned()` methods allow enabling and/or disabling the
+    attribute. Additionally, the attribute is recognized during parsing.
+
+  * Added `CookieBuilder::removal()`, counterpart to `Cookie::make_removal()`.
+
 ## Version 0.18.0 (Oct 9, 2023)
 
 ### Breaking Changes
