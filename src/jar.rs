@@ -616,7 +616,7 @@ impl<'a> Iterator for Iter<'a> {
     fn next(&mut self) -> Option<&'a Cookie<'static>> {
         for cookie in self.delta_cookies.by_ref() {
             if !cookie.removed {
-                return Some(cookie);
+                return Some(&**cookie);
             }
         }
 

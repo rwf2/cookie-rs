@@ -153,7 +153,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                     v = &v[1..];
                 }
 
-                if !v.chars().all(|d| d.is_digit(10)) {
+                if !v.chars().all(|d| d.is_ascii_digit()) {
                     continue
                 }
 
