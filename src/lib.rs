@@ -778,7 +778,7 @@ impl<'c> Cookie<'c> {
         match self.domain {
             Some(ref c) => {
                 let domain = c.to_str(self.cookie_string.as_ref());
-                domain.strip_prefix(".").or(Some(domain))
+                domain.strip_prefix('.').or(Some(domain))
             },
             None => None,
         }
@@ -1362,7 +1362,7 @@ impl<'c> Cookie<'c> {
     pub fn domain_raw(&self) -> Option<&'c str> {
         match (self.domain.as_ref(), self.cookie_string.as_ref()) {
             (Some(domain), Some(string)) => match domain.to_raw_str(string) {
-                Some(s) => s.strip_prefix(".").or(Some(s)),
+                Some(s) => s.strip_prefix('.').or(Some(s)),
                 None => None,
             }
             _ => None,
