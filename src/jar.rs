@@ -540,7 +540,7 @@ impl CookieJar {
     /// assert!(matches!(jar.prefixed(Secure).get("h0st"), None));
     /// ```
     #[inline(always)]
-    pub fn prefixed<'a, P: Prefix>(&'a self, prefix: P) -> PrefixedJar<P, &'a Self> {
+    pub fn prefixed<P: Prefix>(&self, prefix: P) -> PrefixedJar<P, &Self> {
         let _ = prefix;
         PrefixedJar::new(self)
     }
