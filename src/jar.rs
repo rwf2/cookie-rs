@@ -580,7 +580,7 @@ impl CookieJar {
     /// jar.prefixed_mut(Host).remove("one");
     /// assert!(jar.prefixed(Host).get("one").is_none());
     /// ```
-    pub fn prefixed_mut<'a, P: Prefix>(&'a mut self, prefix: P) -> PrefixedJar<P, &'a mut Self> {
+    pub fn prefixed_mut<P: Prefix>(&mut self, prefix: P) -> PrefixedJar<P, &mut Self> {
         let _ = prefix;
         PrefixedJar::new(self)
     }
