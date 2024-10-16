@@ -29,22 +29,29 @@
 //!
 //! * **`signed`**
 //!
-//!   Enables _signed_ cookies via [`CookieJar::signed()`].
+//!   Enables _signed_ cookies via [`Cookie::sign()`], [`Cookie::verify()`], and
+//!   [`CookieJar::signed()`].
 //!
-//!   When this feature is enabled, the [`CookieJar::signed()`] method,
-//!   [`SignedJar`] type, and [`Key`] type are available. The jar acts as "child
+//!   When this feature is enabled, the type [`Key`] and the methods
+//!   [`Cookie::sign()`] and [`Cookie::verify()`] are available, which can be
+//!   used to sign and verify cookies. Additionally, the type [`SignedJar`] and
+//!   the method [`CookieJar::signed()`] is available. The jar acts as "child
 //!   jar"; operations on the jar automatically sign and verify cookies as they
 //!   are added and retrieved from the parent jar.
 //!
 //! * **`private`**
 //!
 //!   Enables _private_ (authenticated, encrypted) cookies via
+//!   [`Cookie::encrypt()`], [`Cookie::decrypt()`], and
 //!   [`CookieJar::private()`].
 //!
-//!   When this feature is enabled, the [`CookieJar::private()`] method,
-//!   [`PrivateJar`] type, and [`Key`] type are available. The jar acts as "child
-//!   jar"; operations on the jar automatically encrypt and decrypt/authenticate
-//!   cookies as they are added and retrieved from the parent jar.
+//!   When this feature is enabled, the type [`Key`] and the methods
+//!   [`Cookie::encrypt()`] and [`Cookie::decrypt()`] are available, which can
+//!   be used to encrypt and decrypt/authenticate cookies. Additionally, the
+//!   type [`PrivateJar`] and the method [`CookieJar::private()`] is available.
+//!   The jar acts as "child jar"; operations on the jar automatically encrypt
+//!   and decrypt/authenticate cookies as they are added and retrieved from the
+//!   parent jar.
 //!
 //! * **`key-expansion`**
 //!
@@ -1415,6 +1422,88 @@ assert_eq!(&c.stripped().encoded().to_string(), "key%3F=value");
     pub fn stripped<'a>(&'a self) -> Display<'a, 'c> {
         Display::new_stripped(self)
     }
+
+    /// Encrypts and signs this cookie using authenticated encryption with the
+    /// provided key and returns the encrypted cookie.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::{Cookie, Key};
+    ///
+    /// let key = Key::generate();
+    /// let plain = Cookie::from(("name", "value"));
+    /// let encrypted = plain.encrypt(&key);
+    /// ```
+    #[cfg(feature = "private")]
+    #[cfg_attr(all(nightly, doc), doc(cfg(feature = "private")))]
+    pub fn encrypt(&self, key: &Key) -> Cookie<'static> {
+        let mut cookie = self.clone().into_owned();
+        secure::encrypt_cookie(&mut cookie, key.encryption());
+        cookie
+    }
+
+    /// Authenticates and decrypts this cookie with the provided key and returns
+    /// the plaintext version if decryption succeeds or `None` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::{Cookie, Key};
+    ///
+    /// let key = Key::generate();
+    /// let plain = Cookie::from(("name", "value"));
+    /// let encrypted = plain.encrypt(&key);
+    ///
+    /// let decrypted = encrypted.decrypt(&key).unwrap();
+    /// assert_eq!(decrypted.value(), "value");
+    /// ```
+    #[cfg(feature = "private")]
+    #[cfg_attr(all(nightly, doc), doc(cfg(feature = "private")))]
+    pub fn decrypt(&self, key: &Key) -> Option<Cookie<'static>> {
+        secure::decrypt_cookie(self, key.encryption())
+    }
+
+    /// Signs this cookie with the provided key and returns the signed cookie.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::{Cookie, Key};
+    ///
+    /// let key = Key::generate();
+    /// let plain = Cookie::from(("name", "value"));
+    /// let signed = plain.sign(&key);
+    /// ```
+    #[cfg(feature = "signed")]
+    #[cfg_attr(all(nightly, doc), doc(cfg(feature = "signed")))]
+    pub fn sign(&self, key: &Key) -> Cookie<'static> {
+        let mut cookie = self.clone().into_owned();
+        secure::sign_cookie(&mut cookie, key.signing());
+        cookie
+    }
+
+    /// Verifies the signature of this cookie with the provided key and returns
+    /// the plaintext version if verification succeeds or `None` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use cookie::{Cookie, Key};
+    ///
+    /// let key = Key::generate();
+    /// let plain = Cookie::from(("name", "value"));
+    /// let signed = plain.sign(&key);
+    ///
+    /// let verified = signed.verify(&key).unwrap();
+    /// assert_eq!(verified.value(), "value");
+    /// ```
+    #[cfg(feature = "signed")]
+    #[cfg_attr(all(nightly, doc), doc(cfg(feature = "signed")))]
+    pub fn verify(&self, key: &Key) -> Option<Cookie<'static>> {
+        secure::verify_cookie(self, key.signing())
+    }
+
 }
 
 /// An iterator over cookie parse `Result`s: `Result<Cookie, ParseError>`.
