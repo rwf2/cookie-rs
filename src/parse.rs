@@ -226,8 +226,8 @@ pub(crate) fn parse_date(s: &str, format: &impl Parsable) -> Result<OffsetDateTi
     let mut date = format.parse(s.as_bytes())?;
     if let Some(y) = date.year().or_else(|| date.year_last_two().map(|v| v as i32)) {
         let offset = match y {
-            0..=68 => 2000,
-            69..=99 => 1900,
+            0..=69 => 2000,
+            70..=99 => 1900,
             _ => 0,
         };
 
@@ -439,7 +439,7 @@ mod tests {
 
         let cookie_str = "foo=bar; expires=Thu, 10-Sep-69 20:00:00 GMT";
         let cookie = Cookie::parse(cookie_str).unwrap();
-        assert_eq!(cookie.expires_datetime().unwrap().year(), 1969);
+        assert_eq!(cookie.expires_datetime().unwrap().year(), 2069);
 
         let cookie_str = "foo=bar; expires=Thu, 10-Sep-99 20:00:00 GMT";
         let cookie = Cookie::parse(cookie_str).unwrap();
@@ -448,6 +448,18 @@ mod tests {
         let cookie_str = "foo=bar; expires=Thu, 10-Sep-2069 20:00:00 GMT";
         let cookie = Cookie::parse(cookie_str).unwrap();
         assert_eq!(cookie.expires_datetime().unwrap().year(), 2069);
+
+        let cookie_str = "foo=bar; expires=Thu, 10-Sep-0 20:00:00 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        assert_eq!(cookie.expires_datetime().unwrap().year(), 2000);
+
+        let cookie_str = "foo=bar; expires=Thu, 10-Sep-00 20:00:00 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        assert_eq!(cookie.expires_datetime().unwrap().year(), 2000);
+
+        let cookie_str = "foo=bar; expires=Thu, 10-Sep-70 20:00:00 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        assert_eq!(cookie.expires_datetime().unwrap().year(), 1970);
     }
 
     #[test]
