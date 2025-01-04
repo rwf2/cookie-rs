@@ -1,7 +1,7 @@
 # Cookie
 
-[![CI Status](https://github.com/SergioBenitez/cookie-rs/workflows/CI/badge.svg)](https://github.com/SergioBenitez/cookie-rs/actions)
-[![Current Crates.io Version](https://img.shields.io/crates/v/cookie.svg)](https://crates.io/crates/cookie)
+[![CI Status](https://github.com/rwf2/cookie-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/rwf2/cookie-rs/actions)
+[![Current crates.io Version](https://img.shields.io/crates/v/cookie.svg)](https://crates.io/crates/cookie)
 [![Documentation](https://docs.rs/cookie/badge.svg)](https://docs.rs/cookie)
 
 A Rust library for parsing HTTP cookies and managing cookie jars.
@@ -15,7 +15,7 @@ Add the following to your `Cargo.toml`:
 cookie = "0.18"
 ```
 
-See the [documentation](http://docs.rs/cookie) for detailed usage information.
+See the [documentation](https://docs.rs/cookie) for detailed usage information.
 
 # Minimum Supported Rust Version (MSRV)
 
@@ -31,9 +31,9 @@ See the [documentation](http://docs.rs/cookie) for detailed usage information.
 This project is licensed under your option of either of the following:
 
  * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-   http://www.apache.org/licenses/LICENSE-2.0)
+   https://www.apache.org/licenses/LICENSE-2.0)
  * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-   http://opensource.org/licenses/MIT)
+   https://opensource.org/license/mit)
 
 ### Contribution
 
