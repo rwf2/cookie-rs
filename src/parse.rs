@@ -1,25 +1,31 @@
 use std::borrow::Cow;
+use std::convert::From;
 use std::error::Error;
-use std::convert::{From, TryFrom};
-use std::str::Utf8Error;
 use std::fmt;
+use std::str::Utf8Error;
 
-#[allow(unused_imports, deprecated)]
-use std::ascii::AsciiExt;
+#[allow(unused_imports, deprecated)] use std::ascii::AsciiExt;
 
-#[cfg(feature = "percent-encode")]
-use percent_encoding::percent_decode;
-use time::{PrimitiveDateTime, Duration, OffsetDateTime};
-use time::{parsing::Parsable, macros::format_description, format_description::FormatItem};
+#[cfg(feature = "chrono")] use chrono::{DateTime, Utc};
+#[cfg(feature = "percent-encode")] use percent_encoding::percent_decode;
+#[cfg(not(feature = "chrono"))] use time::{format_description::FormatItem, macros::format_description, parsing::Parsable};
+#[cfg(not(feature = "chrono"))] use time::{OffsetDateTime, PrimitiveDateTime};
+#[cfg(not(feature = "chrono"))] use std::convert::TryFrom;
 
-use crate::{Cookie, SameSite, CookieStr};
+use crate::{Cookie, CookieStr, Duration, SameSite};
 
 // The three formats spec'd in http://tools.ietf.org/html/rfc2616#section-3.3.1.
 // Additional ones as encountered in the real world.
-pub static FMT1: &[FormatItem<'_>] = format_description!("[weekday repr:short], [day] [month repr:short] [year padding:none] [hour]:[minute]:[second] GMT");
-pub static FMT2: &[FormatItem<'_>] = format_description!("[weekday], [day]-[month repr:short]-[year repr:last_two] [hour]:[minute]:[second] GMT");
-pub static FMT3: &[FormatItem<'_>] = format_description!("[weekday repr:short] [month repr:short] [day padding:space] [hour]:[minute]:[second] [year padding:none]");
-pub static FMT4: &[FormatItem<'_>] = format_description!("[weekday repr:short], [day]-[month repr:short]-[year padding:none] [hour]:[minute]:[second] GMT");
+#[cfg(not(feature = "chrono"))] pub static FMT1: &[FormatItem<'_>] = format_description!("[weekday repr:short], [day] [month repr:short] [year padding:none] [hour]:[minute]:[second] GMT");
+#[cfg(not(feature = "chrono"))] pub static FMT2: &[FormatItem<'_>] = format_description!("[weekday], [day]-[month repr:short]-[year repr:last_two] [hour]:[minute]:[second] GMT");
+#[cfg(not(feature = "chrono"))] pub static FMT3: &[FormatItem<'_>] = format_description!("[weekday repr:short] [month repr:short] [day padding:space] [hour]:[minute]:[second] [year padding:none]");
+#[cfg(not(feature = "chrono"))] pub static FMT4: &[FormatItem<'_>] = format_description!("[weekday repr:short], [day]-[month repr:short]-[year padding:none] [hour]:[minute]:[second] GMT");
+
+// the exact formatters above, but for chrono
+#[cfg(feature = "chrono")] pub const FMT1: &'static str = "%a, %d %b %G %H:%M:%S GMT";
+#[cfg(feature = "chrono")] pub const FMT2: &'static str = "%A, %d-%b-%g %H:%M:%S GMT";
+#[cfg(feature = "chrono")] pub const FMT3: &'static str = "%a %b %e %H:%M:%S %G";
+#[cfg(feature = "chrono")] pub const FMT4: &'static str = "%a, %d-%b-%G %H:%M:%S GMT";
 
 /// Enum corresponding to a parsing error.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -67,13 +73,13 @@ impl Error for ParseError {
 #[cfg(feature = "percent-encode")]
 fn name_val_decoded(
     name: &str,
-    val: &str
+    val: &str,
 ) -> Result<Option<(CookieStr<'static>, CookieStr<'static>)>, ParseError> {
     let decoded_name = percent_decode(name.as_bytes()).decode_utf8()?;
     let decoded_value = percent_decode(val.as_bytes()).decode_utf8()?;
 
     if let (&Cow::Borrowed(_), &Cow::Borrowed(_)) = (&decoded_name, &decoded_value) {
-         Ok(None)
+        Ok(None)
     } else {
         let name = CookieStr::Concrete(Cow::Owned(decoded_name.into()));
         let val = CookieStr::Concrete(Cow::Owned(decoded_value.into()));
@@ -84,7 +90,7 @@ fn name_val_decoded(
 #[cfg(not(feature = "percent-encode"))]
 fn name_val_decoded(
     _: &str,
-    _: &str
+    _: &str,
 ) -> Result<Option<(CookieStr<'static>, CookieStr<'static>)>, ParseError> {
     unreachable!("This function should never be called with 'percent-encode' disabled!")
 }
@@ -100,7 +106,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
     let key_value = attributes.next().expect("first str::split().next() returns Some");
     let (name, value) = match key_value.find('=') {
         Some(i) => (key_value[..i].trim(), key_value[(i + 1)..].trim()),
-        None => return Err(ParseError::MissingPair)
+        None => return Err(ParseError::MissingPair),
     };
 
     if name.is_empty() {
@@ -119,7 +125,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
     let (name, value) = if decode {
         match name_val_decoded(name, value)? {
             Some((name, value)) => (name, value),
-            None => indexed_names(s, name, value)
+            None => indexed_names(s, name, value),
         }
     } else {
         indexed_names(s, name, value)
@@ -153,18 +159,23 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                     v = &v[1..];
                 }
 
-                if !v.chars().all(|d| d.is_digit(10)) {
-                    continue
+                if !v.chars().all(|d| d.is_ascii_digit()) {
+                    continue;
                 }
 
                 // From RFC 6265 5.2.2: neg values indicate that the earliest
                 // expiration should be used, so set the max age to 0 seconds.
                 if is_negative {
-                    Some(Duration::ZERO)
+                    #[cfg(feature = "chrono")] {
+                        Some(Duration::zero())
+                    }
+
+                    #[cfg(not(feature = "chrono"))] {
+                        Some(Duration::ZERO)
+                    }
                 } else {
-                    Some(v.parse::<i64>()
-                        .map(Duration::seconds)
-                        .unwrap_or_else(|_| Duration::seconds(i64::max_value())))
+                    Some(v.parse::<i64>().map_or_else(
+                        |_| Duration::seconds(i64::max_value()), Duration::seconds))
                 }
             },
             ("domain", Some(d)) if !d.is_empty() => {
@@ -187,19 +198,32 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                     // invalid value is passed in. The draft is at
                     // http://httpwg.org/http-extensions/draft-ietf-httpbis-cookie-same-site.html.
                 }
-            }
+            },
             ("partitioned", _) => cookie.partitioned = Some(true),
             ("expires", Some(v)) => {
-                let tm = parse_date(v, &FMT1)
-                    .or_else(|_| parse_date(v, &FMT2))
-                    .or_else(|_| parse_date(v, &FMT3))
-                    .or_else(|_| parse_date(v, &FMT4));
-                    // .or_else(|_| parse_date(v, &FMT5));
+                #[cfg(feature = "chrono")] {
+                    let tm = DateTime::parse_from_str(v, FMT1)
+                        .or_else(|_| DateTime::parse_from_str(v, FMT2))
+                        .or_else(|_| DateTime::parse_from_str(v, FMT3))
+                        .or_else(|_| DateTime::parse_from_str(v, FMT4));
 
-                if let Ok(time) = tm {
-                    cookie.expires = Some(time.into())
+                    if let Ok(time) = tm {
+                        cookie.expires = Some(Into::<DateTime<Utc>>::into(time).into());
+                    }
                 }
-            }
+
+                #[cfg(not(feature = "chrono"))] {
+                    let tm = parse_date(v, &FMT1)
+                        .or_else(|_| parse_date(v, &FMT2))
+                        .or_else(|_| parse_date(v, &FMT3))
+                        .or_else(|_| parse_date(v, &FMT4));
+                    //  .or_else(|_| parse_date(v, &FMT5));
+
+                    if let Ok(time) = tm {
+                        cookie.expires = Some(time.into());
+                    }
+                }
+            },
             _ => {
                 // We're going to be permissive here. If we have no idea what
                 // this is, then it's something nonstandard. We're not going to
@@ -213,7 +237,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
 }
 
 pub(crate) fn parse_cookie<'c, S>(cow: S, decode: bool) -> Result<Cookie<'c>, ParseError>
-    where S: Into<Cow<'c, str>>
+    where S: Into<Cow<'c, str>>,
 {
     let s = cow.into();
     let mut cookie = parse_inner(&s, decode)?;
@@ -221,6 +245,7 @@ pub(crate) fn parse_cookie<'c, S>(cow: S, decode: bool) -> Result<Cookie<'c>, Pa
     Ok(cookie)
 }
 
+#[cfg(not(feature = "chrono"))]
 pub(crate) fn parse_date(s: &str, format: &impl Parsable) -> Result<OffsetDateTime, time::Error> {
     // Parse. Handle "abbreviated" dates like Chromium. See cookie#162.
     let mut date = format.parse(s.as_bytes())?;
@@ -244,25 +269,25 @@ mod tests {
     use time::Duration;
 
     macro_rules! assert_eq_parse {
-        ($string:expr, $expected:expr) => (
+        ($string:expr, $expected:expr) => {
             let cookie = match Cookie::parse($string) {
                 Ok(cookie) => cookie,
-                Err(e) => panic!("Failed to parse {:?}: {:?}", $string, e)
+                Err(e) => panic!("Failed to parse {:?}: {:?}", $string, e),
             };
 
             assert_eq!(cookie, $expected);
-        )
+        };
     }
 
     macro_rules! assert_ne_parse {
-        ($string:expr, $expected:expr) => (
+        ($string:expr, $expected:expr) => {
             let cookie = match Cookie::parse($string) {
                 Ok(cookie) => cookie,
-                Err(e) => panic!("Failed to parse {:?}: {:?}", $string, e)
+                Err(e) => panic!("Failed to parse {:?}: {:?}", $string, e),
             };
 
             assert_ne!(cookie, $expected);
-        )
+        };
     }
 
     #[test]
@@ -287,6 +312,7 @@ mod tests {
         assert_eq_parse!("foo=bar; SameSite=NOne", expected);
         assert_eq_parse!("foo=bar; SameSite=nOne", expected);
     }
+
 
     #[test]
     fn parse() {
@@ -426,7 +452,7 @@ mod tests {
         assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
             Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", unexpected);
     }
-
+    
     #[test]
     fn parse_abbreviated_years() {
         let cookie_str = "foo=bar; expires=Thu, 10-Sep-20 20:00:00 GMT";
@@ -497,7 +523,7 @@ mod tests {
         let expected = Cookie::new("foo", "b/r");
         let cookie = match Cookie::parse_encoded("foo=b%2Fr") {
             Ok(cookie) => cookie,
-            Err(e) => panic!("Failed to parse: {:?}", e)
+            Err(e) => panic!("Failed to parse: {:?}", e),
         };
 
         assert_eq!(cookie, expected);

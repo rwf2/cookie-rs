@@ -19,9 +19,11 @@ secure = ["private", "signed", "key-expansion"]
 private = ["aes-gcm", "base64", "rand", "subtle"]
 signed = ["hmac", "sha2", "base64", "rand", "subtle"]
 key-expansion = ["sha2", "hkdf"]
+chrono = ["dep:chrono"]
 
 [dependencies]
 time = { version = "0.3", default-features = false, features = ["std", "parsing", "formatting", "macros"] }
+chrono = { version = "0.4", optional = true }
 percent-encoding = { version = "2.0", optional = true }
 
 # dependencies for secure (private/signed) functionality

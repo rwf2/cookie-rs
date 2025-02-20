@@ -601,8 +601,8 @@ impl<'a> Iterator for Delta<'a> {
     }
 }
 
-use std::collections::hash_set::Difference;
 use std::collections::hash_map::RandomState;
+use std::collections::hash_set::Difference;
 use std::iter::Chain;
 
 /// Iterator over all of the cookies in a jar.
@@ -616,7 +616,7 @@ impl<'a> Iterator for Iter<'a> {
     fn next(&mut self) -> Option<&'a Cookie<'static>> {
         for cookie in self.delta_cookies.by_ref() {
             if !cookie.removed {
-                return Some(&*cookie);
+                return Some(cookie);
             }
         }
 
