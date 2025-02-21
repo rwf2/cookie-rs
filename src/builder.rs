@@ -102,7 +102,7 @@ impl<'c> CookieBuilder<'c> {
     /// assert_eq!(c.inner().max_age(), Some(Duration::seconds(30 * 60)));
     /// ```
     #[inline]
-    pub fn max_age(mut self, value: time::Duration) -> Self {
+    pub fn max_age(mut self, value: crate::Duration) -> Self {
         self.cookie.set_max_age(value);
         self
     }

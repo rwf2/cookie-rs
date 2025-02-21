@@ -61,6 +61,10 @@
 //!   A meta-feature that simultaneously enables `signed`, `private`, and
 //!   `key-expansion`.
 //!
+//! * **`chrono`**
+//!
+//!   Use chrono instead of time.
+//!
 //! You can enable features via `Cargo.toml`:
 //!
 //! ```toml
@@ -69,17 +73,17 @@
 //! ```
 
 #![cfg_attr(all(nightly, doc), feature(doc_cfg))]
-
 #![deny(missing_docs)]
 
-pub use time;
+#[cfg(feature = "chrono")] pub use chrono;
+#[cfg(not(feature = "chrono"))] pub use time;
 
 mod builder;
-mod parse;
-mod jar;
 mod delta;
-mod same_site;
 mod expiration;
+mod jar;
+mod parse;
+mod same_site;
 
 /// Implementation of [HTTP RFC6265 draft] cookie prefixes.
 ///
@@ -94,17 +98,29 @@ use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
 
-#[allow(unused_imports, deprecated)]
-use std::ascii::AsciiExt;
+#[allow(unused_imports, deprecated)] use std::ascii::AsciiExt;
 
-use time::{Duration, OffsetDateTime, UtcOffset, macros::datetime};
+#[cfg(feature = "chrono")] use chrono::{DateTime, NaiveDate, Utc};
+#[cfg(not(feature = "chrono"))] use time::{macros::datetime, OffsetDateTime, UtcOffset};
 
+pub use crate::builder::CookieBuilder;
+pub use crate::expiration::*;
+pub use crate::jar::{CookieJar, Delta, Iter};
 use crate::parse::parse_cookie;
 pub use crate::parse::ParseError;
-pub use crate::builder::CookieBuilder;
-pub use crate::jar::{CookieJar, Delta, Iter};
 pub use crate::same_site::*;
-pub use crate::expiration::*;
+
+/// Alias of [`OffsetDateTime`](time::OffsetDateTime)
+#[cfg(not(feature = "chrono"))] pub type UtcDateTime = time::OffsetDateTime;
+
+/// Alias of [`DateTime<Utc>`](chrono::DateTime<chrono::Utc>)
+#[cfg(feature = "chrono")] pub type UtcDateTime = chrono::DateTime<chrono::Utc>;
+
+/// Alias of [`Duration`](time::Duration)
+#[cfg(not(feature = "chrono"))] pub type Duration = time::Duration;
+
+/// Alias of [`Duration`](chrono::Duration)
+#[cfg(feature = "chrono")] pub type Duration = chrono::Duration;
 
 #[derive(Debug, Clone)]
 enum CookieStr<'c> {
@@ -151,7 +167,7 @@ impl<'c> CookieStr<'c> {
                     converting indexed str to str! (This is a module invariant.)");
                 &s[i..j]
             },
-            CookieStr::Concrete(ref cstr) => &*cstr,
+            CookieStr::Concrete(ref cstr) => cstr,
         }
     }
 
@@ -163,13 +179,13 @@ impl<'c> CookieStr<'c> {
                     Cow::Borrowed(s) => Some(&s[i..j]),
                     Cow::Owned(_) => None,
                 }
-            },
+            }
             CookieStr::Concrete(_) => None,
         }
     }
 
     fn into_owned(self) -> CookieStr<'static> {
-        use crate::CookieStr::*;
+        use crate::CookieStr::{Concrete, Indexed};
 
         match self {
             Indexed(a, b) => Indexed(a, b),
@@ -255,7 +271,7 @@ impl<'c> Cookie<'c> {
     /// ```
     pub fn new<N, V>(name: N, value: V) -> Self
         where N: Into<Cow<'c, str>>,
-              V: Into<Cow<'c, str>>
+              V: Into<Cow<'c, str>>,
     {
         Cookie {
             cookie_string: None,
@@ -290,7 +306,7 @@ impl<'c> Cookie<'c> {
     /// ```
     #[deprecated(since = "0.18.0", note = "use `Cookie::build(name)` or `Cookie::from(name)`")]
     pub fn named<N>(name: N) -> Cookie<'c>
-        where N: Into<Cow<'c, str>>
+        where N: Into<Cow<'c, str>>,
     {
         Cookie::new(name, "")
     }
@@ -342,7 +358,7 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.secure(), None);
     /// ```
     pub fn parse<S>(s: S) -> Result<Cookie<'c>, ParseError>
-        where S: Into<Cow<'c, str>>
+        where S: Into<Cow<'c, str>>,
     {
         parse_cookie(s.into(), false)
     }
@@ -364,7 +380,8 @@ impl<'c> Cookie<'c> {
     #[cfg(feature = "percent-encode")]
     #[cfg_attr(all(nightly, doc), doc(cfg(feature = "percent-encode")))]
     pub fn parse_encoded<S>(s: S) -> Result<Cookie<'c>, ParseError>
-        where S: Into<Cow<'c, str>>
+    where
+        S: Into<Cow<'c, str>>,
     {
         parse_cookie(s.into(), true)
     }
@@ -399,7 +416,7 @@ impl<'c> Cookie<'c> {
     /// ```
     #[inline(always)]
     pub fn split_parse<S>(string: S) -> SplitCookies<'c>
-        where S: Into<Cow<'c, str>>
+        where S: Into<Cow<'c, str>>,
     {
         SplitCookies {
             string: string.into(),
@@ -440,7 +457,7 @@ impl<'c> Cookie<'c> {
     #[cfg_attr(all(nightly, doc), doc(cfg(feature = "percent-encode")))]
     #[inline(always)]
     pub fn split_parse_encoded<S>(string: S) -> SplitCookies<'c>
-        where S: Into<Cow<'c, str>>
+        where S: Into<Cow<'c, str>>,
     {
         SplitCookies {
             string: string.into(),
@@ -468,8 +485,8 @@ impl<'c> Cookie<'c> {
             value: self.value.into_owned(),
             expires: self.expires,
             max_age: self.max_age,
-            domain: self.domain.map(|s| s.into_owned()),
-            path: self.path.map(|s| s.into_owned()),
+            domain: self.domain.map(CookieStr::into_owned),
+            path: self.path.map(CookieStr::into_owned),
             secure: self.secure,
             http_only: self.http_only,
             same_site: self.same_site,
@@ -553,7 +570,7 @@ impl<'c> Cookie<'c> {
             let bytes = s.as_bytes();
             match (bytes.first(), bytes.last()) {
                 (Some(b'"'), Some(b'"')) => &s[1..(s.len() - 1)],
-                _ => s
+                _ => s,
             }
         }
 
@@ -779,7 +796,7 @@ impl<'c> Cookie<'c> {
             Some(ref c) => {
                 let domain = c.to_str(self.cookie_string.as_ref());
                 domain.strip_prefix(".").or(Some(domain))
-            },
+            }
             None => None,
         }
     }
@@ -828,8 +845,8 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.expires_datetime().map(|t| t.year()), Some(2017));
     /// ```
     #[inline]
-    pub fn expires_datetime(&self) -> Option<OffsetDateTime> {
-        self.expires.and_then(|e| e.datetime())
+    pub fn expires_datetime(&self) -> Option<UtcDateTime> {
+        self.expires.and_then(Expiration::datetime)
     }
 
     /// Sets the name of `self` to `name`.
@@ -846,7 +863,7 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.name(), "foo");
     /// ```
     pub fn set_name<N: Into<Cow<'c, str>>>(&mut self, name: N) {
-        self.name = CookieStr::Concrete(name.into())
+        self.name = CookieStr::Concrete(name.into());
     }
 
     /// Sets the value of `self` to `value`.
@@ -863,7 +880,7 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.value(), "bar");
     /// ```
     pub fn set_value<V: Into<Cow<'c, str>>>(&mut self, value: V) {
-        self.value = CookieStr::Concrete(value.into())
+        self.value = CookieStr::Concrete(value.into());
     }
 
     /// Sets the value of `http_only` in `self` to `value`.  If `value` is
@@ -1115,7 +1132,11 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.expires(), Some(Expiration::Session));
     /// ```
     pub fn set_expires<T: Into<Expiration>>(&mut self, time: T) {
-        static MAX_DATETIME: OffsetDateTime = datetime!(9999-12-31 23:59:59.999_999 UTC);
+        #[cfg(feature = "chrono")] 
+        static MAX_DATETIME: DateTime<Utc> 
+            = NaiveDate::from_ymd_opt(9999, 12, 31).unwrap().and_hms_nano_opt(23, 59, 59, 999_999).unwrap().and_utc();
+
+        #[cfg(not(feature = "chrono"))] static MAX_DATETIME: OffsetDateTime = datetime!(9999-12-31 23:59:59.999_999 UTC);
 
         // RFC 6265 requires dates not to exceed 9999 years.
         self.expires = Some(time.into()
@@ -1165,7 +1186,9 @@ impl<'c> Cookie<'c> {
     pub fn make_permanent(&mut self) {
         let twenty_years = Duration::days(365 * 20);
         self.set_max_age(twenty_years);
-        self.set_expires(OffsetDateTime::now_utc() + twenty_years);
+
+        #[cfg(feature = "chrono")] self.set_expires(Utc::now() + twenty_years);
+        #[cfg(not(feature = "chrono"))] self.set_expires(UtcDateTime::now_utc() + twenty_years);
     }
 
     /// Make `self` a "removal" cookie by clearing its value, setting a max-age
@@ -1192,7 +1215,9 @@ impl<'c> Cookie<'c> {
     pub fn make_removal(&mut self) {
         self.set_value("");
         self.set_max_age(Duration::seconds(0));
-        self.set_expires(OffsetDateTime::now_utc() - Duration::days(365));
+
+        #[cfg(feature = "chrono")] self.set_expires(Utc::now() - Duration::days(365));
+        #[cfg(not(feature = "chrono"))] self.set_expires(UtcDateTime::now_utc() - Duration::days(365));
     }
 
     fn fmt_parameters(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -1224,12 +1249,20 @@ impl<'c> Cookie<'c> {
         }
 
         if let Some(max_age) = self.max_age() {
-            write!(f, "; Max-Age={}", max_age.whole_seconds())?;
+            #[cfg(feature = "chrono")] write!(f, "; Max-Age={}", max_age.num_seconds())?;
+            #[cfg(not(feature = "chrono"))] write!(f, "; Max-Age={}", max_age.whole_seconds())?;
         }
 
         if let Some(time) = self.expires_datetime() {
-            let time = time.to_offset(UtcOffset::UTC);
-            write!(f, "; Expires={}", time.format(&crate::parse::FMT1).map_err(|_| fmt::Error)?)?;
+            #[cfg(feature = "chrono")] {
+                let time = time.to_utc();
+                write!(f, "; Expires={}", time.format(crate::parse::FMT1))?;
+            }
+
+            #[cfg(not(feature = "chrono"))] {
+                let time = time.to_offset(UtcOffset::UTC);
+                write!(f, "; Expires={}", time.format(&crate::parse::FMT1).map_err(|_| fmt::Error)?)?;
+            }
         }
 
         Ok(())
@@ -1364,7 +1397,7 @@ impl<'c> Cookie<'c> {
             (Some(domain), Some(string)) => match domain.to_raw_str(string) {
                 Some(s) => s.strip_prefix(".").or(Some(s)),
                 None => None,
-            }
+            },
             _ => None,
         }
     }
@@ -1437,18 +1470,17 @@ impl<'c> Iterator for SplitCookies<'c> {
             let i = self.last;
             let j = self.string[i..]
                 .find(';')
-                .map(|k| i + k)
-                .unwrap_or(self.string.len());
+                .map_or(self.string.len(), |k| i + k);
 
             self.last = j + 1;
-            if self.string[i..j].chars().all(|c| c.is_whitespace()) {
+            if self.string[i..j].chars().all(char::is_whitespace) {
                 continue;
             }
 
             return Some(match self.string {
                 Cow::Borrowed(s) => parse_cookie(s[i..j].trim(), self.decode),
                 Cow::Owned(ref s) => parse_cookie(s[i..j].trim().to_owned(), self.decode),
-            })
+            });
         }
 
         None
@@ -1460,19 +1492,10 @@ mod encoding {
     use percent_encoding::{AsciiSet, CONTROLS};
 
     /// https://url.spec.whatwg.org/#fragment-percent-encode-set
-    const FRAGMENT: &AsciiSet = &CONTROLS
-        .add(b' ')
-        .add(b'"')
-        .add(b'<')
-        .add(b'>')
-        .add(b'`');
+    const FRAGMENT: &AsciiSet = &CONTROLS.add(b' ').add(b'"').add(b'<').add(b'>').add(b'`');
 
     /// https://url.spec.whatwg.org/#path-percent-encode-set
-    const PATH: &AsciiSet = &FRAGMENT
-        .add(b'#')
-        .add(b'?')
-        .add(b'{')
-        .add(b'}');
+    const PATH: &AsciiSet = &FRAGMENT.add(b'#').add(b'?').add(b'{').add(b'}');
 
     /// https://url.spec.whatwg.org/#userinfo-percent-encode-set
     const USERINFO: &AsciiSet = &PATH
@@ -1489,10 +1512,7 @@ mod encoding {
         .add(b'%');
 
     /// https://www.rfc-editor.org/rfc/rfc6265#section-4.1.1 + '(', ')'
-    const COOKIE: &AsciiSet = &USERINFO
-        .add(b'(')
-        .add(b')')
-        .add(b',');
+    const COOKIE: &AsciiSet = &USERINFO.add(b'(').add(b')').add(b',');
 
     /// Percent-encode a cookie name or value with the proper encoding set.
     pub fn encode(string: &str) -> impl std::fmt::Display + '_ {
@@ -1547,7 +1567,7 @@ impl<'a, 'c: 'a> fmt::Display for Display<'a, 'c> {
 
         match self.strip {
             true => Ok(()),
-            false => self.cookie.fmt_parameters(f)
+            false => self.cookie.fmt_parameters(f),
         }
     }
 }
@@ -1603,7 +1623,7 @@ impl FromStr for Cookie<'static> {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Cookie<'static>, ParseError> {
-        Cookie::parse(s).map(|c| c.into_owned())
+        Cookie::parse(s).map(Cookie::into_owned)
     }
 }
 
@@ -1657,7 +1677,7 @@ impl<'a> From<Cow<'a, str>> for Cookie<'a> {
 
 impl<'a, N, V> From<(N, V)> for Cookie<'a>
     where N: Into<Cow<'a, str>>,
-          V: Into<Cow<'a, str>>
+          V: Into<Cow<'a, str>>,
 {
     fn from((name, value): (N, V)) -> Self {
         Cookie::new(name, value)
@@ -1684,8 +1704,10 @@ impl<'a> AsMut<Cookie<'a>> for Cookie<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Cookie, SameSite, parse::parse_date};
-    use time::{Duration, OffsetDateTime};
+    use crate::{Cookie, SameSite};
+    #[cfg(feature = "chrono")] use chrono::{Duration, DateTime, NaiveDate, NaiveDateTime};
+    #[cfg(not(feature = "chrono"))] use time::{Duration, OffsetDateTime};
+    #[cfg(not(feature = "chrono"))] use crate::parse::parse_date;
 
     #[test]
     fn format() {
@@ -1713,11 +1735,22 @@ mod tests {
         let cookie = Cookie::build(("foo", "bar")).domain("rust-lang.org");
         assert_eq!(&cookie.to_string(), "foo=bar; Domain=rust-lang.org");
 
-        let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
-        let expires = parse_date(time_str, &crate::parse::FMT1).unwrap();
-        let cookie = Cookie::build(("foo", "bar")).expires(expires);
-        assert_eq!(&cookie.to_string(),
-                   "foo=bar; Expires=Wed, 21 Oct 2015 07:28:00 GMT");
+        #[cfg(feature = "chrono")] {
+            let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
+            let expires = NaiveDateTime::parse_from_str(time_str, crate::parse::FMT1)
+                .unwrap().and_utc();
+            let cookie = Cookie::build(("foo", "bar")).expires(expires);
+            assert_eq!(&cookie.to_string(),
+                       "foo=bar; Expires=Wed, 21 Oct 2015 07:28:00 GMT");
+        }
+
+        #[cfg(not(feature = "chrono"))] {
+            let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
+            let expires = parse_date(time_str, &crate::parse::FMT1).unwrap();
+            let cookie = Cookie::build(("foo", "bar")).expires(expires);
+            assert_eq!(&cookie.to_string(),
+                       "foo=bar; Expires=Wed, 21 Oct 2015 07:28:00 GMT");
+        }
 
         let cookie = Cookie::build(("foo", "bar")).same_site(SameSite::Strict);
         assert_eq!(&cookie.to_string(), "foo=bar; SameSite=Strict");
@@ -1749,6 +1782,21 @@ mod tests {
         assert_eq!(&c.to_string(), "foo=bar; SameSite=None; Secure");
     }
 
+    #[cfg(feature = "chrono")]
+    #[test]
+    #[ignore]
+    fn format_date_wraps() {
+        let expires = DateTime::UNIX_EPOCH + Duration::MAX;
+        let cookie = Cookie::build(("foo", "bar")).expires(expires);
+        assert_eq!(&cookie.to_string(), "foo=bar; Expires=Fri, 31 Dec 9999 23:59:59 GMT");
+
+        let expires = NaiveDate::from_ymd_opt(9999, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap()
+            .and_utc() + Duration::days(1000);
+        let cookie = Cookie::build(("foo", "bar")).expires(expires);
+        assert_eq!(&cookie.to_string(), "foo=bar; Expires=Fri, 31 Dec 9999 23:59:59 GMT");
+    }
+    
+    #[cfg(not(feature = "chrono"))]
     #[test]
     #[ignore]
     fn format_date_wraps() {
