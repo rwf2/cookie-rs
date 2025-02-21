@@ -6,7 +6,7 @@ use std::str::Utf8Error;
 
 #[allow(unused_imports, deprecated)] use std::ascii::AsciiExt;
 
-#[cfg(feature = "chrono")] use chrono::{DateTime, Utc};
+#[cfg(feature = "chrono")] use chrono::NaiveDateTime;
 #[cfg(feature = "percent-encode")] use percent_encoding::percent_decode;
 #[cfg(not(feature = "chrono"))] use time::{format_description::FormatItem, macros::format_description, parsing::Parsable};
 #[cfg(not(feature = "chrono"))] use time::{OffsetDateTime, PrimitiveDateTime};
@@ -22,10 +22,10 @@ use crate::{Cookie, CookieStr, Duration, SameSite};
 #[cfg(not(feature = "chrono"))] pub static FMT4: &[FormatItem<'_>] = format_description!("[weekday repr:short], [day]-[month repr:short]-[year padding:none] [hour]:[minute]:[second] GMT");
 
 // the exact formatters above, but for chrono
-#[cfg(feature = "chrono")] pub const FMT1: &'static str = "%a, %d %b %G %H:%M:%S GMT";
-#[cfg(feature = "chrono")] pub const FMT2: &'static str = "%A, %d-%b-%g %H:%M:%S GMT";
-#[cfg(feature = "chrono")] pub const FMT3: &'static str = "%a %b %e %H:%M:%S %G";
-#[cfg(feature = "chrono")] pub const FMT4: &'static str = "%a, %d-%b-%G %H:%M:%S GMT";
+#[cfg(feature = "chrono")] pub const FMT1: &'static str = "%a, %d %b %Y %H:%M:%S GMT";
+#[cfg(feature = "chrono")] pub const FMT2: &'static str = "%A, %d-%b-%y %H:%M:%S GMT";
+#[cfg(feature = "chrono")] pub const FMT3: &'static str = "%a %b %_d %H:%M:%S %Y";
+#[cfg(feature = "chrono")] pub const FMT4: &'static str = "%a, %d-%b-%Y %H:%M:%S GMT";
 
 /// Enum corresponding to a parsing error.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -165,17 +165,24 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
 
                 // From RFC 6265 5.2.2: neg values indicate that the earliest
                 // expiration should be used, so set the max age to 0 seconds.
+                #[cfg(feature = "chrono")]
                 if is_negative {
-                    #[cfg(feature = "chrono")] {
-                        Some(Duration::zero())
-                    }
-
-                    #[cfg(not(feature = "chrono"))] {
-                        Some(Duration::ZERO)
-                    }
+                    Some(Duration::zero())
                 } else {
-                    Some(v.parse::<i64>().map_or_else(
-                        |_| Duration::seconds(i64::max_value()), Duration::seconds))
+                    Some(v.parse::<i64>().ok()
+                        .and_then(Duration::try_seconds)
+                        .unwrap_or_else(|| {
+                            // chrono limits seconds to i64::MAX / 1_000
+                            Duration::seconds(Duration::MAX.num_seconds())
+                        }))
+                }
+
+                #[cfg(not(feature = "chrono"))]
+                if is_negative {
+                    Some(Duration::ZERO)
+                } else {
+                    Some(v.parse::<i64>()
+                        .map_or_else(|_| Duration::seconds(i64::max_value()), Duration::seconds))
                 }
             },
             ("domain", Some(d)) if !d.is_empty() => {
@@ -202,13 +209,13 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
             ("partitioned", _) => cookie.partitioned = Some(true),
             ("expires", Some(v)) => {
                 #[cfg(feature = "chrono")] {
-                    let tm = DateTime::parse_from_str(v, FMT1)
-                        .or_else(|_| DateTime::parse_from_str(v, FMT2))
-                        .or_else(|_| DateTime::parse_from_str(v, FMT3))
-                        .or_else(|_| DateTime::parse_from_str(v, FMT4));
+                    let tm = NaiveDateTime::parse_from_str(v, FMT1)
+                        .or_else(|_| NaiveDateTime::parse_from_str(v, FMT2))
+                        .or_else(|_| NaiveDateTime::parse_from_str(v, FMT3))
+                        .or_else(|_| NaiveDateTime::parse_from_str(v, FMT4));
 
                     if let Ok(time) = tm {
-                        cookie.expires = Some(Into::<DateTime<Utc>>::into(time).into());
+                        cookie.expires = Some(time.and_utc().into());
                     }
                 }
 
@@ -251,8 +258,8 @@ pub(crate) fn parse_date(s: &str, format: &impl Parsable) -> Result<OffsetDateTi
     let mut date = format.parse(s.as_bytes())?;
     if let Some(y) = date.year().or_else(|| date.year_last_two().map(|v| v as i32)) {
         let offset = match y {
-            0..=68 => 2000,
-            69..=99 => 1900,
+            0..=69 => 2000,
+            70..=99 => 1900,
             _ => 0,
         };
 
@@ -264,9 +271,10 @@ pub(crate) fn parse_date(s: &str, format: &impl Parsable) -> Result<OffsetDateTi
 
 #[cfg(test)]
 mod tests {
-    use super::parse_date;
     use crate::{Cookie, SameSite};
-    use time::Duration;
+    #[cfg(feature = "chrono")] use chrono::{Datelike, Duration, NaiveDateTime, TimeDelta};
+    #[cfg(not(feature = "chrono"))] use time::Duration;
+    #[cfg(not(feature = "chrono"))] use super::parse_date;
 
     macro_rules! assert_eq_parse {
         ($string:expr, $expected:expr) => {
@@ -380,11 +388,22 @@ mod tests {
         assert_ne_parse!(" foo=bar ;HttpOnly; secure", unexpected);
         assert_ne_parse!(" foo=bar ;HttpOnly; secure", unexpected);
 
-        expected.set_max_age(Duration::ZERO);
-        assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=0", expected);
-        assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age = 0 ", expected);
-        assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=-1", expected);
-        assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age = -1 ", expected);
+
+        #[cfg(feature = "chrono")] {
+            expected.set_max_age(Duration::zero());
+            assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=0", expected);
+            assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age = 0 ", expected);
+            assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=-1", expected);
+            assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age = -1 ", expected);
+        }
+
+        #[cfg(not(feature = "chrono"))] {
+            expected.set_max_age(Duration::ZERO);
+            assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=0", expected);
+            assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age = 0 ", expected);
+            assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=-1", expected);
+            assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age = -1 ", expected);
+        }
 
         expected.set_max_age(Duration::minutes(1));
         assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=60", expected);
@@ -440,17 +459,35 @@ mod tests {
         assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
             Domain=FOO.COM", unexpected);
 
-        let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
-        let expires = parse_date(time_str, &super::FMT1).unwrap();
-        expected.set_expires(expires);
-        assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
-            Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", expected);
+        #[cfg(feature = "chrono")] {
+            let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
+            let expires = NaiveDateTime::parse_from_str(time_str, super::FMT1)
+                .unwrap().and_utc();
+            expected.set_expires(expires);
+            assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
+                Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", expected);
 
-        unexpected.set_domain("foo.com");
-        let bad_expires = parse_date(time_str, &super::FMT1).unwrap();
-        expected.set_expires(bad_expires);
-        assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
-            Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", unexpected);
+            unexpected.set_domain("foo.com");
+            let bad_expires = NaiveDateTime::parse_from_str(time_str, super::FMT1)
+                .unwrap().and_utc();
+            expected.set_expires(bad_expires);
+            assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
+                Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", unexpected);
+        }
+
+        #[cfg(not(feature = "chrono"))] {
+            let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
+            let expires = parse_date(time_str, &super::FMT1).unwrap();
+            expected.set_expires(expires);
+            assert_eq_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
+                Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", expected);
+
+            unexpected.set_domain("foo.com");
+            let bad_expires = parse_date(time_str, &super::FMT1).unwrap();
+            expected.set_expires(bad_expires);
+            assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
+                Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", unexpected);
+        }
     }
     
     #[test]
@@ -459,19 +496,19 @@ mod tests {
         let cookie = Cookie::parse(cookie_str).unwrap();
         assert_eq!(cookie.expires_datetime().unwrap().year(), 2020);
 
-        let cookie_str = "foo=bar; expires=Thu, 10-Sep-68 20:00:00 GMT";
+        let cookie_str = "foo=bar; expires=Mon, 10-Sep-68 20:00:00 GMT";
         let cookie = Cookie::parse(cookie_str).unwrap();
         assert_eq!(cookie.expires_datetime().unwrap().year(), 2068);
 
-        let cookie_str = "foo=bar; expires=Thu, 10-Sep-69 20:00:00 GMT";
+        let cookie_str = "foo=bar; expires=Thu, 10-Sep-70 20:00:00 GMT";
         let cookie = Cookie::parse(cookie_str).unwrap();
-        assert_eq!(cookie.expires_datetime().unwrap().year(), 1969);
+        assert_eq!(cookie.expires_datetime().unwrap().year(), 1970);
 
-        let cookie_str = "foo=bar; expires=Thu, 10-Sep-99 20:00:00 GMT";
+        let cookie_str = "foo=bar; expires=Fri, 10-Sep-99 20:00:00 GMT";
         let cookie = Cookie::parse(cookie_str).unwrap();
         assert_eq!(cookie.expires_datetime().unwrap().year(), 1999);
 
-        let cookie_str = "foo=bar; expires=Thu, 10-Sep-2069 20:00:00 GMT";
+        let cookie_str = "foo=bar; expires=Tue, 10-Sep-2069 20:00:00 GMT";
         let cookie = Cookie::parse(cookie_str).unwrap();
         assert_eq!(cookie.expires_datetime().unwrap().year(), 2069);
     }
@@ -490,8 +527,11 @@ mod tests {
 
     #[test]
     fn parse_very_large_max_ages() {
+        #[cfg(feature = "chrono")] let max_seconds = TimeDelta::seconds(TimeDelta::MAX.num_seconds());
+        #[cfg(not(feature = "chrono"))] let max_seconds = time::Duration::seconds(i64::max_value());
+
         let mut expected = Cookie::build(("foo", "bar"))
-            .max_age(Duration::seconds(i64::max_value()))
+            .max_age(max_seconds)
             .build();
 
         let string = format!("foo=bar; Max-Age={}", 1u128 << 100);
@@ -507,7 +547,7 @@ mod tests {
         assert_eq_parse!(&string, expected);
 
         let string = format!("foo=bar; Max-Age={}", i64::max_value());
-        expected.set_max_age(Duration::seconds(i64::max_value()));
+        expected.set_max_age(max_seconds);
         assert_eq_parse!(&string, expected);
     }
 
@@ -531,7 +571,11 @@ mod tests {
 
     #[test]
     fn do_not_panic_on_large_max_ages() {
-        let max_seconds = Duration::MAX.whole_seconds();
+        #[cfg(feature = "chrono")]
+        let max_seconds = TimeDelta::MAX.num_seconds();
+        #[cfg(not(feature = "chrono"))]
+        let max_seconds = time::Duration::MAX.whole_seconds();
+
         let expected = Cookie::build(("foo", "bar"))
             .max_age(Duration::seconds(max_seconds));
 

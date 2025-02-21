@@ -100,7 +100,7 @@ use std::str::FromStr;
 
 #[allow(unused_imports, deprecated)] use std::ascii::AsciiExt;
 
-#[cfg(feature = "chrono")] use chrono::{DateTime, Utc};
+#[cfg(feature = "chrono")] use chrono::{DateTime, NaiveDate, Utc};
 #[cfg(not(feature = "chrono"))] use time::{macros::datetime, OffsetDateTime, UtcOffset};
 
 pub use crate::builder::CookieBuilder;
@@ -1132,7 +1132,10 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.expires(), Some(Expiration::Session));
     /// ```
     pub fn set_expires<T: Into<Expiration>>(&mut self, time: T) {
-        #[cfg(feature = "chrono")] static MAX_DATETIME: UtcDateTime = DateTime::<Utc>::MAX_UTC;
+        #[cfg(feature = "chrono")] 
+        static MAX_DATETIME: DateTime<Utc> 
+            = NaiveDate::from_ymd_opt(9999, 12, 31).unwrap().and_hms_nano_opt(23, 59, 59, 999_999).unwrap().and_utc();
+
         #[cfg(not(feature = "chrono"))] static MAX_DATETIME: OffsetDateTime = datetime!(9999-12-31 23:59:59.999_999 UTC);
 
         // RFC 6265 requires dates not to exceed 9999 years.
@@ -1701,8 +1704,10 @@ impl<'a> AsMut<Cookie<'a>> for Cookie<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{parse::parse_date, Cookie, SameSite};
-    use time::{Duration, OffsetDateTime};
+    use crate::{Cookie, SameSite};
+    #[cfg(feature = "chrono")] use chrono::{Duration, DateTime, NaiveDate, NaiveDateTime};
+    #[cfg(not(feature = "chrono"))] use time::{Duration, OffsetDateTime};
+    #[cfg(not(feature = "chrono"))] use crate::parse::parse_date;
 
     #[test]
     fn format() {
@@ -1730,11 +1735,22 @@ mod tests {
         let cookie = Cookie::build(("foo", "bar")).domain("rust-lang.org");
         assert_eq!(&cookie.to_string(), "foo=bar; Domain=rust-lang.org");
 
-        let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
-        let expires = parse_date(time_str, &crate::parse::FMT1).unwrap();
-        let cookie = Cookie::build(("foo", "bar")).expires(expires);
-        assert_eq!(&cookie.to_string(),
-                   "foo=bar; Expires=Wed, 21 Oct 2015 07:28:00 GMT");
+        #[cfg(feature = "chrono")] {
+            let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
+            let expires = NaiveDateTime::parse_from_str(time_str, crate::parse::FMT1)
+                .unwrap().and_utc();
+            let cookie = Cookie::build(("foo", "bar")).expires(expires);
+            assert_eq!(&cookie.to_string(),
+                       "foo=bar; Expires=Wed, 21 Oct 2015 07:28:00 GMT");
+        }
+
+        #[cfg(not(feature = "chrono"))] {
+            let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
+            let expires = parse_date(time_str, &crate::parse::FMT1).unwrap();
+            let cookie = Cookie::build(("foo", "bar")).expires(expires);
+            assert_eq!(&cookie.to_string(),
+                       "foo=bar; Expires=Wed, 21 Oct 2015 07:28:00 GMT");
+        }
 
         let cookie = Cookie::build(("foo", "bar")).same_site(SameSite::Strict);
         assert_eq!(&cookie.to_string(), "foo=bar; SameSite=Strict");
@@ -1766,6 +1782,21 @@ mod tests {
         assert_eq!(&c.to_string(), "foo=bar; SameSite=None; Secure");
     }
 
+    #[cfg(feature = "chrono")]
+    #[test]
+    #[ignore]
+    fn format_date_wraps() {
+        let expires = DateTime::UNIX_EPOCH + Duration::MAX;
+        let cookie = Cookie::build(("foo", "bar")).expires(expires);
+        assert_eq!(&cookie.to_string(), "foo=bar; Expires=Fri, 31 Dec 9999 23:59:59 GMT");
+
+        let expires = NaiveDate::from_ymd_opt(9999, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap()
+            .and_utc() + Duration::days(1000);
+        let cookie = Cookie::build(("foo", "bar")).expires(expires);
+        assert_eq!(&cookie.to_string(), "foo=bar; Expires=Fri, 31 Dec 9999 23:59:59 GMT");
+    }
+    
+    #[cfg(not(feature = "chrono"))]
     #[test]
     #[ignore]
     fn format_date_wraps() {
