@@ -11,6 +11,9 @@ cargo test --verbose --features secure
 cargo test --verbose --features 'private,key-expansion'
 cargo test --verbose --features 'signed,key-expansion'
 cargo test --verbose --features 'secure,percent-encode'
+cargo test --verbose --features 'private,key-expansion,serde'
+cargo test --verbose --features 'signed,key-expansion,serde'
+cargo test --verbose --features 'secure,percent-encode,serde'
 
 cargo test --verbose
 cargo test --verbose --no-default-features

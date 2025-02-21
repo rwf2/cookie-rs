@@ -1,3 +1,5 @@
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 
 const SIGNING_KEY_LEN: usize = 32;
@@ -16,9 +18,15 @@ const_assert!(crate::secure::private::KEY_LEN == ENCRYPTION_KEY_LEN);
 /// [`PrivateJar`](crate::PrivateJar) and [`SignedJar`](crate::SignedJar). A
 /// single instance of a `Key` can be used for both a `PrivateJar` and a
 /// `SignedJar` simultaneously with no notable security implications.
-#[cfg_attr(all(nightly, doc), doc(cfg(any(feature = "private", feature = "signed"))))]
+#[cfg_attr(
+    all(nightly, doc),
+    doc(cfg(any(feature = "private", feature = "signed")))
+)]
 #[derive(Clone)]
-pub struct Key([u8; COMBINED_KEY_LENGTH /* SIGNING | ENCRYPTION */]);
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct Key(
+    #[cfg_attr(feature = "serde", serde(with = "serde_bytes"))] [u8; COMBINED_KEY_LENGTH],
+);
 
 impl PartialEq for Key {
     fn eq(&self, other: &Self) -> bool {
@@ -95,14 +103,18 @@ impl Key {
     #[cfg_attr(all(nightly, doc), doc(cfg(feature = "key-expansion")))]
     pub fn derive_from(master_key: &[u8]) -> Self {
         if master_key.len() < 32 {
-            panic!("bad master key length: expected >= 32 bytes, found {}", master_key.len());
+            panic!(
+                "bad master key length: expected >= 32 bytes, found {}",
+                master_key.len()
+            );
         }
 
         // Expand the master key into two HKDF generated keys.
         const KEYS_INFO: &[u8] = b"COOKIE;SIGNED:HMAC-SHA256;PRIVATE:AEAD-AES-256-GCM";
         let mut both_keys = [0; COMBINED_KEY_LENGTH];
         let hk = hkdf::Hkdf::<sha2::Sha256>::from_prk(master_key).expect("key length prechecked");
-        hk.expand(KEYS_INFO, &mut both_keys).expect("expand into keys");
+        hk.expand(KEYS_INFO, &mut both_keys)
+            .expect("expand into keys");
         Key::from(&both_keys)
     }
 
@@ -192,7 +204,10 @@ impl Key {
 }
 
 /// An error indicating an issue with generating or constructing a key.
-#[cfg_attr(all(nightly, doc), doc(cfg(any(feature = "private", feature = "signed"))))]
+#[cfg_attr(
+    all(nightly, doc),
+    doc(cfg(any(feature = "private", feature = "signed")))
+)]
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum KeyError {
@@ -202,14 +217,17 @@ pub enum KeyError {
     TooShort(usize),
 }
 
-impl std::error::Error for KeyError { }
+impl std::error::Error for KeyError {}
 
 impl std::fmt::Display for KeyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             KeyError::TooShort(n) => {
-                write!(f, "key material is too short: expected >= {} bytes, got {} bytes",
-                       COMBINED_KEY_LENGTH, n)
+                write!(
+                    f,
+                    "key material is too short: expected >= {} bytes, got {} bytes",
+                    COMBINED_KEY_LENGTH, n
+                )
             }
         }
     }
@@ -310,5 +328,26 @@ mod test {
         let key = Key::generate();
 
         assert_eq!(format!("{:?}", key), "Key");
+    }
+
+    #[cfg(feature = "serde")]
+    static serde_key: [u8; 64] = [
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+        25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47,
+        48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63,
+    ];
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn roundtrip_serialize() {
+        let key = Key::from(&serde_key);
+
+        serde_test::assert_tokens(
+            &key,
+            &[
+                serde_test::Token::NewtypeStruct { name: "Key" },
+                serde_test::Token::Bytes(&serde_key),
+            ],
+        );
     }
 }
