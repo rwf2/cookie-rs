@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 env:
   CARGO_TERM_COLOR: always
-  MSRV: "1.56"
+  MSRV: "1.63"
 
 jobs:
   test:
