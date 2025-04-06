@@ -155,7 +155,7 @@ impl<'c> CookieStr<'c> {
                 );
                 &s[i..j]
             }
-            CookieStr::Concrete(ref cstr) => &*cstr,
+            CookieStr::Concrete(ref cstr) => cstr,
         }
     }
 
