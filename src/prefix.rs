@@ -1,7 +1,7 @@
-use std::marker::PhantomData;
 use std::borrow::{Borrow, BorrowMut, Cow};
+use std::marker::PhantomData;
 
-use crate::{CookieJar, Cookie};
+use crate::{Cookie, CookieJar};
 
 /// A child jar that automatically [prefixes](Prefix) cookies.
 ///
@@ -106,8 +106,8 @@ pub trait Prefix: private::Sealed {
     /// contain the prefix.
     #[doc(hidden)]
     fn clip(mut cookie: Cookie<'_>) -> Cookie<'_> {
-        use std::borrow::Cow::*;
         use crate::CookieStr::*;
+        use std::borrow::Cow::*;
 
         if !cookie.name().starts_with(Self::PREFIX) {
             return cookie;
@@ -135,7 +135,10 @@ pub trait Prefix: private::Sealed {
 impl<P: Prefix, J> PrefixedJar<P, J> {
     #[inline(always)]
     pub(crate) fn new(parent: J) -> Self {
-        Self { parent, _prefix: PhantomData }
+        Self {
+            parent,
+            _prefix: PhantomData,
+        }
     }
 }
 
@@ -158,7 +161,8 @@ impl<P: Prefix, J: Borrow<CookieJar>> PrefixedJar<P, J> {
     /// assert_eq!(jar.prefixed(Host).get("h0st").unwrap().value(), "value");
     /// ```
     pub fn get(&self, name: &str) -> Option<Cookie<'static>> {
-        self.parent.borrow()
+        self.parent
+            .borrow()
             .get(&P::prefixed_name(name))
             .map(|c| P::clip(c.clone()))
     }
@@ -207,7 +211,9 @@ impl<P: Prefix, J: BorrowMut<CookieJar>> PrefixedJar<P, J> {
     /// assert_eq!(jar.delta().count(), 0);
     /// ```
     pub fn add_original<C: Into<Cookie<'static>>>(&mut self, cookie: C) {
-        self.parent.borrow_mut().add_original(P::apply(cookie.into()));
+        self.parent
+            .borrow_mut()
+            .add_original(P::apply(cookie.into()));
     }
 
     /// Removes `cookie` from the parent jar.

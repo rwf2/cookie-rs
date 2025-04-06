@@ -1,7 +1,7 @@
 extern crate rand;
 
 mod base64 {
-    use base64::{DecodeError, Engine, prelude::BASE64_STANDARD};
+    use base64::{prelude::BASE64_STANDARD, DecodeError, Engine};
 
     /// Encode `input` as the standard base64 with padding.
     pub(crate) fn encode<T: AsRef<[u8]>>(input: T) -> String {
@@ -20,8 +20,12 @@ mod key;
 
 pub use self::key::*;
 
-#[cfg(feature = "private")] mod private;
-#[cfg(feature = "private")] pub use self::private::*;
+#[cfg(feature = "private")]
+mod private;
+#[cfg(feature = "private")]
+pub use self::private::*;
 
-#[cfg(feature = "signed")] mod signed;
-#[cfg(feature = "signed")] pub use self::signed::*;
+#[cfg(feature = "signed")]
+mod signed;
+#[cfg(feature = "signed")]
+pub use self::signed::*;

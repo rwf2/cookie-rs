@@ -32,7 +32,7 @@ pub enum SameSite {
     /// The "Lax" `SameSite` attribute.
     Lax,
     /// The "None" `SameSite` attribute.
-    None
+    None,
 }
 
 impl SameSite {
@@ -92,7 +92,7 @@ impl SameSite {
     pub fn is_none(&self) -> bool {
         match *self {
             SameSite::None => true,
-            SameSite::Lax | SameSite::Strict => false
+            SameSite::Lax | SameSite::Strict => false,
         }
     }
 }

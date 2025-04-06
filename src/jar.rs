@@ -1,8 +1,11 @@
 use std::collections::HashSet;
 
-#[cfg(feature = "signed")] use crate::secure::SignedJar;
-#[cfg(feature = "private")] use crate::secure::PrivateJar;
-#[cfg(any(feature = "signed", feature = "private"))] use crate::secure::Key;
+#[cfg(any(feature = "signed", feature = "private"))]
+use crate::secure::Key;
+#[cfg(feature = "private")]
+use crate::secure::PrivateJar;
+#[cfg(feature = "signed")]
+use crate::secure::SignedJar;
 
 use crate::delta::DeltaCookie;
 use crate::prefix::{Prefix, PrefixedJar};
@@ -150,7 +153,8 @@ impl CookieJar {
     /// assert_eq!(jar.delta().count(), 0);
     /// ```
     pub fn add_original<C: Into<Cookie<'static>>>(&mut self, cookie: C) {
-        self.original_cookies.replace(DeltaCookie::added(cookie.into()));
+        self.original_cookies
+            .replace(DeltaCookie::added(cookie.into()));
     }
 
     /// Adds `cookie` to this jar. If a cookie with the same name already
@@ -171,7 +175,8 @@ impl CookieJar {
     /// assert_eq!(jar.delta().count(), 2);
     /// ```
     pub fn add<C: Into<Cookie<'static>>>(&mut self, cookie: C) {
-        self.delta_cookies.replace(DeltaCookie::added(cookie.into()));
+        self.delta_cookies
+            .replace(DeltaCookie::added(cookie.into()));
     }
 
     /// Removes `cookie` from this jar. If an _original_ cookie with the same
@@ -341,7 +346,9 @@ impl CookieJar {
     /// assert_eq!(jar.delta().count(), 3);
     /// ```
     pub fn delta(&self) -> Delta {
-        Delta { iter: self.delta_cookies.iter() }
+        Delta {
+            iter: self.delta_cookies.iter(),
+        }
     }
 
     /// Returns an iterator over all of the cookies present in this jar.
@@ -376,7 +383,9 @@ impl CookieJar {
     /// ```
     pub fn iter(&self) -> Iter {
         Iter {
-            delta_cookies: self.delta_cookies.iter()
+            delta_cookies: self
+                .delta_cookies
+                .iter()
                 .chain(self.original_cookies.difference(&self.delta_cookies)),
         }
     }
@@ -601,8 +610,8 @@ impl<'a> Iterator for Delta<'a> {
     }
 }
 
-use std::collections::hash_set::Difference;
 use std::collections::hash_map::RandomState;
+use std::collections::hash_set::Difference;
 use std::iter::Chain;
 
 /// Iterator over all of the cookies in a jar.
@@ -673,7 +682,8 @@ mod test {
         assert_eq!(c.iter().count(), 4);
 
         c.signed_mut(&key).add(Cookie::new("signed", "signed"));
-        c.private_mut(&key).add(Cookie::new("encrypted", "encrypted"));
+        c.private_mut(&key)
+            .add(Cookie::new("encrypted", "encrypted"));
         assert_eq!(c.iter().count(), 6);
 
         c.remove("test");
@@ -710,9 +720,7 @@ mod test {
 
         assert_eq!(c.delta().count(), 4);
 
-        let names: HashMap<_, _> = c.delta()
-            .map(|c| (c.name(), c.max_age()))
-            .collect();
+        let names: HashMap<_, _> = c.delta().map(|c| (c.name(), c.max_age())).collect();
 
         assert!(names.get("test2").unwrap().is_none());
         assert!(names.get("test3").unwrap().is_none());
