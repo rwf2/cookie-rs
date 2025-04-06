@@ -2,12 +2,12 @@ extern crate aes_gcm;
 
 use std::borrow::{Borrow, BorrowMut};
 
-use crate::secure::{base64, rand, Key};
-use crate::{Cookie, CookieJar};
+use aes_gcm::aead::{generic_array::GenericArray, Aead, AeadInPlace, KeyInit, Payload};
+use aes_gcm::Aes256Gcm;
+use rand::RngCore;
 
-use self::aes_gcm::aead::{generic_array::GenericArray, Aead, AeadInPlace, KeyInit, Payload};
-use self::aes_gcm::Aes256Gcm;
-use self::rand::RngCore;
+use crate::secure::{base64, Key};
+use crate::{Cookie, CookieJar};
 
 // Keep these in sync, and keep the key len synced with the `private` docs as
 // well as the `KEYS_INFO` const in secure::Key.
@@ -52,7 +52,7 @@ impl<J> PrivateJar<J> {
         in_out.copy_from_slice(cookie_val);
 
         // Fill nonce piece with random data.
-        let mut rng = self::rand::thread_rng();
+        let mut rng = rand::thread_rng();
         rng.try_fill_bytes(nonce)
             .expect("couldn't random fill nonce");
         let nonce = GenericArray::clone_from_slice(nonce);
