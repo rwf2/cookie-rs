@@ -1,5 +1,3 @@
-extern crate aes_gcm;
-
 use std::borrow::{Borrow, BorrowMut};
 
 use aes_gcm::aead::{generic_array::GenericArray, Aead, AeadInPlace, KeyInit, Payload};

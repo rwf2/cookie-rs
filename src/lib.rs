@@ -1009,7 +1009,6 @@ impl<'c> Cookie<'c> {
     /// # Example
     ///
     /// ```rust
-    /// # extern crate cookie;
     /// use cookie::Cookie;
     /// use cookie::time::Duration;
     ///
@@ -1109,7 +1108,6 @@ impl<'c> Cookie<'c> {
     /// # Example
     ///
     /// ```
-    /// # extern crate cookie;
     /// use cookie::{Cookie, Expiration};
     /// use cookie::time::{Duration, OffsetDateTime};
     ///
@@ -1158,7 +1156,6 @@ impl<'c> Cookie<'c> {
     /// # Example
     ///
     /// ```rust
-    /// # extern crate cookie;
     /// use cookie::Cookie;
     /// use cookie::time::Duration;
     ///
@@ -1184,7 +1181,6 @@ impl<'c> Cookie<'c> {
     /// # Example
     ///
     /// ```rust
-    /// # extern crate cookie;
     /// use cookie::Cookie;
     /// use cookie::time::Duration;
     ///

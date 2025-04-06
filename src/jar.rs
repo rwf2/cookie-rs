@@ -254,7 +254,6 @@ impl CookieJar {
     /// Removing an _original_ cookie; no _removal_ cookie is generated:
     ///
     /// ```rust
-    /// # extern crate cookie;
     /// use cookie::{CookieJar, Cookie};
     /// use cookie::time::Duration;
     ///
