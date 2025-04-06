@@ -12,6 +12,7 @@ description = """
 HTTP cookie parsing and cookie jar management. Supports signed and private
 (encrypted, authenticated) jars.
 """
+rust-version = "1.63"
 
 [features]
 percent-encode = ["dep:percent-encoding"]
