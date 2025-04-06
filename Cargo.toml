@@ -2,7 +2,7 @@
 name = "cookie"
 version = "0.18.1"
 authors = ["Sergio Benitez <sb@sergio.bz>", "Alex Crichton <alex@alexcrichton.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/SergioBenitez/cookie-rs"
 documentation = "https://docs.rs/cookie"

@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::error::Error;
-use std::convert::{From, TryFrom};
 use std::str::Utf8Error;
 use std::fmt;
 
