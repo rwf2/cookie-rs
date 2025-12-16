@@ -151,7 +151,7 @@ impl<'c> CookieStr<'c> {
                     converting indexed str to str! (This is a module invariant.)");
                 &s[i..j]
             },
-            CookieStr::Concrete(ref cstr) => &*cstr,
+            CookieStr::Concrete(ref cstr) => cstr,
         }
     }
 

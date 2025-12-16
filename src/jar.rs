@@ -340,7 +340,7 @@ impl CookieJar {
     /// // Delta contains two new cookies ("new", "yac") and a removal ("name").
     /// assert_eq!(jar.delta().count(), 3);
     /// ```
-    pub fn delta(&self) -> Delta {
+    pub fn delta(&self) -> Delta<'_> {
         Delta { iter: self.delta_cookies.iter() }
     }
 
@@ -374,7 +374,7 @@ impl CookieJar {
     ///     }
     /// }
     /// ```
-    pub fn iter(&self) -> Iter {
+    pub fn iter(&self) -> Iter<'_> {
         Iter {
             delta_cookies: self.delta_cookies.iter()
                 .chain(self.original_cookies.difference(&self.delta_cookies)),
@@ -540,7 +540,7 @@ impl CookieJar {
     /// assert!(matches!(jar.prefixed(Secure).get("h0st"), None));
     /// ```
     #[inline(always)]
-    pub fn prefixed<'a, P: Prefix>(&'a self, prefix: P) -> PrefixedJar<P, &'a Self> {
+    pub fn prefixed<P: Prefix>(&self, prefix: P) -> PrefixedJar<P, &Self> {
         let _ = prefix;
         PrefixedJar::new(self)
     }
@@ -580,7 +580,7 @@ impl CookieJar {
     /// jar.prefixed_mut(Host).remove("one");
     /// assert!(jar.prefixed(Host).get("one").is_none());
     /// ```
-    pub fn prefixed_mut<'a, P: Prefix>(&'a mut self, prefix: P) -> PrefixedJar<P, &'a mut Self> {
+    pub fn prefixed_mut<P: Prefix>(&mut self, prefix: P) -> PrefixedJar<P, &mut Self> {
         let _ = prefix;
         PrefixedJar::new(self)
     }
@@ -614,13 +614,7 @@ impl<'a> Iterator for Iter<'a> {
     type Item = &'a Cookie<'static>;
 
     fn next(&mut self) -> Option<&'a Cookie<'static>> {
-        for cookie in self.delta_cookies.by_ref() {
-            if !cookie.removed {
-                return Some(&*cookie);
-            }
-        }
-
-        None
+        self.delta_cookies.by_ref().find(|&cookie| !cookie.removed).map(|v| v as _)
     }
 }
 

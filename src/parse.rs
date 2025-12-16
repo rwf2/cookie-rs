@@ -153,7 +153,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                     v = &v[1..];
                 }
 
-                if !v.chars().all(|d| d.is_digit(10)) {
+                if !v.chars().all(|d| d.is_ascii_digit()) {
                     continue
                 }
 
@@ -164,7 +164,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                 } else {
                     Some(v.parse::<i64>()
                         .map(Duration::seconds)
-                        .unwrap_or_else(|_| Duration::seconds(i64::max_value())))
+                        .unwrap_or_else(|_| Duration::seconds(i64::MAX)))
                 }
             },
             ("domain", Some(d)) if !d.is_empty() => {
