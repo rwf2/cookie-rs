@@ -12,6 +12,7 @@ description = """
 HTTP cookie parsing and cookie jar management. Supports signed and private
 (encrypted, authenticated) jars.
 """
+include = ["Cargo.toml", "CHANGELOG.md", "README.md", "LICENSE-APACHE", "LICENSE-MIT", "build.rs", "src/**/*.rs"]
 
 [features]
 percent-encode = ["percent-encoding"]
