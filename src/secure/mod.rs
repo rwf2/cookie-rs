@@ -1,5 +1,3 @@
-extern crate rand;
-
 mod base64 {
     use base64::{DecodeError, Engine, prelude::BASE64_STANDARD};
 
