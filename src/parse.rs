@@ -10,16 +10,27 @@ use std::ascii::AsciiExt;
 #[cfg(feature = "percent-encode")]
 use percent_encoding::percent_decode;
 use time::{PrimitiveDateTime, Duration, OffsetDateTime};
-use time::{parsing::Parsable, macros::format_description, format_description::FormatItem};
+use time::{parsing::Parsable, macros::format_description, format_description::StaticFormatDescription};
 
 use crate::{Cookie, SameSite, CookieStr};
 
 // The three formats spec'd in http://tools.ietf.org/html/rfc2616#section-3.3.1.
 // Additional ones as encountered in the real world.
-pub static FMT1: &[FormatItem<'_>] = format_description!("[weekday repr:short], [day] [month repr:short] [year padding:none] [hour]:[minute]:[second] GMT");
-pub static FMT2: &[FormatItem<'_>] = format_description!("[weekday], [day]-[month repr:short]-[year repr:last_two] [hour]:[minute]:[second] GMT");
-pub static FMT3: &[FormatItem<'_>] = format_description!("[weekday repr:short] [month repr:short] [day padding:space] [hour]:[minute]:[second] [year padding:none]");
-pub static FMT4: &[FormatItem<'_>] = format_description!("[weekday repr:short], [day]-[month repr:short]-[year padding:none] [hour]:[minute]:[second] GMT");
+pub static FMT1: StaticFormatDescription = format_description!(version = 2,
+    "[optional [[weekday repr:short], ]][day] [month repr:short] [year padding:none] [hour]:[minute]:[second] GMT"
+);
+
+pub static FMT2: StaticFormatDescription = format_description!(version = 2,
+    "[optional [[weekday], ]][day]-[month repr:short]-[year repr:last_two] [hour]:[minute]:[second] GMT"
+);
+
+pub static FMT3: StaticFormatDescription = format_description!(version = 2,
+    "[optional [[weekday repr:short] ]][month repr:short] [day padding:space] [hour]:[minute]:[second] [year padding:none]"
+);
+
+pub static FMT4: StaticFormatDescription = format_description!(version = 2,
+    "[optional [[weekday repr:short], ]][day]-[month repr:short]-[year padding:none] [hour]:[minute]:[second] GMT"
+);
 
 /// Enum corresponding to a parsing error.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -464,14 +475,21 @@ mod tests {
 
     #[test]
     fn parse_variant_date_fmts() {
-        let cookie_str = "foo=bar; expires=Sun, 06 Nov 1994 08:49:37 GMT";
-        Cookie::parse(cookie_str).unwrap().expires_datetime().unwrap();
+        let expected = time::macros::datetime!(1994-11-06 8:49:37 UTC);
+        let strings = [
+            "foo=bar; expires=Sun, 06 Nov 1994 08:49:37 GMT",
+            "foo=bar; expires=06 Nov 1994 08:49:37 GMT",
+            "foo=bar; expires=Sunday, 06-Nov-94 08:49:37 GMT",
+            "foo=bar; expires=06-Nov-94 08:49:37 GMT",
+            "foo=bar; expires=Sun Nov  6 08:49:37 1994",
+            "foo=bar; expires=Nov  6 08:49:37 1994",
+            "foo=bar; expires=06-Nov-1994 08:49:37 GMT",
+        ];
 
-        let cookie_str = "foo=bar; expires=Sunday, 06-Nov-94 08:49:37 GMT";
-        Cookie::parse(cookie_str).unwrap().expires_datetime().unwrap();
-
-        let cookie_str = "foo=bar; expires=Sun Nov  6 08:49:37 1994";
-        Cookie::parse(cookie_str).unwrap().expires_datetime().unwrap();
+        for cookie_str in strings {
+            let cookie = Cookie::parse(cookie_str).unwrap();
+            assert_eq!(cookie.expires_datetime(), Some(expected));
+        }
     }
 
     #[test]
