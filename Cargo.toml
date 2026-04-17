@@ -8,11 +8,13 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/SergioBenitez/cookie-rs"
 documentation = "https://docs.rs/cookie"
 readme = "README.md"
-build = "build.rs"
 description = """
 HTTP cookie parsing and cookie jar management. Supports signed and private
 (encrypted, authenticated) jars.
 """
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(nightly)'] }
 
 [features]
 percent-encode = ["percent-encoding"]
@@ -34,8 +36,6 @@ rand = { version = "0.10", optional = true }
 hkdf = { version = "0.13", optional = true }
 subtle = { version = "2.3", optional = true }
 
-[build-dependencies]
-version_check = "0.9.4"
-
 [package.metadata.docs.rs]
 all-features = true
+rustdoc-args = ["--cfg", "nightly"]
