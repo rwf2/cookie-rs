@@ -6,9 +6,9 @@ const COMBINED_KEY_LENGTH: usize = SIGNING_KEY_LEN + ENCRYPTION_KEY_LEN;
 
 // Statically ensure the numbers above are in-sync.
 #[cfg(feature = "signed")]
-const_assert!(crate::secure::signed::KEY_LEN == SIGNING_KEY_LEN);
+const _: () = assert!(crate::secure::signed::KEY_LEN == SIGNING_KEY_LEN);
 #[cfg(feature = "private")]
-const_assert!(crate::secure::private::KEY_LEN == ENCRYPTION_KEY_LEN);
+const _: () = assert!(crate::secure::private::KEY_LEN == ENCRYPTION_KEY_LEN);
 
 /// A cryptographic master key for use with `Signed` and/or `Private` jars.
 ///

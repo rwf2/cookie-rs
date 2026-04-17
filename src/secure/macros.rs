@@ -38,12 +38,3 @@ macro_rules! assert_secure_behaviour {
         assert!($secure.get("secure").is_none());
     })
 }
-
-// This is courtesty of `static_assertions`. That library is Copyright (c) 2017
-// Nikolai Vazquez. See https://github.com/nvzqz/static-assertions-rs for more.
-macro_rules! const_assert {
-    ($x:expr $(,)?) => {
-        #[allow(unknown_lints, clippy::eq_op)]
-        const _: [(); 0 - !{ const ASSERT: bool = $x; ASSERT } as usize] = [];
-    };
-}
