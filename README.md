@@ -21,6 +21,7 @@ See the [documentation](http://docs.rs/cookie) for detailed usage information.
 
 | Version Range                    | MSRV         |
 |----------------------------------|--------------|
+| `cookie` `==` `0.19`             | `rustc 1.85` |
 | `cookie` `==` `0.18`             | `rustc 1.56` |
 | `0.16` `<=` `cookie` `<=` `0.17` | `rustc 1.53` |
 | `cookie` `<=` `0.15`             | `rustc 1.41` |

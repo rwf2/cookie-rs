@@ -137,9 +137,9 @@ impl Key {
     /// let key = Key::try_generate();
     /// ```
     pub fn try_generate() -> Option<Key> {
-        use crate::secure::rand::RngCore;
+        use crate::secure::rand::TryRng;
 
-        let mut rng = crate::secure::rand::thread_rng();
+        let mut rng = crate::secure::rand::rngs::SysRng;
         let mut key = Key::zero();
         rng.try_fill_bytes(&mut key.0).ok()?;
         Some(key)

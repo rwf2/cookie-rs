@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::borrow::{Borrow, BorrowMut};
 
 use sha2::Sha256;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 
 use crate::secure::{base64, Key};
 use crate::{Cookie, CookieJar};
