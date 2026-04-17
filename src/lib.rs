@@ -974,17 +974,22 @@ impl<'c> Cookie<'c> {
     ///
     /// let mut c = Cookie::new("name", "value");
     /// assert_eq!(c.partitioned(), None);
+    /// assert!(!c.to_string().contains("Partitioned"));
+    /// assert!(!c.to_string().contains("Secure"));
     ///
     /// c.set_partitioned(true);
     /// assert_eq!(c.partitioned(), Some(true));
+    /// assert!(c.to_string().contains("Partitioned"));
     /// assert!(c.to_string().contains("Secure"));
     ///
     /// c.set_partitioned(false);
     /// assert_eq!(c.partitioned(), Some(false));
+    /// assert!(!c.to_string().contains("Partitioned"));
     /// assert!(!c.to_string().contains("Secure"));
     ///
     /// c.set_partitioned(None);
     /// assert_eq!(c.partitioned(), None);
+    /// assert!(!c.to_string().contains("Partitioned"));
     /// assert!(!c.to_string().contains("Secure"));
     /// ```
     #[inline]
