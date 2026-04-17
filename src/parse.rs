@@ -153,7 +153,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                     v = &v[1..];
                 }
 
-                if !v.chars().all(|d| d.is_digit(10)) {
+                if !v.chars().all(|d| d.is_ascii_digit()) {
                     continue
                 }
 
@@ -164,7 +164,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                 } else {
                     Some(v.parse::<i64>()
                         .map(Duration::seconds)
-                        .unwrap_or_else(|_| Duration::seconds(i64::max_value())))
+                        .unwrap_or_else(|_| Duration::seconds(i64::MAX)))
                 }
             },
             ("domain", Some(d)) if !d.is_empty() => {
@@ -477,7 +477,7 @@ mod tests {
     #[test]
     fn parse_very_large_max_ages() {
         let mut expected = Cookie::build(("foo", "bar"))
-            .max_age(Duration::seconds(i64::max_value()))
+            .max_age(Duration::seconds(i64::MAX))
             .build();
 
         let string = format!("foo=bar; Max-Age={}", 1u128 << 100);
@@ -489,11 +489,11 @@ mod tests {
         let string = format!("foo=bar; Max-Age=-{}", 1u128 << 100);
         assert_eq_parse!(&string, expected);
 
-        let string = format!("foo=bar; Max-Age=-{}", i64::max_value());
+        let string = format!("foo=bar; Max-Age=-{}", i64::MAX);
         assert_eq_parse!(&string, expected);
 
-        let string = format!("foo=bar; Max-Age={}", i64::max_value());
-        expected.set_max_age(Duration::seconds(i64::max_value()));
+        let string = format!("foo=bar; Max-Age={}", i64::MAX);
+        expected.set_max_age(Duration::seconds(i64::MAX));
         assert_eq_parse!(&string, expected);
     }
 
