@@ -7,6 +7,7 @@ rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/rwf2/cookie-rs"
 readme = "README.md"
+include = ["/src", "/build.rs", "/README*", "/CHANGELOG*", "/LICENSE*"]
 description = """
 HTTP cookie parsing and cookie jar management. Supports signed and private
 (encrypted, authenticated) jars.
