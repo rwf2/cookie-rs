@@ -16,11 +16,11 @@ HTTP cookie parsing and cookie jar management. Supports signed and private
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(nightly)'] }
 
 [features]
-percent-encode = ["percent-encoding"]
+percent-encode = ["dep:percent-encoding"]
 secure = ["private", "signed", "key-expansion"]
-private = ["aes-gcm", "base64", "rand", "subtle"]
-signed = ["hmac", "sha2", "base64", "rand", "subtle"]
-key-expansion = ["sha2", "hkdf"]
+private = ["dep:aes-gcm", "dep:base64", "dep:rand", "dep:subtle"]
+signed = ["dep:hmac", "dep:sha2", "dep:base64", "dep:rand", "dep:subtle"]
+key-expansion = ["dep:sha2", "dep:hkdf"]
 
 [dependencies]
 time = { version = "0.3.45", default-features = false, features = ["std", "parsing", "formatting", "macros"] }
