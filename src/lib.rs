@@ -753,7 +753,9 @@ impl<'c> Cookie<'c> {
     ///
     /// This does not consider whether the `Domain` is valid; validation is left
     /// to higher-level libraries, as needed. However, if the `Domain` starts
-    /// with a leading `.`, the leading `.` is stripped.
+    /// with a leading `.`, the leading `.` is stripped. Use
+    /// [`Cookie::domain_verbatim()`] to access the current `Domain` without
+    /// removing a leading `.`.
     ///
     /// # Example
     ///
@@ -762,26 +764,25 @@ impl<'c> Cookie<'c> {
     ///
     /// let c = Cookie::parse("name=value").unwrap();
     /// assert_eq!(c.domain(), None);
+    /// assert_eq!(c.domain_verbatim(), None);
     ///
     /// let c = Cookie::parse("name=value; Domain=crates.io").unwrap();
     /// assert_eq!(c.domain(), Some("crates.io"));
+    /// assert_eq!(c.domain_verbatim(), Some("crates.io"));
     ///
     /// let c = Cookie::parse("name=value; Domain=.crates.io").unwrap();
     /// assert_eq!(c.domain(), Some("crates.io"));
+    /// assert_eq!(c.domain_verbatim(), Some(".crates.io"));
     ///
     /// // Note that `..crates.io` is not a valid domain.
     /// let c = Cookie::parse("name=value; Domain=..crates.io").unwrap();
     /// assert_eq!(c.domain(), Some(".crates.io"));
+    /// assert_eq!(c.domain_verbatim(), Some("..crates.io"));
     /// ```
     #[inline]
     pub fn domain(&self) -> Option<&str> {
-        match self.domain {
-            Some(ref c) => {
-                let domain = c.to_str(self.cookie_string.as_ref());
-                domain.strip_prefix('.').or(Some(domain))
-            },
-            None => None,
-        }
+        let domain = self.domain_verbatim()?;
+        domain.strip_prefix('.').or(Some(domain))
     }
 
     /// Returns the [`Expiration`] of the cookie if one was specified.
@@ -1335,14 +1336,31 @@ impl<'c> Cookie<'c> {
     /// `Domain` has changed since parsing, returns `None`.
     ///
     /// Like [`Cookie::domain()`], this does not consider whether `Domain` is
-    /// valid; validation is left to higher-level libraries, as needed. However,
-    /// if `Domain` starts with a leading `.`, the leading `.` is stripped.
+    /// valid; validation is left to higher-level libraries, as needed. Unlike
+    /// [`Cookie::domain()`] (but like [`Cookie::domain_verbatim()`]), this
+    /// method **_does not_** remove a leading `.` if present. Callers may want
+    /// to remove the leading prefix:
     ///
-    /// This method differs from [`Cookie::domain()`] in that it returns a
-    /// string with the same lifetime as the originally parsed string. This
-    /// lifetime may outlive `self` struct. If a longer lifetime is not
-    /// required, or you're unsure if you need a longer lifetime, use
-    /// [`Cookie::domain()`].
+    /// ```
+    /// use cookie::Cookie;
+    ///
+    /// let cookie_string = format!("{}={}; Domain=.crates.io", "foo", "bar");
+    /// let c = Cookie::parse(cookie_string.as_str()).unwrap();
+    /// assert_eq!(c.domain_raw(), Some(".crates.io"));
+    /// assert_eq!(c.domain_verbatim(), Some(".crates.io"));
+    /// assert_eq!(c.domain(), Some("crates.io"));
+    ///
+    /// let domain_raw = c.domain_raw();
+    /// let domain = domain_raw.and_then(|d| d.strip_prefix('.')).or(domain_raw);
+    /// assert_eq!(domain, Some("crates.io"));
+    /// ```
+    ///
+    /// This method also differs from [`Cookie::domain()`] and
+    /// [`Cookie::domain_verbatim()`] in that it returns a string with the same
+    /// lifetime as the originally parsed string, and only returns `Some` if
+    /// `Domain` has not changed since creation. This lifetime may outlive
+    /// `self`. If a longer lifetime is not required, or you're unsure if you
+    /// need a longer lifetime, use [`Cookie::domain()`].
     ///
     /// # Example
     ///
@@ -1357,16 +1375,45 @@ impl<'c> Cookie<'c> {
     ///     c.domain_raw()
     /// };
     ///
-    /// assert_eq!(domain, Some("crates.io"));
+    /// assert_eq!(domain, Some(".crates.io"));
     /// ```
     #[inline]
     pub fn domain_raw(&self) -> Option<&'c str> {
         match (self.domain.as_ref(), self.cookie_string.as_ref()) {
-            (Some(domain), Some(string)) => match domain.to_raw_str(string) {
-                Some(s) => s.strip_prefix('.').or(Some(s)),
-                None => None,
-            }
+            (Some(domain), Some(string)) => domain.to_raw_str(string),
             _ => None,
+        }
+    }
+
+    /// Returns the `Domain` of the cookie if one was specified, exactly as
+    /// currently stored.
+    ///
+    /// Like [`Cookie::domain()`], this does not consider whether the `Domain`
+    /// is valid; validation is left to higher-level libraries.
+    ///
+    /// Unlike [`Cookie::domain()`], this method _*does not*_ strip a leading
+    /// `.` from `Domain`. Always prefer using [`Cookie::domain()`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::Cookie;
+    ///
+    /// let mut c = Cookie::parse("name=value; Domain=.crates.io").unwrap();
+    /// assert_eq!(c.domain(), Some("crates.io"));
+    /// assert_eq!(c.domain_verbatim(), Some(".crates.io"));
+    /// assert_eq!(c.domain_raw(), Some(".crates.io"));
+    ///
+    /// c.set_domain(".rust-lang.org");
+    /// assert_eq!(c.domain(), Some("rust-lang.org"));
+    /// assert_eq!(c.domain_verbatim(), Some(".rust-lang.org"));
+    /// assert_eq!(c.domain_raw(), None);
+    /// ```
+    #[inline]
+    pub fn domain_verbatim(&self) -> Option<&str> {
+        match self.domain {
+            Some(ref c) => Some(c.to_str(self.cookie_string.as_ref())),
+            None => None,
         }
     }
 
@@ -1775,6 +1822,19 @@ mod tests {
         assert_eq!(value, Some("baz"));
         assert_eq!(path, Some("/subdir"));
         assert_eq!(domain, Some("crates.io"));
+    }
+
+    #[test]
+    fn domain_accessors() {
+        let mut c = Cookie::parse("bar=baz; Domain=.crates.io").unwrap();
+        assert_eq!(c.domain(), Some("crates.io"));
+        assert_eq!(c.domain_verbatim(), Some(".crates.io"));
+        assert_eq!(c.domain_raw(), Some(".crates.io"));
+
+        c.set_domain(".rust-lang.org");
+        assert_eq!(c.domain(), Some("rust-lang.org"));
+        assert_eq!(c.domain_verbatim(), Some(".rust-lang.org"));
+        assert_eq!(c.domain_raw(), None);
     }
 
     #[test]
