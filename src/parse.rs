@@ -42,6 +42,9 @@ pub enum ParseError {
     EmptyName,
     /// Decoding the cookie's name or value resulted in invalid UTF-8.
     Utf8Error(Utf8Error),
+    /// The cookie contains an invalid control character: %x00-08 / %x0A-1F /
+    /// %x7F character (CTL characters excluding HTAB).
+    InvalidControl,
 }
 
 impl ParseError {
@@ -53,6 +56,7 @@ impl ParseError {
             ParseError::Utf8Error(_) => {
                 "decoding the cookie's name or value resulted in invalid UTF-8"
             }
+            ParseError::InvalidControl => "cookie contains an invalid control character",
         }
     }
 }
@@ -227,6 +231,10 @@ pub(crate) fn parse_cookie<'c, S>(cow: S, decode: bool) -> Result<Cookie<'c>, Pa
     where S: Into<Cow<'c, str>>
 {
     let s = cow.into();
+    if s.as_bytes().iter().any(|b| matches!(b, 0x00..=0x08 | 0x0A..=0x1F | 0x7F)) {
+        return Err(ParseError::InvalidControl);
+    }
+
     let mut cookie = parse_inner(&s, decode)?;
     cookie.cookie_string = Some(s);
     Ok(cookie)
@@ -251,7 +259,7 @@ pub(crate) fn parse_date(s: &str, format: &impl Parsable) -> Result<OffsetDateTi
 #[cfg(test)]
 mod tests {
     use super::parse_date;
-    use crate::{Cookie, SameSite};
+    use crate::{Cookie, ParseError, SameSite};
     use time::Duration;
 
     macro_rules! assert_eq_parse {
@@ -436,6 +444,27 @@ mod tests {
         expected.set_expires(bad_expires);
         assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
             Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", unexpected);
+    }
+
+    #[test]
+    fn parse_invalid_control_characters() {
+        let cases = [
+            "fo\0o=bar",
+            "foo=ba\x08r",
+            "foo=bar\n",
+            "foo=bar; Path=/\x1f",
+            "foo=bar\x7f",
+        ];
+
+        for case in cases {
+            assert_eq!(Cookie::parse(case), Err(ParseError::InvalidControl));
+        }
+
+        let expected = Cookie::build(("foo", "bar"))
+            .path("/")
+            .http_only(true)
+            .build();
+        assert_eq_parse!("\tfoo\t=\tbar\t;\tPath\t=\t/\t;\tHttpOnly\t", expected);
     }
 
     #[test]
