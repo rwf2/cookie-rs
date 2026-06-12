@@ -279,7 +279,7 @@ impl<'c> Cookie<'c> {
     /// ```rust
     /// use cookie::Cookie;
     ///
-    /// let cookie = Cookie::named("name");
+    /// let cookie = Cookie::from("name");
     /// assert_eq!(cookie.name(), "name");
     /// assert!(cookie.value().is_empty());
     ///
@@ -1703,14 +1703,58 @@ impl<'a> From<Cow<'a, str>> for Cookie<'a> {
     }
 }
 
-impl<'a, N, V> From<(N, V)> for Cookie<'a>
-    where N: Into<Cow<'a, str>>,
-          V: Into<Cow<'a, str>>
-{
-    fn from((name, value): (N, V)) -> Self {
-        Cookie::new(name, value)
-    }
+/// Implement `From<(N, V)>` conversions where `N` and `V` are both
+/// implementing `Into<Cow<'a, str>>`.
+///
+/// The macro accepts a lifetime and the list of types. It will expand the
+/// list to build all pairs of types.
+///
+/// The macro implements it on specific types instead of relying on generics
+/// to avoid ambiguous type resolution in the presence of generic conversion.
+/// If you need generic construction, use `Cookie::new` directly or some
+/// adapter type.
+macro_rules! impl_from_str_like_pair {
+    (<$lt:lifetime>[$head:ty, $($tail:ty),* $(,)?]) => {
+        impl_from_str_like_pair_inner_by_name!(<$lt>[$head][$head, $($tail),*]);
+        impl_from_str_like_pair_inner_by_value!(<$lt>[$($tail),*][$head]);
+        impl_from_str_like_pair!(<$lt>[$($tail),*,]);
+    };
+    (<$lt:lifetime>[$(,)?]) => {
+        // base case, end of recursion
+    };
 }
+
+/// Implementation detail of `impl_from_str_like_pair`.
+///
+/// For a fixed name type and a list of value types, generate all `From<(N, V)>` impls
+macro_rules! impl_from_str_like_pair_inner_by_name {
+    (<$lt:lifetime>[$name:ty][$($value:ty),*$(,)?]) => {
+        $(
+            impl<$lt> From<($name, $value)> for Cookie<$lt> {
+                fn from((name, value): ($name, $value)) -> Self {
+                    Self::new(name, value)
+                }
+            }
+        )*
+    };
+}
+
+/// Implementation detail of `impl_from_str_like_pair`.
+///
+/// For a list of name types and a fixed value type, generate all `From<(N, V)>` impls
+macro_rules! impl_from_str_like_pair_inner_by_value {
+    (<$lt:lifetime>[$($name:ty),*$(,)?][$value:ty]) => {
+        $(
+            impl<$lt> From<($name, $value)> for Cookie<$lt> {
+                fn from((name, value): ($name, $value)) -> Self {
+                    Self::new(name, value)
+                }
+            }
+        )*
+    };
+}
+
+impl_from_str_like_pair!(<'a> [Cow<'a, str>, &'a str, String] );
 
 impl<'a> From<CookieBuilder<'a>> for Cookie<'a> {
     fn from(builder: CookieBuilder<'a>) -> Self {

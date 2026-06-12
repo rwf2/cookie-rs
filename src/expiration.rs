@@ -126,11 +126,17 @@ impl Expiration {
     }
 }
 
-impl<T: Into<Option<OffsetDateTime>>> From<T> for Expiration {
-    fn from(option: T) -> Self {
-        match option.into() {
+impl From<Option<OffsetDateTime>> for Expiration {
+    fn from(option: Option<OffsetDateTime>) -> Self {
+        match option {
             Some(value) => Expiration::DateTime(value),
             None => Expiration::Session
         }
+    }
+}
+
+impl From<OffsetDateTime> for Expiration {
+    fn from(offset_date_time: OffsetDateTime) -> Self {
+        Self::from(Some(offset_date_time))
     }
 }
