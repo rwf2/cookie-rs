@@ -1,6 +1,6 @@
 [package]
 name = "cookie"
-version = "0.18.1"
+version = "0.18.2"
 authors = ["Sergio Benitez <sb@sergio.bz>", "Alex Crichton <alex@alexcrichton.com>"]
 edition = "2024"
 rust-version = "1.85"
