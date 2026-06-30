@@ -24,7 +24,7 @@ signed = ["dep:hmac", "dep:sha2", "dep:base64", "dep:rand", "dep:subtle"]
 key-expansion = ["dep:sha2", "dep:hkdf"]
 
 [dependencies]
-time = { version = "0.3.45", default-features = false, features = ["std", "parsing", "formatting", "macros"] }
+time = { version = "0.3.52", default-features = false, features = ["std", "parsing", "formatting", "macros"] }
 percent-encoding = { version = "2.0", optional = true }
 
 # dependencies for secure (private/signed) functionality
