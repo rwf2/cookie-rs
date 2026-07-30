@@ -10,7 +10,11 @@ use std::ascii::AsciiExt;
 #[cfg(feature = "percent-encode")]
 use percent_encoding::percent_decode;
 use time::{PrimitiveDateTime, Duration, OffsetDateTime};
-use time::{parsing::Parsable, macros::format_description, format_description::StaticFormatDescription};
+use time::{
+    format_description::{modifier, Component, StaticFormatDescription},
+    macros::format_description,
+    parsing::Parsed,
+};
 
 use crate::{Cookie, SameSite, CookieStr};
 
@@ -240,9 +244,12 @@ pub(crate) fn parse_cookie<'c, S>(cow: S, decode: bool) -> Result<Cookie<'c>, Pa
     Ok(cookie)
 }
 
-pub(crate) fn parse_date(s: &str, format: &impl Parsable) -> Result<OffsetDateTime, time::Error> {
+pub(crate) fn parse_date(s: &str, format: &StaticFormatDescription) -> Result<OffsetDateTime, time::Error> {
     // Parse. Handle "abbreviated" dates like Chromium. See cookie#162.
-    let mut date = format.parse(s.as_bytes())?;
+    let mut date = Parsed::new();
+    let remaining = date.parse_items(s.as_bytes(), *format)?;
+    date.parse_component(remaining, Component::End(modifier::End::default()))?;
+
     if let Some(y) = date.year().or_else(|| date.year_last_two().map(|v| v as i32)) {
         let offset = match y {
             0..=69 => 2000,
