@@ -503,6 +503,108 @@ mod tests {
     }
 
     #[test]
+    fn parse_abbreviated_year_edge_cases() {
+        // `01` proves that non-boundary values in the 00-69 range map to 2001-2069.
+        let cookie_str = "foo=bar; expires=Thu, 10-Sep-01 20:00:00 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        let year = cookie.expires_datetime().unwrap().year();
+        assert_eq!(year, 2001);
+
+        // `71` proves that non-boundary values in the 70-99 range map to 1970-1999.
+        let cookie_str = "foo=bar; expires=Thu, 10-Sep-71 20:00:00 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        let year = cookie.expires_datetime().unwrap().year();
+        assert_eq!(year, 1971);
+
+        // Full years below the cookie-date minimum remain literal years, not short years.
+        let cookie_str = "foo=bar; expires=Thu, 10-Sep-1900 20:00:00 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        let year = cookie.expires_datetime().unwrap().year();
+        assert_eq!(year, 1900);
+
+        // Full years that match adjusted short-year results are not adjusted a second time.
+        let cookie_str = "foo=bar; expires=Thu, 10-Sep-1970 20:00:00 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        let year = cookie.expires_datetime().unwrap().year();
+        assert_eq!(year, 1970);
+
+        // The upper full year in the 1970-1999 range remains a literal full year.
+        let cookie_str = "foo=bar; expires=Thu, 10-Sep-1999 20:00:00 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        let year = cookie.expires_datetime().unwrap().year();
+        assert_eq!(year, 1999);
+
+        // The lower full year in the 2000-2069 range remains a literal full year.
+        let cookie_str = "foo=bar; expires=Thu, 10-Sep-2000 20:00:00 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        let year = cookie.expires_datetime().unwrap().year();
+        assert_eq!(year, 2000);
+
+        // A full year just above the short-year mapped range remains a literal full year.
+        let cookie_str = "foo=bar; expires=Thu, 10-Sep-2070 20:00:00 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        let year = cookie.expires_datetime().unwrap().year();
+        assert_eq!(year, 2070);
+    }
+
+    #[test]
+    fn parse_abbreviated_years_in_each_supported_format() {
+        // Space-separated dates use FMT1. `69` is the upper edge of the 2000-2069 range.
+        let cookie_str = "foo=bar; expires=Sun, 06 Nov 69 08:49:37 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        let year = cookie.expires_datetime().unwrap().year();
+        assert_eq!(year, 2069);
+
+        // FMT1 must also recognize `70` as the lower edge of the 1970-1999 range.
+        let cookie_str = "foo=bar; expires=Sun, 06 Nov 70 08:49:37 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        let year = cookie.expires_datetime().unwrap().year();
+        assert_eq!(year, 1970);
+
+        // Long-weekday dash dates use FMT2, the format affected by time-rs/time#793.
+        let cookie_str = "foo=bar; expires=Sunday, 06-Nov-69 08:49:37 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        let year = cookie.expires_datetime().unwrap().year();
+        assert_eq!(year, 2069);
+
+        // FMT2 must apply the same cutoff after the format-specific parse succeeds.
+        let cookie_str = "foo=bar; expires=Sunday, 06-Nov-70 08:49:37 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        let year = cookie.expires_datetime().unwrap().year();
+        assert_eq!(year, 1970);
+
+        // ANSI-style dates use FMT3. This proves the trailing year is still normalized.
+        let cookie_str = "foo=bar; expires=Sun Nov  6 08:49:37 69";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        let year = cookie.expires_datetime().unwrap().year();
+        assert_eq!(year, 2069);
+
+        // FMT3 has the year after the time, but the same cutoff still applies.
+        let cookie_str = "foo=bar; expires=Sun Nov  6 08:49:37 70";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        let year = cookie.expires_datetime().unwrap().year();
+        assert_eq!(year, 1970);
+
+        // Short-weekday dash dates with flexible year width use FMT4.
+        let cookie_str = "foo=bar; expires=Sun, 06-Nov-69 08:49:37 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        let year = cookie.expires_datetime().unwrap().year();
+        assert_eq!(year, 2069);
+
+        // FMT4 also needs the 70/1970 side of the cutoff because it accepts full years too.
+        let cookie_str = "foo=bar; expires=Sun, 06-Nov-70 08:49:37 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        let year = cookie.expires_datetime().unwrap().year();
+        assert_eq!(year, 1970);
+
+        // Full years outside the cutoff range remain literal years after format parsing.
+        let cookie_str = "foo=bar; expires=Wed, 21 Oct 2015 07:28:00 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        let year = cookie.expires_datetime().unwrap().year();
+        assert_eq!(year, 2015);
+    }
+
+    #[test]
     fn parse_variant_date_fmts() {
         let expected = time::macros::datetime!(1994-11-06 8:49:37 UTC);
         let strings = [
@@ -512,6 +614,8 @@ mod tests {
             "foo=bar; expires=06-Nov-94 08:49:37 GMT",
             "foo=bar; expires=Sun Nov  6 08:49:37 1994",
             "foo=bar; expires=Nov  6 08:49:37 1994",
+            // ANSI-style dates place the year after the time; the parser supports this shape.
+            "foo=bar; expires=Sun Nov  6 08:49:37 94",
             "foo=bar; expires=06-Nov-1994 08:49:37 GMT",
         ];
 
@@ -519,6 +623,34 @@ mod tests {
             let cookie = Cookie::parse(cookie_str).unwrap();
             assert_eq!(cookie.expires_datetime(), Some(expected));
         }
+    }
+
+    #[test]
+    fn parse_unsupported_date_formats() {
+        // Long-weekday dash dates are currently accepted only with two-digit years.
+        let cookie_str = "foo=bar; expires=Sunday, 06-Nov-1994 08:49:37 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        assert_eq!(cookie.expires_datetime(), None);
+
+        // Slash separators are not one of the explicit date formats this parser tries.
+        let cookie_str = "foo=bar; expires=Sun, 06/Nov/1994 08:49:37 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        assert_eq!(cookie.expires_datetime(), None);
+
+        // The parser does not search tokens in arbitrary order like the RFC 6265 algorithm.
+        let cookie_str = "foo=bar; expires=08:49:37 06 Nov 1994 GMT";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        assert_eq!(cookie.expires_datetime(), None);
+
+        // GMT-bearing formats require the literal `GMT`; other zone names are unsupported.
+        let cookie_str = "foo=bar; expires=Sun, 06 Nov 1994 08:49:37 UTC";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        assert_eq!(cookie.expires_datetime(), None);
+
+        // The RFC 1123-like date shape requires its trailing `GMT` token.
+        let cookie_str = "foo=bar; expires=Sun, 06 Nov 1994 08:49:37";
+        let cookie = Cookie::parse(cookie_str).unwrap();
+        assert_eq!(cookie.expires_datetime(), None);
     }
 
     #[test]
