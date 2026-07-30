@@ -18,12 +18,20 @@ use time::{
 
 use crate::{Cookie, SameSite, CookieStr};
 
-// The three formats spec'd in http://tools.ietf.org/html/rfc2616#section-3.3.1.
-// Additional ones as encountered in the real world.
+// These are the fixed date shapes accepted for the `Expires` attribute. They cover the HTTP-date
+// forms from RFC 2616 plus additional shapes encountered in the wild.
+//
+// This is not the full RFC 6265 cookie-date tokenizer. That algorithm can extract day, month,
+// year, and time tokens across delimiter and order variations that this parser does not accept.
+// This parser instead tries the known format list below, and applies RFC 6265's two-digit year
+// rule within those formats: 00-69 becomes 2000-2069, and 70-99 becomes 1970-1999.
+// See https://www.rfc-editor.org/rfc/rfc6265#section-5.1.1 and cookie#162.
 pub static FMT1: StaticFormatDescription = format_description!(version = 2,
     "[optional [[weekday repr:short], ]][day] [month repr:short] [year padding:none] [hour]:[minute]:[second] GMT"
 );
 
+// Keep this format to a two-digit year. A long weekday with a full dash-separated year, such as
+// `Sunday, 06-Nov-1994 08:49:37 GMT`, is not accepted by the current compatibility format list.
 pub static FMT2: StaticFormatDescription = format_description!(version = 2,
     "[optional [[weekday], ]][day]-[month repr:short]-[year repr:last_two] [hour]:[minute]:[second] GMT"
 );
@@ -245,7 +253,9 @@ pub(crate) fn parse_cookie<'c, S>(cow: S, decode: bool) -> Result<Cookie<'c>, Pa
 }
 
 pub(crate) fn parse_date(s: &str, format: &StaticFormatDescription) -> Result<OffsetDateTime, time::Error> {
-    // Parse. Handle "abbreviated" dates like Chromium. See cookie#162.
+    // Parse into `Parsed` so short-year formats can be completed before conversion. For example,
+    // FMT2 records `94` as `year_last_two`, and `PrimitiveDateTime` cannot be built until that is
+    // mapped through the cookie#162/RFC 6265 cutoff.
     let mut date = Parsed::new();
     let remaining = date.parse_items(s.as_bytes(), *format)?;
     date.parse_component(remaining, Component::End(modifier::End::default()))?;
@@ -634,6 +644,8 @@ mod tests {
 
     #[test]
     fn parse_unsupported_date_formats() {
+        // A full RFC 6265 tokenizer could accept these by extracting date tokens from broader
+        // delimiter and order shapes. This parser only accepts the explicit formats above.
         // Long-weekday dash dates are currently accepted only with two-digit years.
         let cookie_str = "foo=bar; expires=Sunday, 06-Nov-1994 08:49:37 GMT";
         let cookie = Cookie::parse(cookie_str).unwrap();
