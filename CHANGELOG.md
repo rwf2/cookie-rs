@@ -1,5 +1,17 @@
 # Version 0.18
 
+## Version 0.18.2 (Aug 8, 2026)
+
+### Changes and Fixes
+
+  * Stopped using internal `time` APIs.
+
+  * `Expires` parsing is more RFC 6265-compliant.
+    - Weekday prefixes are now optional.
+    - Two-digit years follow the RFC boundary: `69` is `2069` (not `1969`).
+
+  * The manifest now declares `rust-version = "1.56"`.
+
 ## Version 0.18.1 (Mar 25, 2024)
 
 ### New Features
