@@ -189,8 +189,9 @@ impl CookieJar {
     /// Removing an _original_ cookie results in a _removal_ cookie:
     ///
     /// ```rust
+    /// use std::time::Duration;
+    ///
     /// use cookie::{CookieJar, Cookie};
-    /// use cookie::time::Duration;
     ///
     /// let mut jar = CookieJar::new();
     ///
@@ -204,7 +205,7 @@ impl CookieJar {
     /// let delta: Vec<_> = jar.delta().collect();
     /// assert_eq!(delta.len(), 1);
     /// assert_eq!(delta[0].name(), "name");
-    /// assert_eq!(delta[0].max_age(), Some(Duration::seconds(0)));
+    /// assert_eq!(delta[0].max_age(), Some(Duration::ZERO));
     /// ```
     ///
     /// Removing a new cookie does not result in a _removal_ cookie unless
@@ -250,7 +251,6 @@ impl CookieJar {
     ///
     /// ```rust
     /// use cookie::{CookieJar, Cookie};
-    /// use cookie::time::Duration;
     ///
     /// # fn main() {
     /// let mut jar = CookieJar::new();
@@ -689,7 +689,7 @@ mod test {
     #[test]
     fn delta() {
         use std::collections::HashMap;
-        use time::Duration;
+        use std::time::Duration;
 
         let mut c = CookieJar::new();
 
@@ -713,7 +713,7 @@ mod test {
         assert!(names.get("test2").unwrap().is_none());
         assert!(names.get("test3").unwrap().is_none());
         assert!(names.get("test4").unwrap().is_none());
-        assert_eq!(names.get("original").unwrap(), &Some(Duration::seconds(0)));
+        assert_eq!(names.get("original").unwrap(), &Some(Duration::ZERO));
     }
 
     #[test]

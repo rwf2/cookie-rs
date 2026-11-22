@@ -1,21 +1,22 @@
-use time::OffsetDateTime;
+use std::time::SystemTime;
 
 /// A cookie's expiration: either a date-time or session.
 ///
 /// An `Expiration` is constructible with `Expiration::from()` via any of:
 ///
 ///   * `None` -> `Expiration::Session`
-///   * `Some(OffsetDateTime)` -> `Expiration::DateTime`
-///   * `OffsetDateTime` -> `Expiration::DateTime`
+///   * `Some(SystemTime)` -> `Expiration::DateTime`
+///   * `SystemTime` -> `Expiration::DateTime`
 ///
 /// ```rust
+/// use std::time::SystemTime;
+///
 /// use cookie::Expiration;
-/// use time::OffsetDateTime;
 ///
 /// let expires = Expiration::from(None);
 /// assert_eq!(expires, Expiration::Session);
 ///
-/// let now = OffsetDateTime::now_utc();
+/// let now = SystemTime::now();
 /// let expires = Expiration::from(now);
 /// assert_eq!(expires, Expiration::DateTime(now));
 ///
@@ -25,7 +26,7 @@ use time::OffsetDateTime;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Expiration {
     /// Expiration for a "permanent" cookie at a specific date-time.
-    DateTime(OffsetDateTime),
+    DateTime(SystemTime),
     /// Expiration for a "session" cookie. Browsers define the notion of a
     /// "session" and will automatically expire session cookies when they deem
     /// the "session" to be over. This is typically, but need not be, when the
@@ -39,13 +40,14 @@ impl Expiration {
     /// # Example
     ///
     /// ```rust
+    /// use std::time::SystemTime;
+    ///
     /// use cookie::Expiration;
-    /// use time::OffsetDateTime;
     ///
     /// let expires = Expiration::from(None);
     /// assert!(!expires.is_datetime());
     ///
-    /// let expires = Expiration::from(OffsetDateTime::now_utc());
+    /// let expires = Expiration::from(SystemTime::now());
     /// assert!(expires.is_datetime());
     /// ```
     pub fn is_datetime(&self) -> bool {
@@ -60,13 +62,14 @@ impl Expiration {
     /// # Example
     ///
     /// ```rust
+    /// use std::time::SystemTime;
+    ///
     /// use cookie::Expiration;
-    /// use time::OffsetDateTime;
     ///
     /// let expires = Expiration::from(None);
     /// assert!(expires.is_session());
     ///
-    /// let expires = Expiration::from(OffsetDateTime::now_utc());
+    /// let expires = Expiration::from(SystemTime::now());
     /// assert!(!expires.is_session());
     /// ```
     pub fn is_session(&self) -> bool {
@@ -76,39 +79,41 @@ impl Expiration {
         }
     }
 
-    /// Returns the inner `OffsetDateTime` if `self` is a `DateTime`.
+    /// Returns the inner `SystemTime` if `self` is a `DateTime`.
     ///
     /// # Example
     ///
     /// ```rust
+    /// use std::time::SystemTime;
+    ///
     /// use cookie::Expiration;
-    /// use time::OffsetDateTime;
     ///
     /// let expires = Expiration::from(None);
     /// assert!(expires.datetime().is_none());
     ///
-    /// let now = OffsetDateTime::now_utc();
+    /// let now = SystemTime::now();
     /// let expires = Expiration::from(now);
     /// assert_eq!(expires.datetime(), Some(now));
     /// ```
-    pub fn datetime(self) -> Option<OffsetDateTime> {
+    pub fn datetime(self) -> Option<SystemTime> {
         match self {
             Expiration::Session => None,
             Expiration::DateTime(v) => Some(v)
         }
     }
 
-    /// Applied `f` to the inner `OffsetDateTime` if `self` is a `DateTime` and
+    /// Applied `f` to the inner `SystemTime` if `self` is a `DateTime` and
     /// returns the mapped `Expiration`.
     ///
     /// # Example
     ///
     /// ```rust
-    /// use cookie::Expiration;
-    /// use time::{OffsetDateTime, Duration};
+    /// use std::time::{Duration, SystemTime};
     ///
-    /// let now = OffsetDateTime::now_utc();
-    /// let one_week = Duration::weeks(1);
+    /// use cookie::Expiration;
+    ///
+    /// let now = SystemTime::now();
+    /// let one_week = Duration::from_secs(7 * 24 * 60 * 60);
     ///
     /// let expires = Expiration::from(now);
     /// assert_eq!(expires.map(|t| t + one_week).datetime(), Some(now + one_week));
@@ -117,7 +122,7 @@ impl Expiration {
     /// assert_eq!(expires.map(|t| t + one_week).datetime(), None);
     /// ```
     pub fn map<F>(self, f: F) -> Self
-        where F: FnOnce(OffsetDateTime) -> OffsetDateTime
+        where F: FnOnce(SystemTime) -> SystemTime
     {
         match self {
             Expiration::Session => Expiration::Session,
@@ -126,14 +131,14 @@ impl Expiration {
     }
 }
 
-impl From<OffsetDateTime> for Expiration {
-    fn from(datetime: OffsetDateTime) -> Self {
+impl From<SystemTime> for Expiration {
+    fn from(datetime: SystemTime) -> Self {
         Expiration::DateTime(datetime)
     }
 }
 
-impl From<Option<OffsetDateTime>> for Expiration {
-    fn from(option: Option<OffsetDateTime>) -> Self {
+impl From<Option<SystemTime>> for Expiration {
+    fn from(option: Option<SystemTime>) -> Self {
         match option {
             Some(value) => Expiration::DateTime(value),
             None => Expiration::Session

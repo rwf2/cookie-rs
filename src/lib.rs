@@ -88,9 +88,8 @@
 
 #![deny(missing_docs)]
 
-pub use time;
-
 mod builder;
+mod date;
 mod parse;
 mod jar;
 mod delta;
@@ -113,7 +112,7 @@ use std::str::FromStr;
 #[allow(unused_imports, deprecated)]
 use std::ascii::AsciiExt;
 
-use time::{Duration, OffsetDateTime, UtcOffset, macros::datetime};
+use std::time::{Duration, SystemTime};
 
 use crate::parse::parse_cookie;
 pub use crate::parse::ParseError;
@@ -770,7 +769,7 @@ impl<'c> Cookie<'c> {
     /// assert_eq!(c.max_age(), None);
     ///
     /// let c = Cookie::parse("name=value; Max-Age=3600").unwrap();
-    /// assert_eq!(c.max_age().map(|age| age.whole_hours()), Some(1));
+    /// assert_eq!(c.max_age().map(|age| age.as_secs()), Some(3600));
     /// ```
     #[inline]
     pub fn max_age(&self) -> Option<Duration> {
@@ -851,10 +850,10 @@ impl<'c> Cookie<'c> {
     /// let c = Cookie::build(("name", "value")).expires(None).build();
     /// assert_eq!(c.expires(), Some(Expiration::Session));
     ///
-    /// let expire_time = "Wed, 21 Oct 2017 07:28:00 GMT";
+    /// let expire_time = "Sat, 21 Oct 2017 07:28:00 GMT";
     /// let cookie_str = format!("name=value; Expires={}", expire_time);
     /// let c = Cookie::parse(cookie_str).unwrap();
-    /// assert_eq!(c.expires().and_then(|e| e.datetime()).map(|t| t.year()), Some(2017));
+    /// assert!(c.expires().is_some_and(|e| e.is_datetime()));
     /// ```
     #[inline]
     pub fn expires(&self) -> Option<Expiration> {
@@ -866,6 +865,8 @@ impl<'c> Cookie<'c> {
     /// # Example
     ///
     /// ```
+    /// use std::time::{Duration, SystemTime};
+    ///
     /// use cookie::Cookie;
     ///
     /// let c = Cookie::parse("name=value").unwrap();
@@ -875,13 +876,15 @@ impl<'c> Cookie<'c> {
     /// let c = Cookie::build(("name", "value")).expires(None).build();
     /// assert_eq!(c.expires_datetime(), None);
     ///
-    /// let expire_time = "Wed, 21 Oct 2017 07:28:00 GMT";
+    /// let expire_time = "Sat, 21 Oct 2017 07:28:00 GMT";
     /// let cookie_str = format!("name=value; Expires={}", expire_time);
     /// let c = Cookie::parse(cookie_str).unwrap();
-    /// assert_eq!(c.expires_datetime().map(|t| t.year()), Some(2017));
+    ///
+    /// let expected = SystemTime::UNIX_EPOCH + Duration::from_secs(1508570880);
+    /// assert_eq!(c.expires_datetime(), Some(expected));
     /// ```
     #[inline]
-    pub fn expires_datetime(&self) -> Option<OffsetDateTime> {
+    pub fn expires_datetime(&self) -> Option<SystemTime> {
         self.expires.and_then(|e| e.datetime())
     }
 
@@ -1060,15 +1063,17 @@ impl<'c> Cookie<'c> {
     /// # Example
     ///
     /// ```rust
+    /// use std::time::Duration;
+    ///
     /// use cookie::Cookie;
-    /// use cookie::time::Duration;
     ///
     /// # fn main() {
     /// let mut c = Cookie::new("name", "value");
     /// assert_eq!(c.max_age(), None);
     ///
-    /// c.set_max_age(Duration::hours(10));
-    /// assert_eq!(c.max_age(), Some(Duration::hours(10)));
+    /// let ten_hours = Duration::from_secs(10 * 60 * 60);
+    /// c.set_max_age(ten_hours);
+    /// assert_eq!(c.max_age(), Some(ten_hours));
     ///
     /// c.set_max_age(None);
     /// assert!(c.max_age().is_none());
@@ -1172,30 +1177,30 @@ impl<'c> Cookie<'c> {
     /// Sets the expires field of `self` to `time`. If `time` is `None`, an
     /// expiration of [`Session`](Expiration::Session) is set.
     ///
+    /// A date-time later than Dec 31, 9999, 23:59:59 UTC is set to that
+    /// date-time.
+    ///
     /// # Example
     ///
     /// ```
+    /// use std::time::{Duration, SystemTime};
+    ///
     /// use cookie::{Cookie, Expiration};
-    /// use cookie::time::{Duration, OffsetDateTime};
     ///
     /// let mut c = Cookie::new("name", "value");
     /// assert_eq!(c.expires(), None);
     ///
-    /// let mut now = OffsetDateTime::now_utc();
-    /// now += Duration::weeks(52);
-    ///
-    /// c.set_expires(now);
+    /// let one_week = Duration::from_secs(7 * 24 * 60 * 60);
+    /// c.set_expires(SystemTime::now() + one_week);
     /// assert!(c.expires().is_some());
     ///
     /// c.set_expires(None);
     /// assert_eq!(c.expires(), Some(Expiration::Session));
     /// ```
     pub fn set_expires<T: Into<Expiration>>(&mut self, time: T) {
-        static MAX_DATETIME: OffsetDateTime = datetime!(9999-12-31 23:59:59.999_999 UTC);
-
         // RFC 6265 requires dates not to exceed 9999 years.
         self.expires = Some(time.into()
-            .map(|time| std::cmp::min(time, MAX_DATETIME)));
+            .map(|time| std::cmp::min(time, date::max_datetime())));
     }
 
     /// Unsets the `expires` of `self`.
@@ -1221,11 +1226,35 @@ impl<'c> Cookie<'c> {
     /// Makes `self` a "permanent" cookie by extending its expiration and max
     /// age 20 years into the future.
     ///
+    /// # Panics
+    ///
+    /// Panics if the current time cannot be retrieved from the operating
+    /// system. This is the case on platforms without a system clock, such as
+    /// `wasm32-unknown-unknown`.
+    ///
+    /// For a non-panicking version, set the max-age and expiration directly:
+    ///
+    /// ```rust
+    /// use std::time::{Duration, SystemTime};
+    ///
+    /// use cookie::Cookie;
+    ///
+    /// # let now = SystemTime::now();
+    /// let twenty_years = Duration::from_secs(20 * 365 * 24 * 60 * 60);
+    ///
+    /// let mut c = Cookie::new("foo", "bar");
+    /// c.set_max_age(twenty_years);
+    ///
+    /// // Here, `now` is the current time, retrieved by other means.
+    /// c.set_expires(now + twenty_years);
+    /// ```
+    ///
     /// # Example
     ///
     /// ```rust
+    /// use std::time::Duration;
+    ///
     /// use cookie::Cookie;
-    /// use cookie::time::Duration;
     ///
     /// # fn main() {
     /// let mut c = Cookie::new("foo", "bar");
@@ -1234,13 +1263,13 @@ impl<'c> Cookie<'c> {
     ///
     /// c.make_permanent();
     /// assert!(c.expires().is_some());
-    /// assert_eq!(c.max_age(), Some(Duration::days(365 * 20)));
+    /// assert_eq!(c.max_age(), Some(Duration::from_secs(20 * 365 * 24 * 60 * 60)));
     /// # }
     /// ```
     pub fn make_permanent(&mut self) {
-        let twenty_years = Duration::days(365 * 20);
+        let twenty_years = Duration::from_secs(20 * 365 * 24 * 60 * 60);
         self.set_max_age(twenty_years);
-        self.set_expires(OffsetDateTime::now_utc() + twenty_years);
+        self.set_expires(SystemTime::now() + twenty_years);
     }
 
     /// Make `self` a "removal" cookie by clearing its value, setting a max-age
@@ -1250,25 +1279,25 @@ impl<'c> Cookie<'c> {
     /// # Example
     ///
     /// ```rust
+    /// use std::time::{Duration, SystemTime};
+    ///
     /// use cookie::Cookie;
-    /// use cookie::time::{Duration, OffsetDateTime};
     ///
     /// # fn main() {
-    /// let mut c = Cookie::new("foo", "bar");
-    /// c.make_permanent();
-    /// assert_eq!(c.max_age(), Some(Duration::days(365 * 20)));
+    /// let mut c = Cookie::build(("foo", "bar")).path("/").build();
     /// assert_eq!(c.value(), "bar");
     ///
     /// c.make_removal();
     /// assert_eq!(c.value(), "");
+    /// assert_eq!(c.path(), Some("/"));
     /// assert_eq!(c.max_age(), Some(Duration::ZERO));
-    /// assert_eq!(c.expires_datetime(), Some(OffsetDateTime::UNIX_EPOCH));
+    /// assert_eq!(c.expires_datetime(), Some(SystemTime::UNIX_EPOCH));
     /// # }
     /// ```
     pub fn make_removal(&mut self) {
         self.set_value("");
-        self.set_max_age(Duration::seconds(0));
-        self.set_expires(OffsetDateTime::UNIX_EPOCH);
+        self.set_max_age(Duration::ZERO);
+        self.set_expires(SystemTime::UNIX_EPOCH);
     }
 
     fn fmt_parameters(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -1300,12 +1329,11 @@ impl<'c> Cookie<'c> {
         }
 
         if let Some(max_age) = self.max_age() {
-            write!(f, "; Max-Age={}", max_age.whole_seconds())?;
+            write!(f, "; Max-Age={}", max_age.as_secs())?;
         }
 
         if let Some(time) = self.expires_datetime() {
-            let time = time.to_offset(UtcOffset::UTC);
-            write!(f, "; Expires={}", time.format(&crate::parse::FMT1).map_err(|_| fmt::Error)?)?;
+            write!(f, "; Expires={}", date::HttpDate(time))?;
         }
 
         Ok(())
@@ -1805,8 +1833,8 @@ impl<'a> AsMut<Cookie<'a>> for Cookie<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Cookie, SameSite, parse::parse_date};
-    use time::{Duration, OffsetDateTime};
+    use std::time::{Duration, SystemTime};
+    use crate::{Cookie, SameSite};
 
     #[test]
     fn format() {
@@ -1816,7 +1844,7 @@ mod tests {
         let cookie = Cookie::build(("foo", "bar")).http_only(true).build();
         assert_eq!(&cookie.unescaped().to_string(), "foo=bar; HttpOnly");
 
-        let cookie = Cookie::build(("foo", "bar")).max_age(Duration::seconds(10)).build();
+        let cookie = Cookie::build(("foo", "bar")).max_age(Duration::from_secs(10)).build();
         assert_eq!(&cookie.unescaped().to_string(), "foo=bar; Max-Age=10");
 
         let cookie = Cookie::build(("foo", "bar")).secure(true).build();
@@ -1834,8 +1862,7 @@ mod tests {
         let cookie = Cookie::build(("foo", "bar")).domain("rust-lang.org").build();
         assert_eq!(&cookie.unescaped().to_string(), "foo=bar; Domain=rust-lang.org");
 
-        let time_str = "Wed, 21 Oct 2015 07:28:00 GMT";
-        let expires = parse_date(time_str, &crate::parse::FMT1).unwrap();
+        let expires = SystemTime::UNIX_EPOCH + Duration::from_secs(1445412480);
         let cookie = Cookie::build(("foo", "bar")).expires(expires).build();
         assert_eq!(&cookie.unescaped().to_string(),
                    "foo=bar; Expires=Wed, 21 Oct 2015 07:28:00 GMT");
@@ -1951,7 +1978,7 @@ mod tests {
 
         let parsed = Cookie::parse(string).unwrap();
         assert_eq!(parsed.value(), "value");
-        assert_eq!(parsed.max_age(), Some(Duration::seconds(86400)));
+        assert_eq!(parsed.max_age(), Some(Duration::from_secs(86400)));
         assert_eq!(parsed.domain(), Some("evil.example"));
     }
 
@@ -1985,15 +2012,22 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn format_date_wraps() {
-        let expires = OffsetDateTime::UNIX_EPOCH + Duration::MAX;
-        let cookie = Cookie::build(("foo", "bar")).expires(expires).build();
-        assert_eq!(&cookie.unescaped().to_string(), "foo=bar; Expires=Fri, 31 Dec 9999 23:59:59 GMT");
+        // Dec 31, 9999, 23:59:59 UTC.
+        let max = SystemTime::UNIX_EPOCH + Duration::from_secs(253402300799);
+        let expected = "foo=bar; Expires=Fri, 31 Dec 9999 23:59:59 GMT";
 
-        let expires = time::macros::datetime!(9999-01-01 0:00 UTC) + Duration::days(1000);
-        let cookie = Cookie::build(("foo", "bar")).expires(expires).build();
-        assert_eq!(&cookie.unescaped().to_string(), "foo=bar; Expires=Fri, 31 Dec 9999 23:59:59 GMT");
+        for extra in [0, 1, 1000 * 24 * 60 * 60, 1 << 40] {
+            // Not every platform can represent every date.
+            let Some(expires) = max.checked_add(Duration::from_secs(extra)) else { continue };
+            let cookie = Cookie::build(("foo", "bar")).expires(expires).build();
+            assert_eq!(cookie.expires_datetime(), Some(max));
+            assert_eq!(&cookie.unescaped().to_string(), expected);
+        }
+
+        let mut cookie = Cookie::new("foo", "bar");
+        cookie.set_max_age(Duration::MAX);
+        assert_eq!(cookie.unescaped().to_string(), format!("foo=bar; Max-Age={}", u64::MAX));
     }
 
     #[test]

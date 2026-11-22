@@ -1,4 +1,5 @@
 use std::borrow::{Cow, Borrow, BorrowMut};
+use std::time::Duration;
 
 use crate::{Cookie, SameSite, Expiration};
 
@@ -23,15 +24,16 @@ use crate::{Cookie, SameSite, Expiration};
 /// You can also call [`CookieBuilder::build()`] directly to get a `Cookie`:
 ///
 /// ```rust
+/// use std::time::Duration;
+///
 /// use cookie::Cookie;
-/// use cookie::time::Duration;
 ///
 /// let cookie: Cookie = Cookie::build(("name", "value"))
 ///     .domain("www.rust-lang.org")
 ///     .path("/")
 ///     .secure(true)
 ///     .http_only(true)
-///     .max_age(Duration::days(1))
+///     .max_age(Duration::from_secs(24 * 60 * 60))
 ///     .build();
 /// ```
 #[derive(Debug, Clone, PartialEq)]
@@ -72,11 +74,12 @@ impl<'c> CookieBuilder<'c> {
     /// # Example
     ///
     /// ```rust
+    /// use std::time::SystemTime;
+    ///
     /// use cookie::{Cookie, Expiration};
-    /// use cookie::time::OffsetDateTime;
     ///
     /// # fn main() {
-    /// let c = Cookie::build(("foo", "bar")).expires(OffsetDateTime::now_utc());
+    /// let c = Cookie::build(("foo", "bar")).expires(SystemTime::now());
     /// assert!(c.inner().expires().is_some());
     ///
     /// let c = Cookie::build(("foo", "bar")).expires(None);
@@ -94,14 +97,15 @@ impl<'c> CookieBuilder<'c> {
     /// # Example
     ///
     /// ```rust
-    /// use cookie::Cookie;
-    /// use cookie::time::Duration;
+    /// use std::time::Duration;
     ///
-    /// let c = Cookie::build(("foo", "bar")).max_age(Duration::minutes(30));
-    /// assert_eq!(c.inner().max_age(), Some(Duration::seconds(30 * 60)));
+    /// use cookie::Cookie;
+    ///
+    /// let c = Cookie::build(("foo", "bar")).max_age(Duration::from_secs(30 * 60));
+    /// assert_eq!(c.inner().max_age(), Some(Duration::from_secs(30 * 60)));
     /// ```
     #[inline]
-    pub fn max_age(mut self, value: time::Duration) -> Self {
+    pub fn max_age(mut self, value: Duration) -> Self {
         self.cookie.set_max_age(value);
         self
     }
@@ -220,15 +224,21 @@ impl<'c> CookieBuilder<'c> {
     /// Makes the cookie being built 'permanent' by extending its expiration and
     /// max age 20 years into the future. See also [`Cookie::make_permanent()`].
     ///
+    /// # Panics
+    ///
+    /// Panics if the current time cannot be retrieved from the operating
+    /// system. See [`Cookie::make_permanent()`] for a non-panicking version.
+    ///
     /// # Example
     ///
     /// ```rust
+    /// use std::time::Duration;
+    ///
     /// use cookie::Cookie;
-    /// use cookie::time::Duration;
     ///
     /// # fn main() {
     /// let c = Cookie::build(("foo", "bar")).permanent();
-    /// assert_eq!(c.inner().max_age(), Some(Duration::days(365 * 20)));
+    /// assert_eq!(c.inner().max_age(), Some(Duration::from_secs(20 * 365 * 24 * 60 * 60)));
     /// # assert!(c.inner().expires().is_some());
     /// # }
     /// ```
@@ -245,8 +255,9 @@ impl<'c> CookieBuilder<'c> {
     /// # Example
     ///
     /// ```rust
+    /// use std::time::Duration;
+    ///
     /// use cookie::Cookie;
-    /// use cookie::time::Duration;
     ///
     /// # fn main() {
     /// let mut builder = Cookie::build("foo").removal();
