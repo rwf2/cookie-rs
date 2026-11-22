@@ -246,7 +246,8 @@ fn truncate_attribute(string: Cow<'_, str>) -> Cow<'_, str> {
 ///
 /// A `Cookie` does not implement `Display`. To write a cookie as a `Set-Cookie`
 /// header value, use [`Cookie::encoded()`], which percent-encodes the name and
-/// value. To read the cookie back, use [`Cookie::parse_encoded()`].
+/// value. To read the cookie back, use [`Cookie::parse_encoded()`] or
+/// [`Cookie::split_parse_encoded()`], which percent-decode the name and value.
 ///
 /// ```rust
 /// use cookie::Cookie;
@@ -261,7 +262,9 @@ fn truncate_attribute(string: Cow<'_, str>) -> Cow<'_, str> {
 /// ```
 ///
 /// [`Cookie::unescaped()`] writes the name and value without any encoding or
-/// escaping. This is dangerous! See [`Cookie::unescaped()`] for details.
+/// escaping. It is the counterpart to [`Cookie::parse()`] and
+/// [`Cookie::split_parse()`]. This is dangerous! See [`Cookie::unescaped()`]
+/// for details.
 #[derive(Debug, Clone)]
 pub struct Cookie<'c> {
     /// Storage for the cookie string. Only used if this structure was derived
@@ -381,6 +384,9 @@ impl<'c> Cookie<'c> {
 
     /// Parses a `Cookie` from the given HTTP cookie header value string. Does
     /// not perform any percent-decoding.
+    ///
+    /// This is the counterpart to [`Cookie::unescaped()`]. To parse a cookie
+    /// written with [`Cookie::encoded()`], use [`Cookie::parse_encoded()`].
     ///
     /// # Example
     ///
@@ -1538,8 +1544,13 @@ impl<'c> Cookie<'c> {
     /// and value of the wrapped `Cookie`.
     ///
     /// This is the safe way to write a `Cookie`. No name or value, regardless
-    /// of its contents, can alter the attributes of the written cookie. To read
-    /// the cookie back, use [`Cookie::parse_encoded()`].
+    /// of its contents, can alter the attributes of the written cookie.
+    ///
+    /// **Note:** A cookie written with this method must be read with
+    /// [`Cookie::parse_encoded()`] or [`Cookie::split_parse_encoded()`]. If it
+    /// is read with [`Cookie::parse()`] or [`Cookie::split_parse()`] instead,
+    /// its name and value remain percent-encoded. As such, a signed or private
+    /// cookie read in this manner can fail to verify or decrypt.
     ///
     /// The returned structure can be chained with [`Display::stripped()`] to
     /// display only the name and value.
@@ -1573,9 +1584,13 @@ impl<'c> Cookie<'c> {
     ///
     /// This method _does **not**_ validate the name or value in any way. It is
     /// only safe to use when the name and value are known to contain neither a
-    /// `;` nor a control character, as is the case for a base64-encoded value.
-    /// If you're unsure whether the name and value are safe, or you're unsure if
+    /// `;` nor a control character. This is _not_ the case for a signed cookie:
+    /// the value of a signed cookie contains the original value, as-is. If
+    /// you're unsure whether the name and value are safe, or you're unsure if
     /// you need this method, use [`Cookie::encoded()`].
+    ///
+    /// A cookie written with this method should be read with
+    /// [`Cookie::parse()`] or [`Cookie::split_parse()`].
     ///
     /// The returned structure can be chained with [`Display::stripped()`] to
     /// display only the name and value.
