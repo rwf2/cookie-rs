@@ -1190,7 +1190,8 @@ impl<'c> Cookie<'c> {
     /// expiration of [`Session`](Expiration::Session) is set.
     ///
     /// A date-time later than Dec 31, 9999, 23:59:59 UTC is set to that
-    /// date-time.
+    /// date-time. A date-time earlier than the Unix epoch is written as the
+    /// Unix epoch, as not every client can read an earlier date.
     ///
     /// # Example
     ///
@@ -2040,6 +2041,27 @@ mod tests {
         let mut cookie = Cookie::new("foo", "bar");
         cookie.set_max_age(Duration::MAX);
         assert_eq!(cookie.unescaped().to_string(), format!("foo=bar; Max-Age={}", u64::MAX));
+    }
+
+    #[test]
+    fn format_date_before_epoch() {
+        let expected = "foo=bar; Expires=Thu, 01 Jan 1970 00:00:00 GMT";
+        for secs in [0, 1, 365 * 24 * 60 * 60, 11_644_473_600, 60_589_296_000, 1 << 40] {
+            // Not every platform can represent dates before the Unix epoch.
+            let before = Duration::from_secs(secs);
+            let Some(expires) = SystemTime::UNIX_EPOCH.checked_sub(before) else { continue };
+            let cookie = Cookie::build(("foo", "bar")).expires(expires).build();
+            assert_eq!(cookie.expires_datetime(), Some(expires));
+            assert_eq!(&cookie.unescaped().to_string(), expected);
+
+            let parsed = Cookie::parse(expected).unwrap();
+            assert_eq!(parsed.expires_datetime(), Some(SystemTime::UNIX_EPOCH));
+        }
+
+        // A date before the Unix epoch is read but is written as the epoch.
+        let cookie = Cookie::parse("foo=bar; Expires=Fri, 01 Jan 1965 00:00:00 GMT").unwrap();
+        assert!(cookie.expires_datetime().is_some_and(|t| t <= SystemTime::UNIX_EPOCH));
+        assert_eq!(&cookie.unescaped().to_string(), expected);
     }
 
     #[test]

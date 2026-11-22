@@ -7,9 +7,10 @@ use std::time::{Duration, SystemTime};
 /// the Unix epoch. RFC 6265 requires dates not to exceed 9999 years.
 const MAX_TIMESTAMP: i64 = 253_402_300_799;
 
-/// The earliest date that can be written: Jan 1, 0000, 00:00:00 UTC, in seconds
-/// since the Unix epoch. An HTTP date has a four digit, unsigned year.
-const MIN_TIMESTAMP: i64 = -62_167_219_200;
+/// The earliest date that is written: the Unix epoch. Not every client can
+/// read an earlier date. Some treat a cookie with such a date as a session
+/// cookie instead of as an expired cookie.
+const MIN_TIMESTAMP: i64 = 0;
 
 const MONTHS: [&str; 12] = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -38,14 +39,20 @@ fn timestamp(datetime: SystemTime) -> i64 {
 }
 
 /// Returns the date-time that is `timestamp` seconds from the Unix epoch, if
-/// it is representable on this platform.
+/// it is representable on this platform. Not every platform can represent
+/// dates before the Unix epoch. On those that cannot, such a date is returned
+/// as the Unix epoch so that a date in the past remains in the past.
 fn datetime(timestamp: i64) -> Option<SystemTime> {
     let magnitude = Duration::from_secs(timestamp.unsigned_abs());
     match timestamp < 0 {
-        true => SystemTime::UNIX_EPOCH.checked_sub(magnitude),
+        true => SystemTime::UNIX_EPOCH.checked_sub(magnitude).or(Some(SystemTime::UNIX_EPOCH)),
         false => SystemTime::UNIX_EPOCH.checked_add(magnitude),
     }
 }
+
+// The two functions below are the `days_from_civil` and `civil_from_days`
+// algorithms from https://howardhinnant.github.io/date_algorithms.html. They
+// are exact for every date this module handles: years 1601 through 9999.
 
 /// Days from the Unix epoch to the proleptic Gregorian date `y`-`m`-`d`.
 fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
@@ -76,8 +83,9 @@ fn days_in_month(y: i64, m: i64) -> i64 {
 }
 
 /// Wrapper around a date-time whose `Display` implementation formats it as an
-/// HTTP date: `Wed, 21 Oct 2015 07:28:00 GMT`. Dates outside of years 0000 to
-/// 9999 are written as the closest date in that range.
+/// HTTP date: `Wed, 21 Oct 2015 07:28:00 GMT`. Dates before the Unix epoch are
+/// written as the Unix epoch. Dates after Dec 31, 9999, 23:59:59 UTC are
+/// written as that date.
 pub(crate) struct HttpDate(pub SystemTime);
 
 impl fmt::Display for HttpDate {
@@ -120,7 +128,8 @@ fn month(token: &str) -> Option<i64> {
 /// Parses a cookie date as specified in RFC 6265 §5.1.1.
 ///
 /// The algorithm is purposefully lenient. In particular, it ignores the
-/// weekday and the time zone, if any, and reads the date as UTC.
+/// weekday and the time zone, if any, and reads the date as UTC. A date that
+/// is too early to be represented on this platform is read as the Unix epoch.
 pub(crate) fn parse(string: &str) -> Option<SystemTime> {
     let is_delimiter = |c: char| matches!(c,
         '\t' | ' '..='/' | ';'..='@' | '['..='`' | '{'..='~');
@@ -194,11 +203,22 @@ mod tests {
         parse(string).map(timestamp)
     }
 
+    /// Whether this platform can represent dates before the Unix epoch.
+    fn pre_epoch() -> bool {
+        SystemTime::UNIX_EPOCH.checked_sub(Duration::from_secs(11_644_473_600)).is_some()
+    }
+
     #[test]
     fn format_and_parse() {
         for &(ts, string) in DATES {
-            // Not every platform can represent every date.
-            let Some(datetime) = datetime(ts) else { continue };
+            // Dates before the Unix epoch are parsed but never written.
+            if ts < 0 {
+                let expected = if pre_epoch() { ts } else { 0 };
+                assert_eq!(parse_timestamp(string), Some(expected), "{}", string);
+                continue;
+            }
+
+            let datetime = datetime(ts).expect("representable");
             assert_eq!(HttpDate(datetime).to_string(), string);
             assert_eq!(parse_timestamp(string), Some(ts), "{}", string);
         }
@@ -208,32 +228,70 @@ mod tests {
     fn format_truncates_subseconds() {
         let after = SystemTime::UNIX_EPOCH + Duration::from_millis(1500);
         assert_eq!(HttpDate(after).to_string(), "Thu, 01 Jan 1970 00:00:01 GMT");
-
-        if let Some(before) = SystemTime::UNIX_EPOCH.checked_sub(Duration::from_millis(1500)) {
-            assert_eq!(HttpDate(before).to_string(), "Wed, 31 Dec 1969 23:59:58 GMT");
-        }
     }
 
     #[test]
     fn format_is_bounded() {
         // Not every platform can represent every date.
+        let at = |secs: u64, after: bool| match after {
+            true => SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(secs)),
+            false => SystemTime::UNIX_EPOCH.checked_sub(Duration::from_secs(secs)),
+        };
+
         let max = "Fri, 31 Dec 9999 23:59:59 GMT";
-        for ts in [253402300800, 1 << 40, i64::MAX] {
-            if let Some(datetime) = datetime(ts) {
+        for secs in [253402300799, 253402300800, 1 << 40, i64::MAX as u64] {
+            if let Some(datetime) = at(secs, true) {
                 assert_eq!(HttpDate(datetime).to_string(), max);
             }
         }
 
-        let min = "Sat, 01 Jan 0000 00:00:00 GMT";
-        for ts in [-62167219200, -62167219201, -(1 << 40), i64::MIN + 1] {
-            if let Some(datetime) = datetime(ts) {
+        let min = "Thu, 01 Jan 1970 00:00:00 GMT";
+        for secs in [0, 1, 86_400, 11644473600, 62167219200, 1 << 40, i64::MAX as u64] {
+            if let Some(datetime) = at(secs, false) {
                 assert_eq!(HttpDate(datetime).to_string(), min);
             }
         }
 
-        if let Some(datetime) = datetime(-62167219199) {
-            assert_eq!(HttpDate(datetime).to_string(), "Sat, 01 Jan 0000 00:00:01 GMT");
+        if let Some(datetime) = SystemTime::UNIX_EPOCH.checked_sub(Duration::from_nanos(1)) {
+            assert_eq!(HttpDate(datetime).to_string(), min);
         }
+    }
+
+    #[test]
+    fn format_always_parses() {
+        // Whatever is written is read back as the same date.
+        let secs = [0, 1, 86_399, 86_400, 2_203_891_200, 11_644_473_600, 60_589_296_000,
+            62_167_219_200, 253_402_300_799, 253_402_300_800, 1 << 40];
+
+        for after in [true, false] {
+            for secs in secs {
+                let datetime = match after {
+                    true => SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(secs)),
+                    false => SystemTime::UNIX_EPOCH.checked_sub(Duration::from_secs(secs)),
+                };
+
+                // Not every platform can represent every date.
+                let Some(datetime) = datetime else { continue };
+                let string = HttpDate(datetime).to_string();
+                let parsed = parse(&string).expect(&string);
+                assert_eq!(HttpDate(parsed).to_string(), string);
+            }
+        }
+    }
+
+    #[test]
+    fn unrepresentable_past_is_epoch() {
+        assert_eq!(datetime(0), Some(SystemTime::UNIX_EPOCH));
+        assert_eq!(datetime(253402300799).map(timestamp), Some(253402300799));
+
+        match pre_epoch() {
+            true => assert_eq!(datetime(-11644473600).map(timestamp), Some(-11644473600)),
+            false => assert_eq!(datetime(-11644473600), Some(SystemTime::UNIX_EPOCH)),
+        }
+
+        // An expired cookie stays expired, even if its date isn't representable.
+        let parsed = parse("Wed, 31 Dec 1969 23:59:59 GMT").expect("valid date");
+        assert!(parsed <= SystemTime::UNIX_EPOCH);
     }
 
     #[test]
