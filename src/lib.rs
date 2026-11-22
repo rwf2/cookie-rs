@@ -1244,13 +1244,14 @@ impl<'c> Cookie<'c> {
     }
 
     /// Make `self` a "removal" cookie by clearing its value, setting a max-age
-    /// of `0`, and setting an expiration date far in the past.
+    /// of `0`, and setting an expiration date of the Unix epoch: January 1,
+    /// 1970.
     ///
     /// # Example
     ///
     /// ```rust
     /// use cookie::Cookie;
-    /// use cookie::time::Duration;
+    /// use cookie::time::{Duration, OffsetDateTime};
     ///
     /// # fn main() {
     /// let mut c = Cookie::new("foo", "bar");
@@ -1261,12 +1262,13 @@ impl<'c> Cookie<'c> {
     /// c.make_removal();
     /// assert_eq!(c.value(), "");
     /// assert_eq!(c.max_age(), Some(Duration::ZERO));
+    /// assert_eq!(c.expires_datetime(), Some(OffsetDateTime::UNIX_EPOCH));
     /// # }
     /// ```
     pub fn make_removal(&mut self) {
         self.set_value("");
         self.set_max_age(Duration::seconds(0));
-        self.set_expires(OffsetDateTime::now_utc() - Duration::days(365));
+        self.set_expires(OffsetDateTime::UNIX_EPOCH);
     }
 
     fn fmt_parameters(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -1923,6 +1925,15 @@ mod tests {
 
         let c = Cookie::build(("sid", "abc")).path("/a\r\nSet-Cookie: admin=1").build();
         assert_eq!(c.unescaped().to_string(), "sid=abc; Path=/a");
+    }
+
+    #[test]
+    fn format_removal() {
+        let mut c = Cookie::build(("foo", "bar")).path("/").build();
+        c.make_removal();
+
+        let expected = "foo=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT";
+        assert_eq!(c.unescaped().to_string(), expected);
     }
 
     #[test]
