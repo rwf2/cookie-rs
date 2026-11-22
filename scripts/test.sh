@@ -4,13 +4,13 @@ set -e
 
 cargo build --verbose
 
-cargo test --verbose --features percent-encode
-cargo test --verbose --features private
-cargo test --verbose --features signed
-cargo test --verbose --features secure
-cargo test --verbose --features 'private,key-expansion'
-cargo test --verbose --features 'signed,key-expansion'
-cargo test --verbose --features 'secure,percent-encode'
+cargo test --verbose --no-default-features --features percent-encode
+cargo test --verbose --no-default-features --features private
+cargo test --verbose --no-default-features --features signed
+cargo test --verbose --no-default-features --features secure
+cargo test --verbose --no-default-features --features 'private,key-expansion'
+cargo test --verbose --no-default-features --features 'signed,key-expansion'
+cargo test --verbose --no-default-features --features 'secure,percent-encode'
 
 cargo test --verbose
 cargo test --verbose --no-default-features

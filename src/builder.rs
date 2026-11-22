@@ -108,6 +108,9 @@ impl<'c> CookieBuilder<'c> {
 
     /// Sets the `domain` field in the cookie being built.
     ///
+    /// As with [`Cookie::set_domain()`], the value is truncated at the first
+    /// `;` or control character, if any.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -122,6 +125,9 @@ impl<'c> CookieBuilder<'c> {
     }
 
     /// Sets the `path` field in the cookie being built.
+    ///
+    /// As with [`Cookie::set_path()`], the `path` is truncated at the first `;`
+    /// or control character, if any.
     ///
     /// # Example
     ///
@@ -202,7 +208,8 @@ impl<'c> CookieBuilder<'c> {
     ///
     /// let c = Cookie::build(("foo", "bar")).partitioned(true);
     /// assert_eq!(c.inner().partitioned(), Some(true));
-    /// assert!(c.to_string().contains("Secure"));
+    /// # #[cfg(feature = "percent-encode")]
+    /// assert!(c.inner().encoded().to_string().contains("Secure"));
     /// ```
     #[inline]
     pub fn partitioned(mut self, value: bool) -> Self {
@@ -353,13 +360,6 @@ impl<'c> CookieBuilder<'c> {
     #[deprecated(since="0.18.0", note="`CookieBuilder` can be passed in to methods expecting a `Cookie`; for other cases, use `CookieBuilder::build()`")]
     pub fn finish(self) -> Cookie<'c> {
         self.cookie
-    }
-}
-
-impl std::fmt::Display for CookieBuilder<'_> {
-    #[inline(always)]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.cookie.fmt(f)
     }
 }
 
