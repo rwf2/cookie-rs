@@ -114,7 +114,7 @@ use std::ascii::AsciiExt;
 
 use std::time::{Duration, SystemTime};
 
-use crate::parse::parse_cookie;
+use crate::parse::{parse_cookie, trim};
 pub use crate::parse::ParseError;
 pub use crate::builder::CookieBuilder;
 pub use crate::jar::{CookieJar, Delta, Iter};
@@ -1629,13 +1629,13 @@ impl<'c> Iterator for SplitCookies<'c> {
                 .unwrap_or(self.string.len());
 
             self.last = j + 1;
-            if self.string[i..j].chars().all(|c| c.is_whitespace()) {
+            if trim(&self.string[i..j]).is_empty() {
                 continue;
             }
 
             return Some(match self.string {
-                Cow::Borrowed(s) => parse_cookie(s[i..j].trim(), self.decode),
-                Cow::Owned(ref s) => parse_cookie(s[i..j].trim().to_owned(), self.decode),
+                Cow::Borrowed(s) => parse_cookie(trim(&s[i..j]), self.decode),
+                Cow::Owned(ref s) => parse_cookie(trim(&s[i..j]).to_owned(), self.decode),
             })
         }
 

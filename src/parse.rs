@@ -65,6 +65,12 @@ impl Error for ParseError {
     }
 }
 
+/// Trims whitespace, as defined by RFC 6265, from both ends of `string`. Only
+/// spaces and horizontal tabs are whitespace.
+pub(crate) fn trim(string: &str) -> &str {
+    string.trim_matches([' ', '\t'])
+}
+
 #[cfg(feature = "percent-encode")]
 fn name_val_decoded(
     name: &str,
@@ -114,7 +120,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
     // Determine the name = val.
     let key_value = attributes.next().expect("first str::split().next() returns Some");
     let (name, value) = match key_value.find('=') {
-        Some(i) => (key_value[..i].trim(), key_value[(i + 1)..].trim()),
+        Some(i) => (trim(&key_value[..i]), trim(&key_value[(i + 1)..])),
         None => return Err(ParseError::MissingPair)
     };
 
@@ -155,8 +161,8 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
 
     for attr in attributes {
         let (key, value) = match attr.find('=') {
-            Some(i) => (attr[..i].trim(), Some(attr[(i + 1)..].trim())),
-            None => (attr.trim(), None),
+            Some(i) => (trim(&attr[..i]), Some(trim(&attr[(i + 1)..]))),
+            None => (trim(attr), None),
         };
 
         match (&*key.to_ascii_lowercase(), value) {
@@ -446,6 +452,25 @@ mod tests {
             .http_only(true)
             .build();
         assert_eq_parse!("\tfoo\t=\tbar\t;\tPath\t=\t/\t;\tHttpOnly\t", expected);
+    }
+
+    #[test]
+    fn parse_whitespace() {
+        // Only spaces and horizontal tabs are whitespace.
+        let expected = Cookie::build(("foo", "bar")).path("/").build();
+        assert_eq_parse!(" \t foo \t = \t bar \t ; \t Path \t = \t / \t ", expected);
+
+        for space in ['\u{85}', '\u{a0}', '\u{2003}', '\u{2028}', '\u{3000}'] {
+            let cookie = Cookie::parse(format!("{0}foo{0}={0}bar{0}", space)).unwrap();
+            let (name, value) = (format!("{0}foo{0}", space), format!("{0}bar{0}", space));
+            assert_eq!(cookie.name_value(), (&*name, &*value));
+
+            let cookie = Cookie::parse(format!("foo=bar;{0}Path{0}=/", space)).unwrap();
+            assert_eq!(cookie.path(), None);
+
+            let cookie = Cookie::parse(format!("foo=bar; Path={0}/{0}", space)).unwrap();
+            assert_eq!(cookie.path(), Some(&*format!("{0}/{0}", space)));
+        }
     }
 
     #[test]
