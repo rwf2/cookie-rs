@@ -174,7 +174,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                     v = &v[1..];
                 }
 
-                if !v.chars().all(|d| d.is_ascii_digit()) {
+                if v.is_empty() || !v.chars().all(|d| d.is_ascii_digit()) {
                     continue
                 }
 
@@ -470,6 +470,21 @@ mod tests {
 
             let cookie = Cookie::parse(format!("foo=bar; Path={0}/{0}", space)).unwrap();
             assert_eq!(cookie.path(), Some(&*format!("{0}/{0}", space)));
+        }
+    }
+
+    #[test]
+    fn parse_max_age() {
+        let ignored = ["", " ", "-", "+1", "1.5", "1e3", "0x10", "--1", "1-", "1 0", "abc"];
+        for max_age in ignored {
+            let cookie = Cookie::parse(format!("foo=bar; Max-Age={}", max_age)).unwrap();
+            assert_eq!(cookie.max_age(), None, "{:?}", max_age);
+        }
+
+        let valid = [("0", 0), ("00", 0), ("1", 1), ("010", 10), (" 60 ", 60), ("-0", 0), ("-1", 0)];
+        for (max_age, seconds) in valid {
+            let cookie = Cookie::parse(format!("foo=bar; Max-Age={}", max_age)).unwrap();
+            assert_eq!(cookie.max_age(), Some(Duration::from_secs(seconds)), "{:?}", max_age);
         }
     }
 
