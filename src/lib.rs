@@ -75,6 +75,17 @@
 
 #![cfg_attr(all(nightly, doc), feature(doc_cfg))]
 
+// Links to feature-gated items only resolve when the feature is enabled.
+#![cfg_attr(
+    not(all(
+        feature = "percent-encode",
+        feature = "private",
+        feature = "signed",
+        feature = "key-expansion",
+    )),
+    allow(rustdoc::broken_intra_doc_links)
+)]
+
 #![deny(missing_docs)]
 
 pub use time;
