@@ -1342,7 +1342,8 @@ impl<'c> Cookie<'c> {
         }
 
         if let Some(max_age) = self.max_age() {
-            write!(f, "; Max-Age={}", max_age.as_secs())?;
+            // Not every client can read a `Max-Age` larger than `i64::MAX`.
+            write!(f, "; Max-Age={}", max_age.as_secs().min(i64::MAX as u64))?;
         }
 
         if let Some(time) = self.expires_datetime() {
@@ -2040,7 +2041,13 @@ mod tests {
 
         let mut cookie = Cookie::new("foo", "bar");
         cookie.set_max_age(Duration::MAX);
-        assert_eq!(cookie.unescaped().to_string(), format!("foo=bar; Max-Age={}", u64::MAX));
+        assert_eq!(cookie.unescaped().to_string(), format!("foo=bar; Max-Age={}", i64::MAX));
+
+        cookie.set_max_age(Duration::from_secs(i64::MAX as u64));
+        assert_eq!(cookie.unescaped().to_string(), format!("foo=bar; Max-Age={}", i64::MAX));
+
+        cookie.set_max_age(Duration::from_secs(i64::MAX as u64 - 1));
+        assert_eq!(cookie.unescaped().to_string(), format!("foo=bar; Max-Age={}", i64::MAX - 1));
     }
 
     #[test]
