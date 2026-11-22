@@ -26,6 +26,8 @@ pub enum ParseError {
     /// The cookie contains an invalid control character: %x00-08 / %x0A-1F /
     /// %x7F character (CTL characters excluding HTAB).
     InvalidControl,
+    /// The cookie's name contained a percent-encoded cookie prefix.
+    EncodedPrefix,
 }
 
 impl ParseError {
@@ -38,6 +40,9 @@ impl ParseError {
                 "decoding the cookie's name or value resulted in invalid UTF-8"
             }
             ParseError::InvalidControl => "cookie contains an invalid control character",
+            ParseError::EncodedPrefix => {
+                "decoding the cookie's name resulted in a cookie prefix"
+            }
         }
     }
 }
@@ -65,8 +70,22 @@ fn name_val_decoded(
     name: &str,
     val: &str
 ) -> Result<Option<(CookieStr<'static>, CookieStr<'static>)>, ParseError> {
+    // The cookie prefixes spec'd in RFC 6265bis followed by those spec'd in
+    // https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-layered-cookies.
+    const PREFIXES: [&str; 4] = ["__Host-", "__Secure-", "__Http-", "__Host-Http-"];
+
+    let has_prefix = |name: &str, prefix: &str| name.get(..prefix.len())
+        .is_some_and(|start| start.eq_ignore_ascii_case(prefix));
+
     let decoded_name = percent_decode(name.as_bytes()).decode_utf8()?;
     let decoded_value = percent_decode(val.as_bytes()).decode_utf8()?;
+
+    // From RFC 6265bis 5.6: browsers do not decode a cookie's name. A name
+    // that has a prefix only after decoding was thus never held to the
+    // prefix's requirements, so we fail to parse it.
+    if PREFIXES.iter().any(|p| has_prefix(&decoded_name, p) && !has_prefix(name, p)) {
+        return Err(ParseError::EncodedPrefix);
+    }
 
     if let (&Cow::Borrowed(_), &Cow::Borrowed(_)) = (&decoded_name, &decoded_value) {
          Ok(None)
@@ -519,6 +538,67 @@ mod tests {
     fn odd_characters() {
         let expected = Cookie::new("foo", "b%2Fr");
         assert_eq_parse!("foo=b%2Fr", expected);
+    }
+
+    #[test]
+    #[cfg(feature = "percent-encode")]
+    fn parse_encoded_prefix() {
+        let cases = [
+            "%5F%5FHost-foo", "_%5FHost-foo", "__%48ost-foo", "__Host%2Dfoo",
+            "%5f%5fhost-foo", "%5F%5FSecure-foo", "__Secur%65-foo",
+            "__%53ecure-foo", "%5F_SECURE%2Dfoo", "%5F%5FHttp-foo",
+            "__Http%2Dfoo", "__%68TTP-foo", "%5F%5FHost-Http-foo",
+            "__Host-%48ttp-foo", "__Host-Http%2Dfoo", "__host-%68TTP-foo",
+        ];
+
+        for case in cases {
+            let string = format!("{}=bar", case);
+            assert_eq!(Cookie::parse_encoded(string), Err(ParseError::EncodedPrefix));
+
+            let string = format!(" {} = b%20r; Path=/", case);
+            assert_eq!(Cookie::parse_encoded(string), Err(ParseError::EncodedPrefix));
+
+            // Without decoding, the name has no prefix.
+            let cookie = Cookie::parse(format!("{}=bar", case)).unwrap();
+            assert_eq!(cookie.name_value(), (case, "bar"));
+        }
+
+        // The prefix, if any, is present before decoding.
+        let cases = [
+            ("__Host-f%6Fo", "__Host-foo"), ("__Secure-f%6Fo", "__Secure-foo"),
+            ("__Http-f%6Fo", "__Http-foo"), ("__Host-Http-f%6Fo", "__Host-Http-foo"),
+            ("__host-f%6Fo", "__host-foo"), ("__SECURE-%66oo", "__SECURE-foo"),
+            ("__HOST-HTTP-%66oo", "__HOST-HTTP-foo"), ("x%5F%5FHost-foo", "x__Host-foo"),
+            ("%5F%5FHos-foo", "__Hos-foo"), ("_%5FSecure_foo", "__Secure_foo"),
+            ("__Host-Httpx%2Dfoo", "__Host-Httpx-foo"), ("%20__Host-foo", " __Host-foo"),
+            ("f%6Fo", "foo"), ("%5F%5F", "__"),
+        ];
+
+        for (string, name) in cases {
+            let cookie = Cookie::parse_encoded(format!("{}=b%20r", string)).unwrap();
+            assert_eq!(cookie.name_value(), (name, "b r"));
+        }
+
+        // The remaining cookies are unaffected.
+        let cookies = Cookie::split_parse_encoded("a=1; %5F%5FHost-foo=bar; b=2")
+            .map(|cookie| cookie.map(|c| c.name().to_string()))
+            .collect::<Vec<_>>();
+
+        let expected = [Ok("a".into()), Err(ParseError::EncodedPrefix), Ok("b".into())];
+        assert_eq!(cookies, expected);
+    }
+
+    #[test]
+    #[cfg(feature = "percent-encode")]
+    fn encoded_prefix_roundtrips() {
+        for prefix in ["__Host-", "__Secure-", "__Http-", "__Host-Http-", "__HOST-"] {
+            let name = format!("{}my name", prefix);
+            let string = Cookie::new(name.clone(), "a value").encoded().to_string();
+            assert!(string.starts_with(prefix));
+
+            let cookie = Cookie::parse_encoded(string).unwrap();
+            assert_eq!(cookie.name_value(), (&*name, "a value"));
+        }
     }
 
     #[test]

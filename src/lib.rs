@@ -402,15 +402,27 @@ impl<'c> Cookie<'c> {
     /// the name and value fields are percent-encoded. Percent-decodes the
     /// name/value fields.
     ///
+    /// This is the counterpart to [`Cookie::encoded()`].
+    ///
+    /// **Note:** Browsers do not decode a cookie's name. As such, browsers only
+    /// enforce a cookie [`prefix`], i.e, `__Host-`, if the name has the prefix
+    /// _before_ it is decoded. A name that only has a prefix _after_ it is
+    /// decoded, such as `%5F%5FHost-name`, fails to parse with
+    /// [`ParseError::EncodedPrefix`].
+    ///
     /// # Example
     ///
     /// ```
-    /// use cookie::Cookie;
+    /// use cookie::{Cookie, ParseError};
     ///
     /// let c = Cookie::parse_encoded("foo=bar%20baz; HttpOnly").unwrap();
     /// assert_eq!(c.name_value(), ("foo", "bar baz"));
     /// assert_eq!(c.http_only(), Some(true));
     /// assert_eq!(c.secure(), None);
+    ///
+    /// // Here, the name only has the `__Host-` prefix after decoding.
+    /// let c = Cookie::parse_encoded("%5F%5FHost-foo=bar");
+    /// assert_eq!(c, Err(ParseError::EncodedPrefix));
     /// ```
     #[cfg(feature = "percent-encode")]
     #[cfg_attr(all(nightly, doc), doc(cfg(feature = "percent-encode")))]
@@ -466,7 +478,7 @@ impl<'c> Cookie<'c> {
     /// and any excess surrounding whitespace are ignored.
     ///
     /// Unlike [`Cookie::split_parse()`], this method _does_ percent-decode keys
-    /// and values.
+    /// and values. See [`Cookie::parse_encoded()`] for details.
     ///
     /// # Example
     ///
