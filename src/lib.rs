@@ -196,17 +196,15 @@ impl<'c> CookieStr<'c> {
 
 /// Truncates `string` at the first `;` or control character, if any. Neither
 /// can appear in the value of a cookie attribute.
-fn truncate_attribute(string: Cow<'_, str>) -> Cow<'_, str> {
-    match string.find(|c: char| c == ';' || c.is_ascii_control()) {
-        Some(i) => match string {
-            Cow::Borrowed(s) => Cow::Borrowed(&s[..i]),
-            Cow::Owned(mut s) => {
-                s.truncate(i);
-                Cow::Owned(s)
-            }
-        },
-        None => string,
+fn truncate_attribute(mut string: Cow<'_, str>) -> Cow<'_, str> {
+    if let Some(i) = string.find(|c: char| c == ';' || c.is_ascii_control()) {
+        match &mut string {
+            Cow::Borrowed(s) => *s = &s[..i],
+            Cow::Owned(s) => s.truncate(i),
+        }
     }
+
+    string
 }
 
 /// Representation of an HTTP cookie.

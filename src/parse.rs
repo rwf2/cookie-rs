@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::error::Error;
-use std::convert::From;
 use std::str::Utf8Error;
 use std::time::Duration;
 use std::fmt;
@@ -427,8 +426,8 @@ mod tests {
             Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", expected);
 
         unexpected.set_domain("foo.com");
-        let bad_expires = datetime(1445412480);
-        expected.set_expires(bad_expires);
+        let bad_expires = datetime(1445412481);
+        unexpected.set_expires(bad_expires);
         assert_ne_parse!(" foo=bar ;HttpOnly; Secure; Max-Age=4; Path=/foo; \
             Domain=foo.com; Expires=Wed, 21 Oct 2015 07:28:00 GMT", unexpected);
     }
