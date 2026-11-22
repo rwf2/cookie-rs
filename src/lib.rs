@@ -794,6 +794,9 @@ impl<'c> Cookie<'c> {
 
     /// Returns the `Path` of the cookie if one was specified.
     ///
+    /// This does not consider whether the `Path` is valid; validation is left
+    /// to higher-level libraries, as needed.
+    ///
     /// # Example
     ///
     /// ```
@@ -1103,7 +1106,13 @@ impl<'c> Cookie<'c> {
     /// Sets the `path` of `self` to `path`.
     ///
     /// A `Path` cannot contain a `;` or a control character. As such, `path` is
-    /// truncated at the first `;` or control character, if any.
+    /// truncated at the first `;` or control character, if any. This does not
+    /// otherwise consider whether the `Path` is valid; validation is left to
+    /// higher-level libraries, as needed.
+    ///
+    /// **Note:** A `Path` is only truncated when it is set. A parsed `Path` is
+    /// left as it was parsed. As such, a parsed `Path` may contain a horizontal
+    /// tab, the only control character allowed when parsing.
     ///
     /// # Example
     ///
@@ -1119,6 +1128,10 @@ impl<'c> Cookie<'c> {
     /// // Everything from the first `;` or control character is removed.
     /// c.set_path("/sub; Domain=crates.io");
     /// assert_eq!(c.path(), Some("/sub"));
+    ///
+    /// // A parsed `Path` is left as it was parsed.
+    /// let c = Cookie::parse("name=value; Path=/sub\tdir").unwrap();
+    /// assert_eq!(c.path(), Some("/sub\tdir"));
     /// ```
     pub fn set_path<P: Into<Cow<'c, str>>>(&mut self, path: P) {
         self.path = Some(CookieStr::Concrete(truncate_attribute(path.into())));
@@ -1151,6 +1164,10 @@ impl<'c> Cookie<'c> {
     /// This does not otherwise consider whether the `Domain` is valid;
     /// validation is left to higher-level libraries, as needed.
     ///
+    /// **Note:** A `Domain` is only truncated when it is set. A parsed `Domain`
+    /// is left as it was parsed. As such, a parsed `Domain` may contain a
+    /// horizontal tab, the only control character allowed when parsing.
+    ///
     /// # Example
     ///
     /// ```
@@ -1165,6 +1182,10 @@ impl<'c> Cookie<'c> {
     /// // Everything from the first `;` or control character is removed.
     /// c.set_domain("crates.io; Path=/");
     /// assert_eq!(c.domain(), Some("crates.io"));
+    ///
+    /// // A parsed `Domain` is left as it was parsed.
+    /// let c = Cookie::parse("name=value; Domain=crates\t.io").unwrap();
+    /// assert_eq!(c.domain(), Some("crates\t.io"));
     /// ```
     pub fn set_domain<D: Into<Cow<'c, str>>>(&mut self, domain: D) {
         self.domain = Some(CookieStr::Concrete(truncate_attribute(domain.into())));
@@ -1550,6 +1571,10 @@ impl<'c> Cookie<'c> {
     /// its name and value remain percent-encoded. As such, a signed or private
     /// cookie read in this manner can fail to verify or decrypt.
     ///
+    /// **Note:** The `Domain` is written as returned by [`Cookie::domain()`]:
+    /// without a leading `.`. As such, a cookie with an invalid `Domain`, such
+    /// as `..crates.io`, may be parsed back with a different `Domain`.
+    ///
     /// The returned structure can be chained with [`Display::stripped()`] to
     /// display only the name and value.
     ///
@@ -1561,6 +1586,10 @@ impl<'c> Cookie<'c> {
     /// let mut c = Cookie::build(("my name", "this; value?")).secure(true).build();
     /// assert_eq!(&c.encoded().to_string(), "my%20name=this%3B%20value%3F; Secure");
     /// assert_eq!(&c.encoded().stripped().to_string(), "my%20name=this%3B%20value%3F");
+    ///
+    /// // The `Domain` is written without a leading `.`.
+    /// let c = Cookie::build(("name", "value")).domain(".crates.io").build();
+    /// assert_eq!(&c.encoded().to_string(), "name=value; Domain=crates.io");
     /// ```
     #[cfg(feature = "percent-encode")]
     #[cfg_attr(all(nightly, doc), doc(cfg(feature = "percent-encode")))]
@@ -1588,7 +1617,8 @@ impl<'c> Cookie<'c> {
     /// you need this method, use [`Cookie::encoded()`].
     ///
     /// A cookie written with this method should be read with
-    /// [`Cookie::parse()`] or [`Cookie::split_parse()`].
+    /// [`Cookie::parse()`] or [`Cookie::split_parse()`]. As with
+    /// [`Cookie::encoded()`], the `Domain` is written without a leading `.`.
     ///
     /// The returned structure can be chained with [`Display::stripped()`] to
     /// display only the name and value.
