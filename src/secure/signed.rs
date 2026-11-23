@@ -22,6 +22,12 @@ pub(crate) const KEY_LEN: usize = 32;
 ///
 /// A cookie's value is bound to the cookie's name: a value signed for one name
 /// fails to verify under any other name.
+///
+/// **Note:** Only a cookie's name and value are signed. A cookie's attributes,
+/// including `Expires` and `Max-Age`, are _not_: a client can keep a signed
+/// cookie, and send it back, after it expires. As such, if a value must not
+/// be accepted after a certain time, store that time in the value itself and
+/// check it.
 #[cfg_attr(all(nightly, doc), doc(cfg(feature = "signed")))]
 pub struct SignedJar<J> {
     parent: J,

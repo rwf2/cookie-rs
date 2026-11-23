@@ -1571,9 +1571,10 @@ impl<'c> Cookie<'c> {
     ///
     /// **Note:** A cookie written with this method must be read with
     /// [`Cookie::parse_encoded()`] or [`Cookie::split_parse_encoded()`]. If it
-    /// is read with [`Cookie::parse()`] or [`Cookie::split_parse()`] instead,
-    /// its name and value remain percent-encoded. As such, a signed or private
-    /// cookie read in this manner can fail to verify or decrypt.
+    /// is read with [`Cookie::parse()`], [`Cookie::split_parse()`], or
+    /// [`str::parse()`] instead, its name and value remain percent-encoded. As
+    /// such, a signed or private cookie read in this manner can fail to verify
+    /// or decrypt.
     ///
     /// **Note:** The `Domain` is written as returned by [`Cookie::domain()`]:
     /// without a leading `.`. As such, a cookie with an invalid `Domain`, such
@@ -1809,6 +1810,20 @@ impl<'a, 'c> Display<'a, 'c> {
     }
 }
 
+/// Parses a `Cookie` via [`Cookie::parse()`].
+///
+/// **Note:** This _does **not**_ perform any percent-decoding. To parse a
+/// cookie written with [`Cookie::encoded()`], use [`Cookie::parse_encoded()`].
+///
+/// # Example
+///
+/// ```rust
+/// use cookie::Cookie;
+///
+/// let c: Cookie = "name=value%20here; HttpOnly".parse().unwrap();
+/// assert_eq!(c.name_value(), ("name", "value%20here"));
+/// assert_eq!(c.http_only(), Some(true));
+/// ```
 impl FromStr for Cookie<'static> {
     type Err = ParseError;
 

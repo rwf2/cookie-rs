@@ -25,6 +25,12 @@ pub(crate) const KEY_LEN: usize = 32;
 /// A cookie's value is bound to the cookie's name: a value encrypted for one
 /// name fails to decrypt under any other name.
 ///
+/// **Note:** Only a cookie's name and value are authenticated. A cookie's
+/// attributes, including `Expires` and `Max-Age`, are _not_: a client can keep
+/// a private cookie, and send it back, after it expires. As such, if a value
+/// must not be accepted after a certain time, store that time in the value
+/// itself and check it.
+///
 /// **Note:** Cookies are encrypted with AES-256-GCM using a randomly generated
 /// nonce. As such, a single [`Key`] should not be used to encrypt more than
 /// 2<sup>32</sup> cookies. If you expect to exceed this limit, rotate keys.
