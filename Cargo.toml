@@ -3,7 +3,7 @@ name = "cookie"
 version = "0.18.1"
 authors = ["Sergio Benitez <sb@sergio.bz>", "Alex Crichton <alex@alexcrichton.com>"]
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.87"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/rwf2/cookie-rs"
 readme = "README.md"
@@ -20,9 +20,9 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(nightly)'] }
 default = ["percent-encode"]
 percent-encode = ["dep:percent-encoding"]
 secure = ["private", "signed", "key-expansion"]
-private = ["dep:aes-gcm", "dep:base64", "dep:rand", "dep:subtle"]
-signed = ["dep:hmac", "dep:sha2", "dep:base64", "dep:rand", "dep:subtle"]
-key-expansion = ["dep:sha2", "dep:hkdf"]
+private = ["dep:aes-gcm", "dep:base64", "dep:rand", "dep:subtle", "dep:ctutils", "dep:cmov"]
+signed = ["dep:hmac", "dep:sha2", "dep:base64", "dep:rand", "dep:subtle", "dep:ctutils", "dep:cmov"]
+key-expansion = ["dep:sha2", "dep:hkdf", "dep:ctutils", "dep:cmov"]
 
 [dependencies]
 percent-encoding = { version = "2.0", optional = true }
@@ -35,6 +35,10 @@ base64 = { version = "0.23", optional = true }
 rand = { version = "0.10.1", default-features = false, features = ["sys_rng"], optional = true }
 hkdf = { version = "0.13", optional = true }
 subtle = { version = "2.3", optional = true }
+
+# unused directly: sets minimum versions of dependencies with security fixes
+ctutils = { version = "0.4.4", optional = true }
+cmov = { version = "0.5.4", optional = true }
 
 [package.metadata.docs.rs]
 all-features = true
