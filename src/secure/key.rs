@@ -1,5 +1,3 @@
-use std::convert::TryFrom;
-
 const SIGNING_KEY_LEN: usize = 32;
 const ENCRYPTION_KEY_LEN: usize = 32;
 const COMBINED_KEY_LENGTH: usize = SIGNING_KEY_LEN + ENCRYPTION_KEY_LEN;
@@ -226,7 +224,6 @@ impl TryFrom<&[u8]> for Key {
     /// # Example
     ///
     /// ```rust
-    /// # use std::convert::TryFrom;
     /// use cookie::Key;
     ///
     /// # /*

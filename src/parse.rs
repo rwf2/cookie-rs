@@ -4,9 +4,6 @@ use std::str::Utf8Error;
 use std::time::Duration;
 use std::fmt;
 
-#[allow(unused_imports, deprecated)]
-use std::ascii::AsciiExt;
-
 #[cfg(feature = "percent-encode")]
 use percent_encoding::percent_decode;
 
@@ -367,8 +364,6 @@ mod tests {
         assert_ne_parse!(" foo=bar ;HttpOnly;", unexpected);
 
         unexpected.set_secure(false);
-        assert_ne_parse!(" foo=bar ;HttpOnly; secure", unexpected);
-        assert_ne_parse!(" foo=bar ;HttpOnly; secure", unexpected);
         assert_ne_parse!(" foo=bar ;HttpOnly; secure", unexpected);
 
         expected.set_max_age(Duration::ZERO);

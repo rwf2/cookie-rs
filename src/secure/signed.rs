@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 use std::borrow::{Borrow, BorrowMut};
 
 use sha2::Sha256;

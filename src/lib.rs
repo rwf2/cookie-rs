@@ -108,10 +108,6 @@ pub mod prefix;
 use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
-
-#[allow(unused_imports, deprecated)]
-use std::ascii::AsciiExt;
-
 use std::time::{Duration, SystemTime};
 
 use crate::parse::{parse_cookie, trim};

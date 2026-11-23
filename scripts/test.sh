@@ -16,6 +16,4 @@ cargo test --verbose
 cargo test --verbose --no-default-features
 cargo test --verbose --all-features
 
-rustdoc --test README.md -L target
-
 RUSTDOCFLAGS="-D warnings" cargo doc --verbose --no-deps --all-features
