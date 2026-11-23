@@ -32,7 +32,7 @@ aes-gcm = { version = "0.11", optional = true }
 hmac = { version = "0.13", optional = true }
 sha2 = { version = "0.11", optional = true }
 base64 = { version = "0.23", optional = true }
-rand = { version = "0.10", optional = true }
+rand = { version = "0.10.1", default-features = false, features = ["sys_rng"], optional = true }
 hkdf = { version = "0.13", optional = true }
 subtle = { version = "2.3", optional = true }
 

@@ -6,7 +6,7 @@ use crate::{Cookie, CookieJar};
 
 use aes_gcm::aead::{Aead, AeadInOut, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
-use rand::Rng;
+use rand::TryRng;
 
 // Keep these in sync, and keep the key len synced with the `private` docs as
 // well as the `KEYS_INFO` const in secure::Key.
@@ -47,9 +47,10 @@ impl<J> PrivateJar<J> {
         let (in_out, tag) = in_out.split_at_mut(cookie_val.len());
         in_out.copy_from_slice(cookie_val);
 
-        // Fill nonce piece with random data.
-        let mut rng = rand::rng();
-        rng.fill_bytes(nonce);
+        // Fill nonce piece with random data from the OS. We don't use a
+        // userspace RNG as it may yield the same nonces after a process forks.
+        let mut rng = rand::rngs::SysRng;
+        rng.try_fill_bytes(nonce).expect("couldn't random fill nonce");
         let nonce = Nonce::try_from(&*nonce).expect("nonce len");
 
         // Perform the actual sealing operation, using the cookie's name as
