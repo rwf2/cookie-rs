@@ -392,6 +392,9 @@ mod tests {
         assert_eq_parse!("foo=bar;HttpOnly; Secure; Max-Age=4; Path=/", expected);
         assert_eq_parse!("foo=bar;HttpOnly; Secure; Max-Age=4;Path=/", expected);
 
+        expected.set_path("/a=b=c");
+        assert_eq_parse!("foo=bar;HttpOnly; Secure; Max-Age=4;Path=/a=b=c", expected);
+
         expected.set_path("/foo");
         assert_eq_parse!("foo=bar;HttpOnly; Secure; Max-Age=4; Path=/foo", expected);
         assert_eq_parse!("foo=bar;HttpOnly; Secure; Max-Age=4;Path=/foo", expected);

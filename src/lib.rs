@@ -2037,6 +2037,26 @@ mod tests {
     }
 
     #[test]
+    fn make_permanent() {
+        let twenty_years = Duration::from_secs(20 * 365 * 24 * 60 * 60);
+
+        let before = SystemTime::now();
+        let mut c = Cookie::new("foo", "bar");
+        c.make_permanent();
+        let after = SystemTime::now();
+
+        // The cookie expires twenty years from when it was made permanent.
+        let expires = c.expires_datetime().unwrap();
+        assert_eq!(c.max_age(), Some(twenty_years));
+        assert!(expires >= before + twenty_years);
+        assert!(expires <= after + twenty_years);
+
+        let c = Cookie::build(("foo", "bar")).permanent().build();
+        assert_eq!(c.max_age(), Some(twenty_years));
+        assert!(c.expires_datetime().unwrap() >= after + twenty_years);
+    }
+
+    #[test]
     fn format_stripped() {
         let c = Cookie::build(("foo", "bar")).path("/").secure(true).build();
         assert_eq!(c.unescaped().stripped().to_string(), "foo=bar");
@@ -2198,6 +2218,35 @@ mod tests {
 
         let cookie = Cookie::parse_encoded(cookie_str).unwrap();
         assert_eq!(cookie.name_value(), ("foo !%?=", "bar;;, a"));
+    }
+
+    #[test]
+    #[cfg(feature = "percent-encode")]
+    fn format_encoded_characters() {
+        // The characters of an RFC 2616 `token`, sans the `%`. RFC 6265 allows
+        // these, and only these, in both a name and a value.
+        let is_allowed = |c: char| {
+            c.is_ascii_alphanumeric() || "!#$&'*+-.^_`|~".contains(c)
+        };
+
+        // Of those, we encode `#`, `^`, `` ` ``, and `|` as well.
+        let is_written = |c: char| is_allowed(c) && !"#^`|".contains(c);
+
+        for c in (0..128u8).map(char::from) {
+            let string = c.to_string();
+            let cookie = Cookie::new(string.clone(), string.clone());
+            let written = cookie.encoded().to_string();
+            let expected = match is_written(c) {
+                true => format!("{0}={0}", c),
+                false => format!("%{0:02X}=%{0:02X}", c as u8),
+            };
+
+            assert_eq!(written, expected, "{:?}", c);
+            assert!(written.chars().all(|c| is_allowed(c) || "%=".contains(c)));
+
+            let cookie = Cookie::parse_encoded(written).unwrap();
+            assert_eq!(cookie.name_value(), (&*string, &*string), "{:?}", c);
+        }
     }
 
     #[test]

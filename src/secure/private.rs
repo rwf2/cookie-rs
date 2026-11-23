@@ -279,4 +279,50 @@ mod test {
         assert_eq!(private.get("encrypted_with_ring014").unwrap().value(), "Tamper-proof");
         assert_eq!(private.get("encrypted_with_ring016").unwrap().value(), "Tamper-proof");
     }
+
+    #[test]
+    fn add_original_encrypts() {
+        let key = Key::generate();
+        let mut jar = CookieJar::new();
+        jar.private_mut(&key).add_original(("name", "value"));
+
+        assert_ne!(jar.get("name").unwrap().value(), "value");
+        assert!(!jar.get("name").unwrap().value().contains("value"));
+        assert_eq!(jar.private(&key).get("name").unwrap().value(), "value");
+        assert_eq!(jar.delta().count(), 0);
+    }
+
+    #[test]
+    fn decrypted_value_must_be_utf8() {
+        // Encrypted independently of this library with the last 32 bytes of
+        // this key. The second value decrypts to bytes that are not UTF-8.
+        let key = Key::from(&(0..64).collect::<Vec<_>>());
+
+        let mut jar = CookieJar::new();
+        jar.add(Cookie::new("valid",
+                "AQEBAQEBAQEBAQEBNEXAFHmipCXRVsP9z1Dwk68NZdL6SNi5is3iYA=="));
+        jar.add(Cookie::new("invalid",
+                "AgICAgICAgICAgICOW9Yy0l+FO6WIM1tQV/hs+66/C6FxL6JmUFGOQ=="));
+
+        let private = jar.private(&key);
+        assert_eq!(private.get("valid").unwrap().value(), "Tamper-proof");
+        assert!(private.get("invalid").is_none());
+    }
+
+    #[test]
+    fn nonces_are_unique() {
+        use std::collections::HashSet;
+
+        // The nonce is the first 16 characters of the base64 encoded value.
+        let key = Key::generate();
+        let mut nonces = HashSet::new();
+        for _ in 0..1024 {
+            let mut jar = CookieJar::new();
+            jar.private_mut(&key).add(("name", "value"));
+
+            let value = jar.get("name").unwrap().value().to_string();
+            assert!(nonces.insert(value[..16].to_string()), "repeated nonce");
+            assert_eq!(jar.private(&key).get("name").unwrap().value(), "value");
+        }
+    }
 }

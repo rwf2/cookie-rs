@@ -294,6 +294,39 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "key-expansion")]
+    fn derive_is_stable() {
+        // Computed independently of this library. These values must not
+        // change: the keys derived from a master key must remain the same.
+        let key = Key::derive_from(&(0..32).collect::<Vec<_>>());
+
+        assert_eq!(key.signing(), &[
+            160, 89, 87, 62, 183, 248, 240, 138, 239, 107, 71, 111, 112, 124,
+            47, 23, 203, 233, 187, 17, 148, 164, 140, 189, 86, 158, 70, 7, 23,
+            101, 223, 18,
+        ]);
+
+        assert_eq!(key.encryption(), &[
+            210, 7, 181, 124, 53, 83, 16, 68, 172, 187, 150, 228, 184, 121, 70,
+            22, 226, 214, 86, 131, 80, 202, 224, 170, 228, 255, 164, 69, 247,
+            12, 245, 177,
+        ]);
+    }
+
+    #[test]
+    fn equality() {
+        let bytes: Vec<u8> = (0..64).collect();
+        assert_eq!(Key::from(&bytes), Key::from(&bytes));
+
+        // Keys that differ in any one byte are not equal.
+        for i in 0..bytes.len() {
+            let mut other = bytes.clone();
+            other[i] ^= 1;
+            assert_ne!(Key::from(&bytes), Key::from(&other), "byte {}", i);
+        }
+    }
+
+    #[test]
     fn non_deterministic_generate() {
         let key_a = Key::generate();
         let key_b = Key::generate();

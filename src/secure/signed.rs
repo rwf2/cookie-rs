@@ -304,6 +304,18 @@ mod test {
     }
 
     #[test]
+    fn add_original_signs() {
+        let key = Key::generate();
+        let mut jar = CookieJar::new();
+        jar.signed_mut(&key).add_original(("name", "value"));
+
+        assert_ne!(jar.get("name").unwrap().value(), "value");
+        assert!(jar.get("name").unwrap().value().ends_with("value"));
+        assert_eq!(jar.signed(&key).get("name").unwrap().value(), "value");
+        assert_eq!(jar.delta().count(), 0);
+    }
+
+    #[test]
     fn issue_178() {
         let data = "x=yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy£";
         let c = Cookie::parse(data).expect("failed to parse cookie");
