@@ -19,6 +19,9 @@ pub(crate) const KEY_LEN: usize = 32;
 /// integrity and authenticity. In other words, clients cannot tamper with the
 /// contents of a cookie nor can they fabricate cookie values, but the data is
 /// visible in plaintext.
+///
+/// A cookie's value is bound to the cookie's name: a value signed for one name
+/// fails to verify under any other name.
 #[cfg_attr(all(nightly, doc), doc(cfg(feature = "signed")))]
 pub struct SignedJar<J> {
     parent: J,
@@ -33,11 +36,25 @@ impl<J> SignedJar<J> {
         SignedJar { parent, key: key.signing().try_into().expect("sign key len") }
     }
 
-    /// Signs the cookie's value providing integrity and authenticity.
-    fn sign_cookie(&self, cookie: &mut Cookie) {
-        // Compute HMAC-SHA256 of the cookie's value.
+    /// Returns an HMAC-SHA256 over the cookie's `name` and `value`.
+    fn mac(&self, name: &str, value: &str) -> Hmac<Sha256> {
+        // Previous versions signed only the value. We start with a byte that
+        // cannot appear in a `str` so that a signature over a value is never a
+        // signature over a name and value, and vice-versa. We then prefix the
+        // name with its length so that no two distinct pairs of `name` and
+        // `value` result in the same input to the MAC.
         let mut mac = Hmac::<Sha256>::new_from_slice(&self.key).expect("good key");
-        mac.update(cookie.value().as_bytes());
+        mac.update(&[0xFF]);
+        mac.update(&(name.len() as u64).to_be_bytes());
+        mac.update(name.as_bytes());
+        mac.update(value.as_bytes());
+        mac
+    }
+
+    /// Signs the cookie's name and value providing integrity and authenticity.
+    fn sign_cookie(&self, cookie: &mut Cookie) {
+        // Compute HMAC-SHA256 of the cookie's name and value.
+        let mac = self.mac(cookie.name(), cookie.value());
 
         // Cookie's new value is [MAC | original-value].
         let mut new_value = base64::encode(mac.finalize().into_bytes());
@@ -45,10 +62,10 @@ impl<J> SignedJar<J> {
         cookie.set_value(new_value);
     }
 
-    /// Given a signed value `str` where the signature is prepended to `value`,
-    /// verifies the signed value and returns it. If there's a problem, returns
-    /// an `Err` with a string describing the issue.
-    fn _verify(&self, cookie_value: &str) -> Result<String, &'static str> {
+    /// Given a signed value `str` and a key name `name`, where the signature
+    /// is prepended to `value`, verifies the signed value and returns it. If
+    /// there's a problem, returns an `Err` with a string describing the issue.
+    fn _verify(&self, name: &str, cookie_value: &str) -> Result<String, &'static str> {
         if !cookie_value.is_char_boundary(BASE64_DIGEST_LEN) {
             return Err("missing or invalid digest");
         }
@@ -58,9 +75,8 @@ impl<J> SignedJar<J> {
         let digest = base64::decode(digest_str).map_err(|_| "bad base64 digest")?;
 
         // Perform the verification.
-        let mut mac = Hmac::<Sha256>::new_from_slice(&self.key).expect("good key");
-        mac.update(value.as_bytes());
-        mac.verify_slice(&digest)
+        self.mac(name, value)
+            .verify_slice(&digest)
             .map(|_| value.to_string())
             .map_err(|_| "value did not verify")
     }
@@ -91,7 +107,7 @@ impl<J> SignedJar<J> {
     /// assert!(jar.signed(&key).verify(plain).is_none());
     /// ```
     pub fn verify(&self, mut cookie: Cookie<'static>) -> Option<Cookie<'static>> {
-        if let Ok(value) = self._verify(cookie.value()) {
+        if let Ok(value) = self._verify(cookie.name(), cookie.value()) {
             cookie.set_value(value);
             return Some(cookie);
         }
@@ -235,14 +251,51 @@ mod test {
             10, 180, 170, 187, 89, 252, 137, 110, 107]);
 
         let mut jar = CookieJar::new();
-        jar.add(Cookie::new("signed_with_ring014",
-                "3tdHXEQ2kf6fxC7dWzBGmpSLMtJenXLKrZ9cHkSsl1w=Tamper-proof"));
+        jar.add(Cookie::new("signed",
+                "5TMRZWdK7bJjHVp/xQcoou9iOj9fT5ZmpaYp/5XdjHI=Tamper-proof"));
+
+        let signed = jar.signed(&key);
+        assert_eq!(signed.get("signed").unwrap().value(), "Tamper-proof");
+
+        // A value signed by a version that did not sign the name.
+        let mut jar = CookieJar::new();
         jar.add(Cookie::new("signed_with_ring016",
                 "3tdHXEQ2kf6fxC7dWzBGmpSLMtJenXLKrZ9cHkSsl1w=Tamper-proof"));
 
-        let signed = jar.signed(&key);
-        assert_eq!(signed.get("signed_with_ring014").unwrap().value(), "Tamper-proof");
-        assert_eq!(signed.get("signed_with_ring016").unwrap().value(), "Tamper-proof");
+        assert!(jar.signed(&key).get("signed_with_ring016").is_none());
+
+        // The same, where the value was "\0\0\0\0\0\0\0\x05adminyes": a
+        // length, name, and value. It must not verify as `admin=yes`.
+        let mut jar = CookieJar::new();
+        jar.add(Cookie::new("admin",
+                "j+ZQwINWJJZAikCfILFhLXKxPdmpn1W9vAoicw4X9dE=yes"));
+        assert!(jar.signed(&key).get("admin").is_none());
+    }
+
+    #[test]
+    fn name_is_signed() {
+        let key = Key::generate();
+        let mut jar = CookieJar::new();
+        jar.signed_mut(&key).add(("a", "value"));
+        assert_eq!(jar.signed(&key).get("a").unwrap().value(), "value");
+
+        // A value signed for one name doesn't verify under another.
+        let value = jar.get("a").unwrap().value().to_string();
+        jar.add(("b", value.clone()));
+        assert!(jar.signed(&key).get("b").is_none());
+        assert!(jar.signed(&key).verify(Cookie::new("b", value)).is_none());
+
+        // The boundary between the name and the value is signed as well.
+        let cases = [(("ab", "c"), ("a", "bc")), (("a", ""), ("", "a"))];
+        for ((name_a, value_a), (name_b, value_b)) in cases {
+            let mut jar = CookieJar::new();
+            jar.signed_mut(&key).add((name_a, value_a));
+            jar.signed_mut(&key).add((name_b, value_b));
+
+            let mac_a = jar.get(name_a).unwrap().value().strip_suffix(value_a);
+            let mac_b = jar.get(name_b).unwrap().value().strip_suffix(value_b);
+            assert_ne!(mac_a.unwrap(), mac_b.unwrap());
+        }
     }
 
     #[test]
