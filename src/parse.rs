@@ -401,6 +401,11 @@ mod tests {
         assert_eq_parse!("foo=bar;HttpOnly; Secure; Max-Age=4;path=/foo", expected);
         assert_eq_parse!("foo=bar;HttpOnly; Secure; Max-Age=4;path = /foo", expected);
 
+        // Unlike a `Domain`, a `Path` is case-sensitive.
+        assert_ne_parse!("foo=bar;HttpOnly; Secure; Max-Age=4;Path=/Foo", expected);
+        assert_ne_parse!("foo=bar;HttpOnly; Secure; Max-Age=4;Path=/FOO", expected);
+        assert_ne_parse!("foo=bar;HttpOnly; Secure; Max-Age=4", expected);
+
         unexpected.set_max_age(Duration::from_secs(4));
         unexpected.set_path("/bar");
         assert_ne_parse!("foo=bar;HttpOnly; Secure; Max-Age=4; Path=/foo", unexpected);

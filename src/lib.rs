@@ -1843,18 +1843,14 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
             && self.partitioned() == other.partitioned()
             && self.same_site() == other.same_site()
             && self.max_age() == other.max_age()
-            && self.expires() == other.expires();
+            && self.expires() == other.expires()
+            && self.path() == other.path();
 
         if !so_far_so_good {
             return false;
         }
 
-        match (self.path(), other.path()) {
-            (Some(a), Some(b)) if a.eq_ignore_ascii_case(b) => {}
-            (None, None) => {}
-            _ => return false,
-        };
-
+        // A `Domain` is case-insensitive. A `Path`, compared above, is not.
         match (self.domain(), other.domain()) {
             (Some(a), Some(b)) if a.eq_ignore_ascii_case(b) => {}
             (None, None) => {}
