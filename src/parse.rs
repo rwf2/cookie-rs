@@ -204,7 +204,7 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                     // attribute becomes standard, the spec says that we should
                     // ignore this cookie, i.e, fail to parse it, when an
                     // invalid value is passed in. The draft is at
-                    // http://httpwg.org/http-extensions/draft-ietf-httpbis-cookie-same-site.html.
+                    // https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-cookie-same-site.
                 }
             }
             ("partitioned", _) => cookie.partitioned = Some(true),

@@ -741,7 +741,7 @@ impl<'c> Cookie<'c> {
     /// **Note:** This cookie attribute is an [HTTP draft]! Its meaning and
     /// definition are not standardized and therefore subject to change.
     ///
-    /// [HTTP draft]: https://www.ietf.org/id/draft-cutler-httpbis-partitioned-cookies-01.html
+    /// [HTTP draft]: https://www.ietf.org/archive/id/draft-cutler-httpbis-partitioned-cookies-01.html
     ///
     /// # Example
     ///
@@ -1042,7 +1042,7 @@ impl<'c> Cookie<'c> {
     /// **Note:** This cookie attribute is an [HTTP draft]! Its meaning and
     /// definition are not standardized and therefore subject to change.
     ///
-    /// [HTTP draft]: https://www.ietf.org/id/draft-cutler-httpbis-partitioned-cookies-01.html
+    /// [HTTP draft]: https://www.ietf.org/archive/id/draft-cutler-httpbis-partitioned-cookies-01.html
     ///
     /// # Example
     ///
@@ -1618,8 +1618,14 @@ impl<'c> Cookie<'c> {
     /// you need this method, use [`Cookie::encoded()`].
     ///
     /// A cookie written with this method should be read with
-    /// [`Cookie::parse()`] or [`Cookie::split_parse()`]. As with
-    /// [`Cookie::encoded()`], the `Domain` is written without a leading `.`.
+    /// [`Cookie::parse()`] or [`Cookie::split_parse()`]. If it is read with
+    /// [`Cookie::parse_encoded()`] or [`Cookie::split_parse_encoded()`]
+    /// instead, a `%` followed by two hexadecimal digits in its name or value,
+    /// such as `%25`, is decoded. As such, a signed cookie read in this manner
+    /// can fail to verify.
+    ///
+    /// As with [`Cookie::encoded()`], the `Domain` is written without a leading
+    /// `.`.
     ///
     /// The returned structure can be chained with [`Display::stripped()`] to
     /// display only the name and value.
