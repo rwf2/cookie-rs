@@ -333,6 +333,8 @@ mod tests {
         assert_eq_parse!("foo=bar; partitioned", expected);
         assert_eq_parse!("foo=bar; Partitioned", expected);
         assert_eq_parse!("foo=bar; PARTITIONED", expected);
+        assert_ne_parse!("foo=bar", expected);
+        assert_ne_parse!("foo=bar; partition", expected);
 
         let mut expected = Cookie::new("foo", "bar");
         assert_eq_parse!("foo=bar", expected);
@@ -448,12 +450,30 @@ mod tests {
             "fo\0o=bar",
             "foo=ba\x08r",
             "foo=bar\n",
+            "foo=bar\r\n",
             "foo=bar; Path=/\x1f",
             "foo=bar\x7f",
         ];
 
         for case in cases {
             assert_eq!(Cookie::parse(case), Err(ParseError::InvalidControl));
+        }
+
+        // Every control character except the horizontal tab is invalid.
+        for byte in (0x00u8..=0x08).chain(0x0A..=0x1F).chain([0x7F]) {
+            let c = byte as char;
+            let cases = [
+                format!("fo{}o=bar", c),
+                format!("foo=ba{}r", c),
+                format!("foo=bar{}", c),
+                format!("foo=bar; Path=/{}", c),
+                format!("foo=bar; HttpOnly{}", c),
+            ];
+
+            for case in cases {
+                let result = Cookie::parse(case);
+                assert_eq!(result, Err(ParseError::InvalidControl));
+            }
         }
 
         let expected = Cookie::build(("foo", "bar"))
@@ -479,6 +499,10 @@ mod tests {
 
             let cookie = Cookie::parse(format!("foo=bar; Path={0}/{0}", space)).unwrap();
             assert_eq!(cookie.path(), Some(&*format!("{0}/{0}", space)));
+
+            let string = format!("foo=bar;{0}HttpOnly; Secure{0}", space);
+            let cookie = Cookie::parse(string).unwrap();
+            assert_eq!((cookie.http_only(), cookie.secure()), (None, None));
         }
     }
 

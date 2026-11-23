@@ -1896,7 +1896,7 @@ impl<'a> AsMut<Cookie<'a>> for Cookie<'a> {
 #[cfg(test)]
 mod tests {
     use std::time::{Duration, SystemTime};
-    use crate::{Cookie, SameSite};
+    use crate::{Cookie, ParseError, SameSite};
 
     #[test]
     fn format() {
@@ -2220,6 +2220,32 @@ mod tests {
                 .collect();
 
             assert_eq!(expected, actual);
+        }
+    }
+
+    #[test]
+    fn split_parse_whitespace() {
+        // Only spaces and horizontal tabs are whitespace.
+        let string = " \t a=1 \t ; \t ; \t b=2 \t ";
+        let cookies: Vec<_> = Cookie::split_parse(string).collect();
+        let expected = [Ok(Cookie::new("a", "1")), Ok(Cookie::new("b", "2"))];
+        assert_eq!(cookies, expected);
+
+        for space in ['\u{85}', '\u{a0}', '\u{2003}', '\u{2028}', '\u{3000}'] {
+            let string = format!("a=1;{0}b=2{0};{0}; c=3", space);
+            let b = Cookie::new(format!("{0}b", space), format!("2{0}", space));
+            let expected = [
+                Ok(Cookie::new("a", "1")),
+                Ok(b),
+                Err(ParseError::MissingPair),
+                Ok(Cookie::new("c", "3")),
+            ];
+
+            // Check both a borrowed and an owned string.
+            let borrowed = Cookie::split_parse(&*string).collect::<Vec<_>>();
+            let owned = Cookie::split_parse(string.clone()).collect::<Vec<_>>();
+            assert_eq!(borrowed, expected);
+            assert_eq!(owned, expected);
         }
     }
 

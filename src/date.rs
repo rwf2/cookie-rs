@@ -292,6 +292,31 @@ mod tests {
         // An expired cookie stays expired, even if its date isn't representable.
         let parsed = parse("Wed, 31 Dec 1969 23:59:59 GMT").expect("valid date");
         assert!(parsed <= SystemTime::UNIX_EPOCH);
+
+        // Some platforms cannot represent a date before the Unix epoch, others
+        // a date before 1601. The past is in the past on all of them.
+        for ts in [-1, -11644473600, -11644473601, -62167219200, i64::MIN] {
+            let datetime = datetime(ts).expect("the past is representable");
+            assert!(datetime <= SystemTime::UNIX_EPOCH, "{}", ts);
+        }
+    }
+
+    #[test]
+    fn parse_delimiters() {
+        // From RFC 6265 5.1.1: %x09 / %x20-2F / %x3B-40 / %x5B-60 / %x7B-7E.
+        let delimiters = (0x09u8..=0x09).chain(0x20..=0x2F).chain(0x3B..=0x40)
+            .chain(0x5B..=0x60).chain(0x7B..=0x7E);
+
+        for c in delimiters.map(char::from) {
+            let string = format!("Wed{0}21{0}Oct{0}2015{0}07:28:00{0}GMT", c);
+            assert_eq!(parse_timestamp(&string), Some(1445412480), "{:?}", c);
+        }
+
+        // Anything else is part of a token.
+        for c in ['\x08', '\n', '\x1f', '0', ':', 'A', 'z', '\x7f', '\u{a0}'] {
+            let string = format!("Wed{0}21{0}Oct{0}2015{0}07:28:00{0}GMT", c);
+            assert_eq!(parse_timestamp(&string), None, "{:?}", c);
+        }
     }
 
     #[test]
