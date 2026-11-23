@@ -49,8 +49,8 @@ impl<J> PrivateJar<J> {
         let (in_out, tag) = in_out.split_at_mut(cookie_val.len());
         in_out.copy_from_slice(cookie_val);
 
-        // Fill nonce piece with random data.
-        let mut rng = self::rand::thread_rng();
+        // Fill nonce piece with random data from the OS.
+        let mut rng = self::rand::rngs::OsRng;
         rng.try_fill_bytes(nonce).expect("couldn't random fill nonce");
         let nonce = GenericArray::clone_from_slice(nonce);
 
