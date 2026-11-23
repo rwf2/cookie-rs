@@ -1,4 +1,281 @@
+# Version 0.19
+
+## Version 0.19.0-rc.0 (Nov 23, 2026)
+
+### Breaking Changes
+
+  * The MSRV is now `1.87`.
+
+    The latest versions of the dependencies of the `private`, `signed`, and
+    `key-expansion` features may require a newer `rustc`. To build with the
+    MSRV, use Cargo's MSRV-aware resolver: set `rust-version = "1.87"` and
+    `resolver = "3"` in your manifest.
+
+  * The crate now uses the Rust 2024 edition.
+
+  * Optional dependency names are no longer exposed as Cargo features.
+
+    The manifest now uses `dep:` syntax for optional dependencies. Enable
+    `percent-encode`, `private`, `signed`, `key-expansion`, or `secure`
+    instead of dependency names.
+
+  * `Cookie::domain_raw()` now preserves a leading `.` from parsed `Domain`
+    attributes. For the previous behavior, use:
+
+    ```rust
+    cookie.domain_raw().map(|d| d.strip_prefix('.').unwrap_or(d))
+    ```
+
+  * `Cookie` and `CookieBuilder` no longer implement `Display`.
+
+    The previous implementation wrote the cookie's name and value without any
+    encoding or escaping, allowing a name or value containing a `;` to inject
+    cookie attributes. Writing a cookie now requires choosing how the name and
+    value are written:
+
+      * `cookie.encoded()` percent-encodes the name and value. This is the safe
+        choice. Read the cookie back with `Cookie::parse_encoded()` or
+        `Cookie::split_parse_encoded()`.
+      * `cookie.unescaped()` writes the name and value as-is. This is the
+        previous behavior of `cookie.to_string()`. Read the cookie back with
+        `Cookie::parse()` or `Cookie::split_parse()`.
+
+    To write a `CookieBuilder`, use `builder.inner().encoded()` or
+    `builder.inner().unescaped()`.
+
+    The two cannot be mixed. In particular, a signed or private cookie written
+    with `encoded()` and read without decoding can fail to verify or decrypt.
+    This includes cookies read by previous versions of this library: when
+    upgrading servers one at a time, write cookies with `unescaped()` until
+    every server reads cookies with `parse_encoded()`.
+
+    Similarly, a cookie written with `unescaped()` and read with
+    `parse_encoded()` has any `%` followed by two hexadecimal digits in its
+    name or value, such as `%25`, decoded. A signed cookie read in this manner
+    can fail to verify.
+
+  * `Cookie::stripped()` and `Display::encoded()` were removed.
+
+    Use `cookie.encoded().stripped()` or `cookie.unescaped().stripped()`.
+    `cookie.stripped().encoded()` becomes `cookie.encoded().stripped()`.
+
+  * `Path` and `Domain` values are truncated at the first `;` or control
+    character when set.
+
+    This applies to `Cookie::set_path()`, `Cookie::set_domain()`,
+    `CookieBuilder::path()`, and `CookieBuilder::domain()`. Neither attribute
+    can contain these characters, and a value containing a `;` previously
+    injected cookie attributes when written.
+
+  * The `percent-encode` feature is now enabled by default.
+
+  * A signed cookie's value is now bound to the cookie's name.
+
+    Previously, only a cookie's value was signed. As such, a value signed for
+    one name verified under any other name. The cookie's name is now signed as
+    well: a value signed for one name fails to verify under any other name,
+    as is the case for private cookies.
+
+    Signed cookies created by previous versions fail to verify, and signed
+    cookies created by this version fail to verify in previous versions.
+    Private cookies are unaffected.
+
+    The name includes any cookie prefix. As such, a cookie signed as
+    `__Host-name` and retrieved via `jar.prefixed(Host).get("name")`, which
+    removes the prefix, no longer verifies via `SignedJar::verify()`. Use
+    `jar.signed(&key).get("__Host-name")` instead.
+
+  * The `time` dependency was removed in favor of `std::time`.
+
+    `cookie::time` is no longer exported. Methods that previously accepted or
+    returned a `time::Duration` now use `std::time::Duration`, and methods that
+    previously accepted or returned a `time::OffsetDateTime` now use
+    `std::time::SystemTime`:
+
+      * `Cookie::max_age()`, `Cookie::set_max_age()`, `CookieBuilder::max_age()`
+      * `Cookie::expires_datetime()`, `Cookie::set_expires()`,
+        `CookieBuilder::expires()`
+      * `Expiration::DateTime`, `Expiration::datetime()`, `Expiration::map()`
+
+    Values from `time` convert to and from the `std` types:
+
+    ```rust
+    use std::time::{Duration, SystemTime};
+
+    cookie.set_expires(SystemTime::from(offset_date_time));
+    cookie.set_max_age(Duration::try_from(time_duration).unwrap_or_default());
+    ```
+
+    Here, `Duration` is `std::time::Duration`, not `time::Duration`. A
+    `Max-Age` can no longer be negative. The conversion above sets a negative
+    `Max-Age` to `0`, which has the same effect: the cookie expires immediately.
+    The conversion to a `SystemTime` panics if the platform cannot represent
+    the date, e.g, a date before the Unix epoch on `wasm32-unknown-unknown`.
+
+    The crate no longer enables the `formatting`, `parsing`, and `macros`
+    features of `time`. If you depend on `time` and use these features, enable
+    them in your manifest. Similarly, libraries that re-export this crate no
+    longer export `time` via `cookie::time`.
+
+    `Cookie::make_permanent()` and `CookieBuilder::permanent()` now read the
+    time via `std::time::SystemTime::now()`, which panics on platforms without
+    a system clock, such as `wasm32-unknown-unknown`. Enabling the
+    `wasm-bindgen` feature of `time` no longer has any effect.
+
+  * `Expiration` no longer implements `From<T>` for every
+    `T: Into<Option<OffsetDateTime>>`.
+
+    The blanket implementation was replaced by `From<SystemTime>` and
+    `From<Option<SystemTime>>`. The blanket implementation caused a build
+    failure when an upstream crate added an unrelated `From` implementation.
+
+  * `Expires` is now parsed using the algorithm in RFC 6265 §5.1.1.
+
+    The algorithm is more lenient than the previous fixed set of formats. In
+    particular, the weekday and the time zone, if any, are ignored. Dates are
+    always read as UTC.
+
+    As required by the RFC, an `Expires` with a year before `1601` or a year of
+    a single digit is now ignored. On platforms that cannot represent dates
+    before the Unix epoch, such as `wasm32-unknown-unknown`, an `Expires`
+    before the Unix epoch is read as the Unix epoch.
+
+  * An `Expires` before the Unix epoch is written as the Unix epoch.
+
+    Not every client can read an earlier date: some treat a cookie with such a
+    date as a session cookie instead of as an expired cookie.
+
+  * Cookies containing invalid control characters are no longer parsed.
+
+    Parsing a cookie containing a control character other than a horizontal
+    tab now fails with the new `ParseError::InvalidControl`, as required by RFC
+    6265bis. This includes a trailing `\r` or `\n`: remove any line ending
+    before parsing.
+
+  * Only spaces and horizontal tabs are trimmed when parsing.
+
+    As specified by RFC 6265, other Unicode whitespace surrounding a name,
+    value, or attribute is no longer removed. In particular,
+    `Cookie::split_parse()` no longer skips a segment that only contains such
+    whitespace: it yields a `ParseError::MissingPair`.
+
+  * An empty `Max-Age` is now ignored when parsing.
+
+    Previously, `Max-Age=` was parsed as the maximum `Max-Age` and `Max-Age=-`
+    as a `Max-Age` of `0`.
+
+  * `Cookie` equality now compares the `SameSite` attribute and compares
+    `Path` case-sensitively.
+
+    Previously, two cookies that only differed in `SameSite`, or in the case
+    of their `Path`, i.e, `/foo` and `/Foo`, were equal. `Domain` continues to
+    be compared case-insensitively.
+
+  * `Cookie::parse_encoded()` and `Cookie::split_parse_encoded()` no longer
+    parse a name that only has a cookie prefix after decoding.
+
+    Browsers do not decode a cookie's name and thus only enforce a cookie
+    prefix, i.e, `__Host-`, if the name has the prefix before it is decoded.
+    Parsing a name such as `%5F%5FHost-name` now fails with the new
+    `ParseError::EncodedPrefix`. Previously, such a cookie was returned by
+    `PrefixedJar::get()`. This applies to the `__Host-`, `__Secure-`,
+    `__Http-`, and `__Host-Http-` prefixes.
+
+  * Removal cookies now expire at the Unix epoch.
+
+    `Cookie::make_removal()`, `CookieBuilder::removal()`, and
+    `CookieJar::remove()` set `Expires` to January 1, 1970 instead of one year
+    before the current time. Removing a cookie no longer reads the system clock.
+
+### New Features
+
+  * Added `Cookie::unescaped()`.
+
+    The returned `Display` writes the cookie's name and value without any
+    encoding or escaping. This is dangerous if the name or value is derived
+    from untrusted input! Prefer `Cookie::encoded()`.
+
+  * Added `Cookie::domain_verbatim()`.
+
+    This accessor returns the current `Domain` attribute value without removing
+    a leading `.`.
+
+### General Changes and Fixes
+
+  * The manifest now declares `rust-version = "1.87"`.
+
+  * Private cookies are now encrypted with nonces generated by the operating
+    system.
+
+    Previously, a process that forked after encrypting a private cookie could
+    reuse nonces in the parent and child processes, which allows forging
+    private cookies. Version `0.18.3` contains the same fix.
+
+  * A `Max-Age` larger than `i64::MAX` is written as `i64::MAX`.
+
+    Not every client can read a larger `Max-Age`. As in previous versions, a
+    larger `Max-Age` is parsed as `i64::MAX`.
+
+  * The documentation for `SignedJar::add_original()` and
+    `PrivateJar::add_original()` no longer suggests using them to add cookies
+    received from a client.
+
+    These methods sign and encrypt the cookie they are given, respectively.
+    Use `CookieJar::add_original()` to add cookies received from a client.
+
+  * The documentation now notes that a signed or private cookie's value is
+    bound to the cookie's name including any prefix, that a signed or private
+    cookie's attributes are not authenticated, and that a `Key` should not be
+    used to encrypt more than 2^32 private cookies.
+
+  * The `FromStr` implementation for `Cookie` is now documented.
+
+    Like `Cookie::parse()`, it does not percent-decode.
+
+  * On `wasm32-unknown-unknown`, the `private` and `signed` features now
+    require enabling the `wasm_js` feature of `getrandom` `0.4` in place of
+    the `js` feature of `getrandom` `0.2`.
+
+  * Dependencies were updated:
+    - `aes-gcm` to `0.11`
+    - `base64` to `0.23`
+    - `hkdf` to `0.13`
+    - `hmac` to `0.13`
+    - `rand` to `0.10.1`
+    - `sha2` to `0.11`
+
+    The minimum versions of `ctutils` and `cmov`, indirect dependencies, are
+    set to exclude versions with known security issues.
+
+  * Published crates now include only the files needed to build the crate.
+
+    Development scripts and the fuzzing harness are excluded from packaging.
+
+  * The docs.rs and nightly-doc configuration now uses manifest metadata
+    instead of a build script.
+
+  * Various documentation URLs and doctests were clarified and updated.
+
 # Version 0.18
+
+## Version 0.18.3 (Nov 23, 2026)
+
+### Changes and Fixes
+
+  * Private cookies are now encrypted with nonces generated by the operating
+    system.
+
+## Version 0.18.2 (Aug 8, 2026)
+
+### Changes and Fixes
+
+  * Stopped using internal `time` APIs.
+
+  * `Expires` parsing is more RFC 6265-compliant.
+    - Weekday prefixes are now optional.
+    - Two-digit years follow the RFC boundary: `69` is `2069` (not `1969`).
+
+  * The manifest now declares `rust-version = "1.56"`.
 
 ## Version 0.18.1 (Mar 25, 2024)
 

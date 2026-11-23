@@ -10,7 +10,7 @@
 //! Add the following to the `[dependencies]` section of your `Cargo.toml`:
 //!
 //! ```toml
-//! cookie = "0.18"
+//! cookie = "0.19"
 //! ```
 //!
 //! # Features
