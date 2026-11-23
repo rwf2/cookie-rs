@@ -182,9 +182,11 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                 if is_negative {
                     Some(Duration::ZERO)
                 } else {
-                    Some(v.parse::<u64>()
-                        .map(Duration::from_secs)
-                        .unwrap_or_else(|_| Duration::from_secs(u64::MAX)))
+                    // We write a `Max-Age` of at most `i64::MAX`, so we read
+                    // one of at most `i64::MAX`. Parsing fails on overflow.
+                    let max = i64::MAX as u64;
+                    let secs = v.parse::<u64>().map_or(max, |secs| secs.min(max));
+                    Some(Duration::from_secs(secs))
                 }
             },
             ("domain", Some(d)) if !d.is_empty() => {
@@ -557,7 +559,7 @@ mod tests {
     #[test]
     fn parse_very_large_max_ages() {
         let mut expected = Cookie::build(("foo", "bar"))
-            .max_age(Duration::from_secs(u64::MAX))
+            .max_age(Duration::from_secs(i64::MAX as u64))
             .build();
 
         let string = format!("foo=bar; Max-Age={}", 1u128 << 100);
@@ -576,9 +578,22 @@ mod tests {
         expected.set_max_age(Duration::from_secs(i64::MAX as u64));
         assert_eq_parse!(&string, expected);
 
-        let string = format!("foo=bar; Max-Age={}", u64::MAX);
-        expected.set_max_age(Duration::from_secs(u64::MAX));
+        let string = format!("foo=bar; Max-Age={}", i64::MAX as u64 + 1);
         assert_eq_parse!(&string, expected);
+
+        let string = format!("foo=bar; Max-Age={}", u64::MAX);
+        assert_eq_parse!(&string, expected);
+
+        let string = format!("foo=bar; Max-Age={}", i64::MAX - 1);
+        expected.set_max_age(Duration::from_secs(i64::MAX as u64 - 1));
+        assert_eq_parse!(&string, expected);
+
+        // What is parsed is written, and parsed again, as the same `Max-Age`.
+        for max_age in [0, 60, i64::MAX as u128, u64::MAX as u128, 1 << 100] {
+            let cookie = Cookie::parse(format!("foo=bar; Max-Age={}", max_age)).unwrap();
+            let string = cookie.unescaped().to_string();
+            assert_eq!(Cookie::parse(string).unwrap().max_age(), cookie.max_age());
+        }
     }
 
     #[test]
@@ -664,7 +679,7 @@ mod tests {
     fn do_not_panic_on_large_max_ages() {
         let max_seconds = Duration::MAX.as_secs();
         let expected = Cookie::build(("foo", "bar"))
-            .max_age(Duration::from_secs(max_seconds));
+            .max_age(Duration::from_secs(i64::MAX as u64));
 
         let too_many_seconds = (max_seconds as u128) + 1;
         assert_eq_parse!(format!(" foo=bar; Max-Age={:?}", too_many_seconds), expected);

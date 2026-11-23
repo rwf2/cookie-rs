@@ -776,6 +776,10 @@ impl<'c> Cookie<'c> {
 
     /// Returns the specified max-age of the cookie if one was specified.
     ///
+    /// **Note:** A parsed `Max-Age` can be as large as `i64::MAX` seconds. As
+    /// such, adding a `Max-Age` to a `SystemTime` with `+` can overflow and
+    /// panic. Use [`SystemTime::checked_add()`] instead.
+    ///
     /// # Example
     ///
     /// ```
