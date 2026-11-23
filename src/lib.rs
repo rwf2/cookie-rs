@@ -1820,6 +1820,7 @@ impl<'a, 'b> PartialEq<Cookie<'b>> for Cookie<'a> {
             && self.http_only() == other.http_only()
             && self.secure() == other.secure()
             && self.partitioned() == other.partitioned()
+            && self.same_site() == other.same_site()
             && self.max_age() == other.max_age()
             && self.expires() == other.expires();
 

@@ -291,6 +291,14 @@ mod tests {
         assert_eq_parse!("foo=bar; SameSITE=none", expected);
         assert_eq_parse!("foo=bar; SameSite=NOne", expected);
         assert_eq_parse!("foo=bar; SameSite=nOne", expected);
+
+        let expected = Cookie::new("foo", "bar");
+        assert_eq_parse!("foo=bar; SameSite", expected);
+        assert_eq_parse!("foo=bar; SameSite=", expected);
+        assert_eq_parse!("foo=bar; SameSite=invalid", expected);
+        assert_ne_parse!("foo=bar; SameSite=Lax", expected);
+        assert_ne_parse!("foo=bar; SameSite=Strict", expected);
+        assert_ne_parse!("foo=bar; SameSite=None", expected);
     }
 
     #[test]
