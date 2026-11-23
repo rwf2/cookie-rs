@@ -143,6 +143,12 @@ impl<P: Prefix, J: Borrow<CookieJar>> PrefixedJar<P, J> {
     /// Fetches the `Cookie` inside this jar with the prefix `P` and removes the
     /// prefix before returning it. If the cookie isn't found, returns `None`.
     ///
+    /// **Note:** A private cookie's value is bound to the cookie's name,
+    /// _including_ its prefix. As such, a cookie returned by this method fails
+    /// to decrypt via `PrivateJar::decrypt()` if it was encrypted with its
+    /// prefix. To retrieve a prefixed, private cookie, use the full name with
+    /// the private jar: `jar.private(&key).get("__Host-name")`.
+    ///
     /// See [`CookieJar::prefixed()`] for more examples.
     ///
     /// # Example

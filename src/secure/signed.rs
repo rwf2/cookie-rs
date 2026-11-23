@@ -150,9 +150,13 @@ impl<J: BorrowMut<CookieJar>> SignedJar<J> {
 
     /// Adds an "original" `cookie` to this jar. The cookie's value is signed
     /// assuring integrity and authenticity. Adding an original cookie does not
-    /// affect the [`CookieJar::delta()`] computation. This method is intended
-    /// to be used to seed the cookie jar with cookies received from a client's
-    /// HTTP message.
+    /// affect the [`CookieJar::delta()`] computation.
+    ///
+    /// **Warning:** This method signs `cookie`. Do _not_ use this method to add
+    /// cookies received from a client's HTTP message: a cookie added in this
+    /// manner is retrievable from this jar regardless of where it came from. To
+    /// seed a jar with cookies received from a client, use
+    /// [`CookieJar::add_original()`] on the parent jar.
     ///
     /// For accurate `delta` computations, this method should not be called
     /// after calling `remove`.

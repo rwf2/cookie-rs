@@ -21,6 +21,13 @@ pub(crate) const KEY_LEN: usize = 32;
 /// `PrivateJar` are simultaneously assured confidentiality, integrity, and
 /// authenticity. In other words, clients cannot discover nor tamper with the
 /// contents of a cookie, nor can they fabricate cookie data.
+///
+/// A cookie's value is bound to the cookie's name: a value encrypted for one
+/// name fails to decrypt under any other name.
+///
+/// **Note:** Cookies are encrypted with AES-256-GCM using a randomly generated
+/// nonce. As such, a single [`Key`] should not be used to encrypt more than
+/// 2<sup>32</sup> cookies. If you expect to exceed this limit, rotate keys.
 #[cfg_attr(all(nightly, doc), doc(cfg(feature = "private")))]
 pub struct PrivateJar<J> {
     parent: J,
@@ -173,9 +180,13 @@ impl<J: BorrowMut<CookieJar>> PrivateJar<J> {
     /// Adds an "original" `cookie` to parent jar. The cookie's value is
     /// encrypted with authenticated encryption assuring confidentiality,
     /// integrity, and authenticity. Adding an original cookie does not affect
-    /// the [`CookieJar::delta()`] computation. This method is intended to be
-    /// used to seed the cookie jar with cookies received from a client's HTTP
-    /// message.
+    /// the [`CookieJar::delta()`] computation.
+    ///
+    /// **Warning:** This method encrypts `cookie`. Do _not_ use this method to
+    /// add cookies received from a client's HTTP message: a cookie added in
+    /// this manner is retrievable from this jar regardless of where it came
+    /// from. To seed a jar with cookies received from a client, use
+    /// [`CookieJar::add_original()`] on the parent jar.
     ///
     /// For accurate `delta` computations, this method should not be called
     /// after calling `remove`.
