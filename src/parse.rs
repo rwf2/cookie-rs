@@ -24,6 +24,15 @@ pub enum ParseError {
     InvalidControl,
     /// The cookie's name contained a percent-encoded cookie prefix.
     EncodedPrefix,
+    /// The cookie's name and value together are longer than 4096 octets.
+    TooLarge,
+    /// The cookie's `Domain` contains a non-ASCII character.
+    InvalidDomain,
+    /// The cookie has `SameSite=None` but is not `Secure`.
+    InsecureSameSiteNone,
+    /// The cookie's name has a `__Secure-` prefix, but the cookie is not
+    /// `Secure`.
+    PrefixMismatch,
 }
 
 impl ParseError {
@@ -38,6 +47,12 @@ impl ParseError {
             ParseError::InvalidControl => "cookie contains an invalid control character",
             ParseError::EncodedPrefix => {
                 "decoding the cookie's name resulted in a cookie prefix"
+            }
+            ParseError::TooLarge => "the cookie's name and value exceed 4096 octets",
+            ParseError::InvalidDomain => "the cookie's domain contains a non-ASCII character",
+            ParseError::InsecureSameSiteNone => "the cookie has `SameSite=None` but is not secure",
+            ParseError::PrefixMismatch => {
+                "the cookie does not meet the requirements of its name's prefix"
             }
         }
     }
@@ -110,17 +125,46 @@ fn name_val_decoded(
 // the returned cookie object. This only exists so that the borrow to `s` is
 // returned at the end of the call, allowing the `cookie_string` field to be
 // set in the outer `parse` function.
-fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
+fn parse_inner<'c>(s: &str, decode: bool, rules: Rules) -> Result<Cookie<'c>, ParseError> {
     let mut attributes = s.split(';');
 
     // Determine the name = val.
     let key_value = attributes.next().expect("first str::split().next() returns Some");
     let (name, value) = match key_value.find('=') {
         Some(i) => (trim(&key_value[..i]), trim(&key_value[(i + 1)..])),
+        // RFC 6265bis 5.6 step 3: "If the name-value-pair string lacks a %x3D
+        // ("=") character, then the name string is empty, and the value string
+        // is the value of name-value-pair."
+        None if rules == Rules::Rfc6265bis => (&key_value[..0], trim(key_value)),
         None => return Err(ParseError::MissingPair)
     };
 
-    if name.is_empty() {
+    if rules == Rules::Rfc6265bis {
+        // RFC 6265bis 5.7 step 2: "If cookie-name is empty and cookie-value is
+        // empty, abort this algorithm and ignore the cookie entirely."
+        if name.is_empty() && value.is_empty() {
+            return Err(ParseError::MissingPair);
+        }
+
+        // RFC 6265bis 5.6 step 5: "If the sum of the lengths of the name string
+        // and the value string is more than 4096 octets, abort this algorithm
+        // and ignore the set-cookie-string entirely."
+        if name.len() + value.len() > 4096 {
+            return Err(ParseError::TooLarge);
+        }
+
+        // RFC 6265bis 5.7 step 22: "If the cookie-name is empty and either of
+        // the following conditions are true, abort this algorithm and ignore
+        // the cookie entirely: the cookie-value begins with a case-insensitive
+        // match for the string "__Secure-"; the cookie-value begins with a
+        // case-insensitive match for the string "__Host-"".
+        let name_has_prefix = |prefix: &str| value.get(..prefix.len())
+            .is_some_and(|start| start.eq_ignore_ascii_case(prefix));
+
+        if name.is_empty() && (name_has_prefix("__Secure-") || name_has_prefix("__Host-")) {
+            return Err(ParseError::EmptyName);
+        }
+    } else if name.is_empty() {
         return Err(ParseError::EmptyName);
     }
 
@@ -161,6 +205,13 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
             None => (trim(attr), None),
         };
 
+        // RFC 6265bis 5.6 (unparsed-attributes) step 6: "If the
+        // attribute-value is longer than 1024 octets, ignore the cookie-av
+        // string and return to Step 1 of this algorithm."
+        if rules == Rules::Rfc6265bis && value.is_some_and(|v| v.len() > 1024) {
+            continue;
+        }
+
         match (&*key.to_ascii_lowercase(), value) {
             ("secure", _) => cookie.secure = Some(true),
             ("httponly", _) => cookie.http_only = Some(true),
@@ -186,19 +237,50 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
                     Some(Duration::from_secs(secs))
                 }
             },
+            // RFC 6265bis 5.6.3: the Domain attribute is appended even when its
+            // value is empty, and 5.7 step 7 uses the last one. An empty value
+            // thus overrides an earlier Domain, making the cookie host-only.
+            // A missing "=" also means an empty attribute-value (5.6 step 4).
+            ("domain", d) if rules == Rules::Rfc6265bis => {
+                let d = d.unwrap_or("");
+                // RFC 6265bis 5.6.3 step 3: "Convert the cookie-domain to lower
+                // case." Step 2 (removing a leading ".") is done by `domain()`.
+                cookie.domain = Some(match d.bytes().any(|b| b.is_ascii_uppercase()) {
+                    true => CookieStr::Concrete(Cow::Owned(d.to_ascii_lowercase())),
+                    false => CookieStr::indexed(d, s)
+                        .unwrap_or(CookieStr::Concrete(Cow::Borrowed(""))),
+                });
+            },
             ("domain", Some(d)) if !d.is_empty() => {
                 cookie.domain = Some(CookieStr::indexed(d, s).expect("domain sub"));
+            },
+            // RFC 6265bis 5.6.4 step 1: "If the attribute-value is empty or if
+            // the first character of the attribute-value is not %x2F ("/"):
+            // Let cookie-path be the default-path." The default-path depends on
+            // the request-uri, so it is represented by an empty path, leaving
+            // `None` for a cookie without a `Path` attribute.
+            ("path", v) if rules == Rules::Rfc6265bis => {
+                cookie.path = Some(match v.filter(|v| v.starts_with('/')) {
+                    Some(v) => CookieStr::indexed(v, s).expect("path sub"),
+                    None => CookieStr::Concrete(Cow::Borrowed("")),
+                });
             },
             ("path", Some(v)) => {
                 cookie.path = Some(CookieStr::indexed(v, s).expect("path sub"));
             },
-            ("samesite", Some(v)) => {
+            ("samesite", v) => {
+                let v = v.unwrap_or("");
                 if v.eq_ignore_ascii_case("strict") {
                     cookie.same_site = Some(SameSite::Strict);
                 } else if v.eq_ignore_ascii_case("lax") {
                     cookie.same_site = Some(SameSite::Lax);
                 } else if v.eq_ignore_ascii_case("none") {
                     cookie.same_site = Some(SameSite::None);
+                } else if rules == Rules::Rfc6265bis {
+                    // RFC 6265bis 5.6.7 step 1: "Let enforcement be "Default"."
+                    // The last SameSite wins (5.7 step 17), so an invalid or
+                    // missing value resets an earlier one to the default.
+                    cookie.same_site = None;
                 } else {
                     // We do nothing here, for now. When/if the `SameSite`
                     // attribute becomes standard, the spec says that we should
@@ -225,16 +307,64 @@ fn parse_inner<'c>(s: &str, decode: bool) -> Result<Cookie<'c>, ParseError> {
     Ok(cookie)
 }
 
-pub(crate) fn parse_cookie<'c, S>(cow: S, decode: bool) -> Result<Cookie<'c>, ParseError>
+/// Applies the checks of the RFC 6265bis storage model (section 5.7) that
+/// depend only on the parsed cookie, not on the request or the cookie store.
+fn check_rfc6265bis_storage(cookie: &Cookie<'_>) -> Result<(), ParseError> {
+    let secure = cookie.secure() == Some(true);
+    let name_has_prefix = |prefix: &str| cookie.name().get(..prefix.len())
+        .is_some_and(|start| start.eq_ignore_ascii_case(prefix));
+
+    // RFC 6265bis 5.7 step 8: If the domain-attribute contains a character
+    // that is not in CHAR, abort this algorithm and ignore the cookie entirely.
+    // Cookies with control characters in the domain have already been rejected.
+    if cookie.domain_verbatim().is_some_and(|d| !d.is_ascii()) {
+        return Err(ParseError::InvalidDomain);
+    }
+
+    // RFC 6265bis 5.7 step 19: "If the cookie's "same-site-flag" is
+    // "None", abort this algorithm and ignore the cookie entirely unless
+    // the cookie's secure-only-flag is true."
+    if cookie.same_site() == Some(SameSite::None) && !secure {
+        return Err(ParseError::InsecureSameSiteNone);
+    }
+
+    // RFC 6265bis 5.7 step 20: "If the cookie-name begins with a case-insensitive
+    // match for the string "__Secure-", abort this algorithm and ignore the cookie
+    // entirely unless the cookie's secure-only-flag is true."
+    if name_has_prefix("__Secure-") && !secure {
+        return Err(ParseError::PrefixMismatch);
+    }
+
+    Ok(())
+}
+
+/// The specification whose parsing rules `parse_cookie()` follows.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Rules {
+    /// This crate's historical, RFC 6265-based parsing.
+    Rfc6265,
+    /// The parsing algorithm of RFC 6265bis:
+    /// <https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis-22#section-5.6>
+    Rfc6265bis,
+}
+
+pub(crate) fn parse_cookie<'c, S>(cow: S, decode: bool, rules: Rules) -> Result<Cookie<'c>, ParseError>
     where S: Into<Cow<'c, str>>
 {
     let s = cow.into();
+    // RFC 6265bis 5.6 step 1: "If the set-cookie-string contains a %x00-08 /
+    // %x0A-1F / %x7F character (CTL characters excluding HTAB): Abort this
+    // algorithm and ignore the set-cookie-string entirely."
     if s.as_bytes().iter().any(|b| matches!(b, 0x00..=0x08 | 0x0A..=0x1F | 0x7F)) {
         return Err(ParseError::InvalidControl);
     }
 
-    let mut cookie = parse_inner(&s, decode)?;
+    let mut cookie = parse_inner(&s, decode, rules)?;
     cookie.cookie_string = Some(s);
+    if rules == Rules::Rfc6265bis {
+        check_rfc6265bis_storage(&cookie)?;
+    }
+
     Ok(cookie)
 }
 
@@ -710,5 +840,220 @@ mod tests {
 
         let too_many_seconds = (max_seconds as u128) + 1;
         assert_eq_parse!(format!(" foo=bar; Max-Age={:?}", too_many_seconds), expected);
+    }
+
+    /// RFC 6265bis 5.6.4 step 1
+    #[test]
+    fn bis_default_path() {
+        assert_eq!(Cookie::parse_rfc6265bis("a=b; path=/x; path=").unwrap().path(), Some(""));
+        assert_eq!(Cookie::parse_rfc6265bis("a=b; path=/x; path=y").unwrap().path(), Some(""));
+        assert_eq!(Cookie::parse_rfc6265bis("a=b; path=/x; path").unwrap().path(), Some(""));
+        assert_eq!(Cookie::parse_rfc6265bis("a=b; path=/x").unwrap().path(), Some("/x"));
+        assert_eq!(Cookie::parse_rfc6265bis("a=b").unwrap().path(), None);
+    }
+
+    /// RFC 6265bis 5.6.7, 5.7 step 17
+    #[test]
+    fn bis_same_site_default() {
+        assert_eq!(Cookie::parse_rfc6265bis("a=b; SameSite=Strict; SameSite=bogus").unwrap().same_site(), None);
+        assert_eq!(Cookie::parse_rfc6265bis("a=b; SameSite=Strict; SameSite").unwrap().same_site(), None);
+        assert_eq!(Cookie::parse_rfc6265bis("a=b; SameSite=bogus; SameSite=lax").unwrap().same_site(),
+            Some(SameSite::Lax));
+    }
+
+    /// RFC 6265bis 5.7 steps 8, 19, 20
+    #[test]
+    fn bis_storage_checks() {
+        assert_eq!(Cookie::parse_rfc6265bis("a=b; Domain=ex\u{e4}mple.com"), Err(ParseError::InvalidDomain));
+        assert_eq!(Cookie::parse_rfc6265bis("a=b; Domain=ex\u{e4}mple.com; Domain=example.com")
+            .unwrap().domain(), Some("example.com"));
+
+        assert_eq!(Cookie::parse_rfc6265bis("a=b; SameSite=None"), Err(ParseError::InsecureSameSiteNone));
+        assert!(Cookie::parse_rfc6265bis("a=b; SameSite=None; Secure").is_ok());
+
+        assert_eq!(Cookie::parse_rfc6265bis("__Secure-a=b"), Err(ParseError::PrefixMismatch));
+        assert_eq!(Cookie::parse_rfc6265bis("__SECURE-a=b"), Err(ParseError::PrefixMismatch));
+        assert!(Cookie::parse_rfc6265bis("__Secure-a=b; Secure").is_ok());
+
+        for s in ["__Host-a=b", "__Host-a=b; Path=/x", "__Host-a=b; Domain=x.com"] {
+            assert!(Cookie::parse_rfc6265bis(s).is_ok(), "{s}");
+        }
+    }
+
+    /// Test cases from the web-platform-tests in `cookies/`.. Each WPT test
+    /// sets cookies through `Set-Cookie` headers. Here, the header is parsed
+    /// on its own and the result compared to what the test expects to be stored.
+    mod rfc6265bis_wpt {
+        use std::time::Duration;
+        use crate::{Cookie, ParseError};
+
+        fn name_value(s: &str) -> Option<(String, String)> {
+            Cookie::parse_rfc6265bis(s).ok().map(|c| (c.name().into(), c.value().into()))
+        }
+
+        fn nameless(value: &str) -> Option<(String, String)> {
+            Some((String::new(), value.into()))
+        }
+
+        // `cookieStringWithNameAndValueLengths()` from `cookie-test.js`.
+        fn sized(name: usize, value: usize) -> String {
+            format!("{}={}", "t".repeat(name), "1".repeat(value))
+        }
+
+        /// cookies/name/name.html
+        #[test]
+        fn name() {
+            assert_eq!(name_value("=test=2"), nameless("test=2"));
+            assert_eq!(name_value("===test=2b"), nameless("==test=2b"));
+            assert_eq!(name_value("=test2c"), nameless("test2c"));
+            assert_eq!(name_value("test6;cool=dude"), nameless("test6"));
+            assert_eq!(name_value("\"test9;test\"=9"), nameless("\"test9"));
+            assert_eq!(name_value("\"test\"10;baz\"=qux"), nameless("\"test\"10"));
+            assert_eq!(name_value("=test=11"), nameless("test=11"));
+            assert_eq!(name_value("test11"), nameless("test11"));
+            assert_eq!(name_value("test11a"), nameless("test11a"));
+            assert_eq!(name_value("=test11b"), nameless("test11b"));
+            assert_eq!(name_value("test=11c"), Some(("test".into(), "11c".into())));
+            assert_eq!(name_value("=test16"), nameless("test16"));
+            assert_eq!(name_value("test17a"), nameless("test17a"));
+            assert_eq!(name_value("test17b"), nameless("test17b"));
+
+            // "Ignore nameless cookies that impersonate cookie prefixes"
+            for s in ["=__Secure-abc=123", "=__Host-abc=123", "=__SeCuRe-abc=123",
+                "=__HoSt-abc=123", "__Secure-abc", "__Host-abc", "__SeCuRe-abc",
+                "__HoSt-abc"]
+            {
+                assert_eq!(Cookie::parse_rfc6265bis(s), Err(ParseError::EmptyName), "{s}");
+            }
+
+            // "Ignore cookie with empty name and empty value"
+            assert_eq!(Cookie::parse_rfc6265bis("="), Err(ParseError::MissingPair));
+            // "Ignore cookie with no name or value"
+            assert_eq!(Cookie::parse_rfc6265bis(""), Err(ParseError::MissingPair));
+        }
+
+        /// cookies/value/value.html
+        #[test]
+        fn value() {
+            assert_eq!(name_value("test7"), nameless("test7"));
+            assert_eq!(name_value("\"test8\"HHH\""), nameless("\"test8\"HHH\""));
+            assert_eq!(name_value("=test10"), nameless("test10"));
+            assert_eq!(name_value(" test test28 ;"), nameless("test test28"));
+
+            // "Set cookie with large name + value ( = 4kb)"
+            let s = format!("test=11{}", "a".repeat(4090));
+            assert!(Cookie::parse_rfc6265bis(&s).is_ok());
+            // "Ignore cookie with large name + value ( > 4kb)"
+            let s = format!("test=12{}", "a".repeat(4091));
+            assert_eq!(Cookie::parse_rfc6265bis(&s), Err(ParseError::TooLarge));
+        }
+
+        /// cookies/attributes/invalid.html
+        #[test]
+        fn invalid() {
+            assert_eq!(name_value("test22"), nameless("test22"));
+            assert_eq!(Cookie::parse_rfc6265bis("="), Err(ParseError::MissingPair));
+            assert_eq!(name_value("testA23"), nameless("testA23"));
+            assert_eq!(Cookie::parse_rfc6265bis("; testB23"), Err(ParseError::MissingPair));
+            assert_eq!(name_value("test24"), nameless("test24"));
+            assert_eq!(Cookie::parse_rfc6265bis("   "), Err(ParseError::MissingPair));
+            assert_eq!(name_value("test25"), nameless("test25"));
+            assert_eq!(Cookie::parse_rfc6265bis("\t"), Err(ParseError::MissingPair));
+        }
+
+        /// cookies/attributes/max-age.html
+        #[test]
+        fn max_age() {
+            let c = Cookie::parse_rfc6265bis("test=\"9! = foo;bar\";\" parser; max-age=6").unwrap();
+            assert_eq!(c.name_value(), ("test", "\"9! = foo"));
+            assert_eq!(c.max_age(), Some(Duration::from_secs(6)));
+
+            let c = Cookie::parse_rfc6265bis("test9; max-age=2.63,").unwrap();
+            assert_eq!(c.name_value(), ("", "test9"));
+            assert_eq!(c.max_age(), None);
+        }
+
+        /// cookies/attributes/resources/domain-child.sub.html
+        #[test]
+        fn domain() {
+            // "Cookie returned for bare domain attribute following mismatched
+            // domain attribute", "Empty domain treated as host cookie 1/2"
+            let c = Cookie::parse_rfc6265bis("test=42; domain=www1.example.com; domain=").unwrap();
+            assert_eq!(c.domain(), Some(""));
+            let c = Cookie::parse_rfc6265bis("test=47b; domain=www1.example.com; domain").unwrap();
+            assert_eq!(c.domain(), Some(""));
+
+            // "No cookie returned for domain with single dot ('.') value."
+            // The cookie is host-only, so it is not returned to a subdomain.
+            let c = Cookie::parse_rfc6265bis("test=46; domain=.").unwrap();
+            assert_eq!(c.domain(), Some(""));
+
+            // "Return cookie with valid domain after domain with single dot"
+            let c = Cookie::parse_rfc6265bis("test=46b; domain=.; domain=example.com").unwrap();
+            assert_eq!(c.domain(), Some("example.com"));
+
+            // RFC 6265bis 5.6.3 step 3: the domain is lower-cased.
+            let c = Cookie::parse_rfc6265bis("test=1; domain=.EXAMPLE.com").unwrap();
+            assert_eq!(c.domain(), Some("example.com"));
+        }
+
+        /// cookies/size/name-and-value.html
+        #[test]
+        fn size_name_and_value() {
+            assert!(Cookie::parse_rfc6265bis(&sized(2048, 2048)).is_ok());
+            assert_eq!(Cookie::parse_rfc6265bis(&sized(4097, 1)), Err(ParseError::TooLarge));
+            assert!(Cookie::parse_rfc6265bis(&sized(4096, 0)).is_ok());
+            assert_eq!(Cookie::parse_rfc6265bis(&sized(4097, 0)), Err(ParseError::TooLarge));
+            assert!(Cookie::parse_rfc6265bis(&sized(1, 4095)).is_ok());
+            assert_eq!(Cookie::parse_rfc6265bis(&sized(1, 4096)), Err(ParseError::TooLarge));
+            assert_eq!(Cookie::parse_rfc6265bis(&sized(4096, 1)), Err(ParseError::TooLarge));
+            assert_eq!(name_value(&sized(0, 4096)), nameless(&"1".repeat(4096)));
+            assert_eq!(Cookie::parse_rfc6265bis(&sized(0, 4097)), Err(ParseError::TooLarge));
+            assert_eq!(Cookie::parse_rfc6265bis(&sized(0, 4097)[1..]), Err(ParseError::TooLarge));
+            assert!(Cookie::parse_rfc6265bis(&format!("{}; Max-Age:43110;", sized(2048, 2048))).is_ok());
+        }
+
+        /// cookies/size/attributes.www.sub.html
+        #[test]
+        fn size_attributes() {
+            let e = |n| "e".repeat(n);
+            let a = |n| "a".repeat(n);
+
+            // Path
+            let s = format!("test=1; path=/cookies/size; path=/cookies/siz{}", e(1024));
+            assert_eq!(Cookie::parse_rfc6265bis(&s).unwrap().path(), Some("/cookies/size"));
+            let s = format!("test=2; path=/cookies/siz{}; path=/cookies/size", e(1024));
+            assert_eq!(Cookie::parse_rfc6265bis(&s).unwrap().path(), Some("/cookies/size"));
+            let s = format!("test=3; path=/{};", a(1023));
+            assert_eq!(Cookie::parse_rfc6265bis(&s).unwrap().path().map(str::len), Some(1024));
+            let s = format!("test=4; path=/{};", a(1024));
+            assert_eq!(Cookie::parse_rfc6265bis(&s).unwrap().path(), None);
+
+            // Domain
+            let s = format!("test=5; domain=example.com; domain={}.com", a(1024));
+            assert_eq!(Cookie::parse_rfc6265bis(&s).unwrap().domain(), Some("example.com"));
+            let s = format!("test=6; domain={}.com; domain=example.com", a(1024));
+            assert_eq!(Cookie::parse_rfc6265bis(&s).unwrap().domain(), Some("example.com"));
+            let s = format!("test=7; domain={}.com;", a(1020));
+            assert_eq!(Cookie::parse_rfc6265bis(&s).unwrap().domain().map(str::len), Some(1024));
+            let s = format!("test=8; domain={}.com;", a(1021));
+            assert_eq!(Cookie::parse_rfc6265bis(&s).unwrap().domain(), None);
+
+            // "Set cookie with max size name/value pair and multiple max size
+            // attributes (>8k bytes total)"
+            let s = format!("{}{}; domain=example.com", sized(2048, 2048),
+                format!("; domain={}.com", a(1020)).repeat(4));
+            assert_eq!(Cookie::parse_rfc6265bis(&s).unwrap().domain(), Some("example.com"));
+
+            // Max-Age
+            let s = format!("test=11; max-age={};", "1".repeat(1024));
+            assert!(Cookie::parse_rfc6265bis(&s).unwrap().max_age().is_some());
+            let s = format!("test=12; max-age={};", "1".repeat(1025));
+            assert_eq!(Cookie::parse_rfc6265bis(&s).unwrap().max_age(), None);
+            let s = format!("test=13; max-age=-{};", "1".repeat(1023));
+            assert_eq!(Cookie::parse_rfc6265bis(&s).unwrap().max_age(), Some(Duration::ZERO));
+            let s = format!("test=14; max-age=-{};", "1".repeat(1024));
+            assert_eq!(Cookie::parse_rfc6265bis(&s).unwrap().max_age(), None);
+        }
     }
 }
