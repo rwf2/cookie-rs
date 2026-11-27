@@ -110,7 +110,7 @@ use std::fmt;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
-use crate::parse::{parse_cookie, trim};
+use crate::parse::{parse_cookie, trim, Rules};
 pub use crate::parse::ParseError;
 pub use crate::builder::CookieBuilder;
 pub use crate::jar::{CookieJar, Delta, Iter};
@@ -395,7 +395,53 @@ impl<'c> Cookie<'c> {
     pub fn parse<S>(s: S) -> Result<Cookie<'c>, ParseError>
         where S: Into<Cow<'c, str>>
     {
-        parse_cookie(s.into(), false)
+        parse_cookie(s.into(), false, Rules::Rfc6265)
+    }
+
+    /// Parses a `Cookie` from the given `Set-Cookie` header value string as
+    /// specified by the [parsing algorithm] of RFC 6265bis. Does not perform
+    /// any percent-decoding, which the algorithm forbids.
+    ///
+    /// Unlike [`Cookie::parse()`], this method:
+    ///
+    ///   * accepts a nameless cookie, i.e, `value` or `=value`, but rejects one
+    ///     whose name and value are both empty or whose value starts with
+    ///     `__Secure-` or `__Host-`,
+    ///   * rejects a cookie whose name and value exceed 4096 octets,
+    ///   * ignores any attribute whose value exceeds 1024 octets,
+    ///   * lets an empty `Domain` override an earlier one, so that the cookie
+    ///     is host-only, and lower-cases the domain,
+    ///   * sets `path()` to `Some("")` when the last `Path` is empty or does
+    ///     not start with `/`, meaning the default-path should be used, and
+    ///     leaves it `None` when there is no `Path` attribute,
+    ///   * sets `same_site()` to `None`, the default, when the last `SameSite`
+    ///     is missing a value or has an invalid one,
+    ///   * applies the checks of the [storage model] that need only the cookie
+    ///     itself: it rejects a cookie whose `Domain` is not ASCII, one with
+    ///     `SameSite=None` that is not `Secure`, and a `__Secure-` cookie that
+    ///     is not `Secure`.
+    ///
+    /// Checks that depend on the request or the cookie store are left to the
+    /// user agent. Furthermore, a [lifetime limit] (recommended 400 days) on
+    /// `Expires` and `Max-Age` is not enforced and up to the user agent.
+    ///
+    /// [parsing algorithm]: https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis-22#section-5.6
+    /// [storage model]: https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis-22#section-5.7
+    /// [lifetime limit]: https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis-22#section-5.5
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cookie::Cookie;
+    ///
+    /// let c = Cookie::parse_rfc6265bis("value; Domain=example.com; Domain=").unwrap();
+    /// assert_eq!(c.name_value(), ("", "value"));
+    /// assert_eq!(c.domain(), Some(""));
+    /// ```
+    pub fn parse_rfc6265bis<S>(s: S) -> Result<Cookie<'c>, ParseError>
+        where S: Into<Cow<'c, str>>
+    {
+        parse_cookie(s.into(), false, Rules::Rfc6265bis)
     }
 
     /// Parses a `Cookie` from the given HTTP cookie header value string where
@@ -429,7 +475,7 @@ impl<'c> Cookie<'c> {
     pub fn parse_encoded<S>(s: S) -> Result<Cookie<'c>, ParseError>
         where S: Into<Cow<'c, str>>
     {
-        parse_cookie(s.into(), true)
+        parse_cookie(s.into(), true, Rules::Rfc6265)
     }
 
     /// Parses the HTTP `Cookie` header, a series of cookie names and value
@@ -1686,8 +1732,8 @@ impl<'c> Iterator for SplitCookies<'c> {
             }
 
             return Some(match self.string {
-                Cow::Borrowed(s) => parse_cookie(trim(&s[i..j]), self.decode),
-                Cow::Owned(ref s) => parse_cookie(trim(&s[i..j]).to_owned(), self.decode),
+                Cow::Borrowed(s) => parse_cookie(trim(&s[i..j]), self.decode, Rules::Rfc6265),
+                Cow::Owned(ref s) => parse_cookie(trim(&s[i..j]).to_owned(), self.decode, Rules::Rfc6265),
             })
         }
 
